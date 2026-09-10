@@ -144,7 +144,7 @@ export default function Result() {
   const [saveMsg, setSaveMsg] = useState("");
   const [downloadFormat, setDownloadFormat] = useState<DownloadFormat>("pdf");
   const [downloading, setDownloading] = useState(false);
-  const { providers, provider, setProvider } = useModels();
+  const { groups, selection, setSelection } = useModels();
 
   const applyFull = (d: EvalData) => {
     setData(d);
@@ -202,7 +202,14 @@ export default function Result() {
     setReText("");
     try {
       await streamEvaluate(
-        { resume, jobTitle, jobDescription, jobUrl, provider },
+        {
+          resume,
+          jobTitle,
+          jobDescription,
+          jobUrl,
+          provider: selection?.provider,
+          model: selection?.model,
+        },
         (text) => setReText(text),
         (result) => {
           setData({
@@ -426,7 +433,7 @@ export default function Result() {
             />
           </div>
 
-          <ModelSelect providers={providers} value={provider} onChange={setProvider} />
+          <ModelSelect groups={groups} value={selection} onChange={setSelection} />
 
           <div className="editor-actions">
             <button

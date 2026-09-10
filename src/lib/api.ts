@@ -4,6 +4,7 @@ export interface EvalPayload {
   jobDescription: string;
   jobUrl?: string;
   provider?: string;
+  model?: string;
 }
 
 export interface EvalResult {

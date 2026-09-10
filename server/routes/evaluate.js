@@ -1,6 +1,7 @@
 import { Router } from "express";
 import db from "../db.js";
-import { callLLM, callLLMStream, listProviders } from "../llm.js";
+import { callLLM, callLLMStream } from "../llm.js";
+import { listProviders, defaultModel } from "../models.js";
 import { saveEvaluation } from "../store.js";
 import { getPersonKey, getPersonName } from "../person.js";
 import { requireAuth } from "../auth.js";
@@ -11,21 +12,28 @@ const router = Router();
 // 所有评估相关接口都需要登录
 router.use(requireAuth);
 
-// 已配置的模型提供商列表
+// 已配置的提供商与可选模型
 router.get("/models", (req, res) => {
   const providers = listProviders();
   const preferred = (process.env.LLM_PROVIDER || "").trim().toLowerCase();
-  const def = providers.some((p) => p.provider === preferred)
-    ? preferred
-    : providers[0]?.provider || null;
+  const pref = providers.find((p) => p.provider === preferred) || providers[0];
+  const def = pref
+    ? { provider: pref.provider, model: defaultModel(pref.provider) || pref.models[0].id }
+    : null;
   res.json({ providers, default: def });
 });
 
-function resolveProvider(requested) {
-  const providers = listProviders();
-  if (!providers.length) return undefined;
-  if (requested && providers.some((p) => p.provider === requested)) return requested;
-  return undefined;
+// 解析请求中的 provider/model，非法则回退默认
+function resolveOverride(body) {
+  const provider = body?.provider;
+  if (!provider) return undefined;
+  const group = listProviders().find((p) => p.provider === provider);
+  if (!group) return undefined;
+  const model =
+    body?.model && group.models.some((m) => m.id === body.model)
+      ? body.model
+      : defaultModel(provider);
+  return { provider, model };
 }
 
 const MAX_RESUME = 40000;
@@ -56,7 +64,7 @@ router.post("/evaluate", async (req, res) => {
     return res.status(400).json({ error: invalid });
   }
 
-  const chosenProvider = resolveProvider(provider);
+  const override = resolveOverride(req.body);
 
   const quota = consumeQuota(req.user.id);
   if (!quota.allowed) {
@@ -91,7 +99,7 @@ router.post("/evaluate", async (req, res) => {
             res.write(`data: ${JSON.stringify({ chunk, done: false })}\n\n`);
           },
           controller.signal,
-          chosenProvider
+          override
         );
       } catch (error) {
         if (controller.signal.aborted) {
@@ -109,7 +117,7 @@ router.post("/evaluate", async (req, res) => {
             jobTitle,
             jobDescription || "",
             controller.signal,
-            chosenProvider
+            override
           );
           fullText = report;
           res.write(`data: ${JSON.stringify({ chunk: report, done: false })}\n\n`);
@@ -156,7 +164,7 @@ router.post("/evaluate", async (req, res) => {
         jobTitle,
         jobDescription || "",
         controller.signal,
-        chosenProvider
+        override
       );
       const score = extractScore(report);
       const id = saveEvaluation(

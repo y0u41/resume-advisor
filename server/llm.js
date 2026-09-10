@@ -1,17 +1,17 @@
 import { SYSTEM_PROMPT, buildEvaluatePrompt } from "./prompt.js";
 
-const LLM_TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS || 120000);
-const STREAM_IDLE_MS = Number(process.env.LLM_STREAM_IDLE_MS || 45000);
+const LLM_TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS || 180000);
+const STREAM_IDLE_MS = Number(process.env.LLM_STREAM_IDLE_MS || 60000);
 
-function getConfig(providerOverride) {
-  const provider = (providerOverride || process.env.LLM_PROVIDER || "").trim().toLowerCase();
+function getConfig(override) {
+  const provider = (override?.provider || process.env.LLM_PROVIDER || "").trim().toLowerCase();
 
   // 多提供商模式：LLM_PROVIDER=deepseek / bigmodel ...
   if (provider) {
     const prefix = provider.toUpperCase();
     const apiKey = process.env[`${prefix}_API_KEY`];
     const baseUrl = process.env[`${prefix}_BASE_URL`];
-    const model = process.env[`${prefix}_MODEL`];
+    const model = override?.model || process.env[`${prefix}_MODEL`];
     if (!apiKey || !baseUrl || !model) {
       throw new Error(
         `未正确配置模型提供商「${provider}」：请在 .env 设置 ${prefix}_API_KEY / ${prefix}_BASE_URL / ${prefix}_MODEL`
@@ -23,27 +23,15 @@ function getConfig(providerOverride) {
   // 兼容旧配置
   const apiKey = process.env.LLM_API_KEY;
   const baseUrl = process.env.LLM_BASE_URL || "https://api.deepseek.com";
-  const model = process.env.LLM_MODEL || "deepseek-v4-flash";
+  const model = override?.model || process.env.LLM_MODEL || "deepseek-v4-flash";
   if (!apiKey) {
     throw new Error("未配置 LLM_API_KEY，请在 .env 文件中设置");
   }
   return { provider: "default", apiKey, baseUrl: baseUrl.replace(/\/+$/, ""), model };
 }
 
-// 列出已配置（有 Key）的提供商
-const KNOWN_PROVIDERS = ["deepseek", "bigmodel"];
-export function listProviders() {
-  return KNOWN_PROVIDERS.map((name) => {
-    const prefix = name.toUpperCase();
-    const apiKey = process.env[`${prefix}_API_KEY`];
-    const baseUrl = process.env[`${prefix}_BASE_URL`];
-    const model = process.env[`${prefix}_MODEL`];
-    return apiKey && baseUrl && model ? { provider: name, model } : null;
-  }).filter(Boolean);
-}
-
-export function getProviderInfo(providerOverride) {
-  const { provider, baseUrl, model } = getConfig(providerOverride);
+export function getProviderInfo(override) {
+  const { provider, baseUrl, model } = getConfig(override);
   return { provider, baseUrl, model };
 }
 
@@ -77,8 +65,8 @@ async function assertOk(response) {
   throw new Error(`LLM API 调用失败 (${response.status}): ${error.slice(0, 500)}`);
 }
 
-export async function callLLM(resume, jobTitle, jobDescription, externalSignal, providerOverride) {
-  const { apiKey, baseUrl, model } = getConfig(providerOverride);
+export async function callLLM(resume, jobTitle, jobDescription, externalSignal, override) {
+  const { apiKey, baseUrl, model } = getConfig(override);
   const { signal, cleanup } = withTimeout(externalSignal, LLM_TIMEOUT_MS);
 
   try {
@@ -109,8 +97,8 @@ export async function callLLM(resume, jobTitle, jobDescription, externalSignal, 
   }
 }
 
-export async function callLLMStream(resume, jobTitle, jobDescription, onChunk, externalSignal, providerOverride) {
-  const { apiKey, baseUrl, model } = getConfig(providerOverride);
+export async function callLLMStream(resume, jobTitle, jobDescription, onChunk, externalSignal, override) {
+  const { apiKey, baseUrl, model } = getConfig(override);
 
   const controller = new AbortController();
   const totalTimer = setTimeout(() => controller.abort(new Error("LLM 请求超时")), LLM_TIMEOUT_MS);
@@ -208,8 +196,8 @@ const JD_EXTRACT_PROMPT = `你是一个招聘信息抽取助手。用户会给�
 - 条目化、简洁，不要大段照抄无关文字
 - 如果文本不是招聘信息，就提炼其中最像岗位要求的部分`;
 
-export async function extractJobInfo(rawText, externalSignal, providerOverride) {
-  const { apiKey, baseUrl, model } = getConfig(providerOverride);
+export async function extractJobInfo(rawText, externalSignal, override) {
+  const { apiKey, baseUrl, model } = getConfig(override);
   const { signal, cleanup } = withTimeout(externalSignal, LLM_TIMEOUT_MS);
 
   try {

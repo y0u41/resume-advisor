@@ -16,7 +16,7 @@ export default function Home() {
   const [streaming, setStreaming] = useState(false);
   const [streamText, setStreamText] = useState("");
   const navigate = useNavigate();
-  const { providers, provider, setProvider } = useModels();
+  const { groups, selection, setSelection } = useModels();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,7 +28,14 @@ export default function Home() {
 
     try {
       await streamEvaluate(
-        { resume, jobTitle, jobDescription, jobUrl, provider },
+        {
+          resume,
+          jobTitle,
+          jobDescription,
+          jobUrl,
+          provider: selection?.provider,
+          model: selection?.model,
+        },
         (text) => setStreamText(text),
         (result) => {
           navigate(`/result/${result.id || "latest"}`, {
@@ -109,7 +116,7 @@ export default function Home() {
             </p>
           </div>
 
-          <ModelSelect providers={providers} value={provider} onChange={setProvider} />
+          <ModelSelect groups={groups} value={selection} onChange={setSelection} />
 
           <button
             type="submit"

@@ -87,7 +87,16 @@ BIGMODEL_MODEL=glm-4.7-flash
 
 **接入其它服务**：设 `LLM_PROVIDER=<名字>`，再配置 `<名字>_API_KEY` / `<名字>_BASE_URL` / `<名字>_MODEL`（前缀大写）。
 
-**界面切换**：当配置了多家提供商时，评估页与「编辑简历」面板会出现「模型」下拉框，可**对每次评估自由选择**用哪家，选择会记住。`LLM_PROVIDER` 仅作为默认值。
+**界面切换**：评估页与「编辑简历」面板会出现「模型」下拉框，**按提供商分组**，可对每次评估自由选择具体模型，选择会记住。`LLM_PROVIDER` 仅作为默认值。
+
+**自定义可选模型**：用 `<PROVIDER>_MODELS=id1,id2` 覆盖内置目录，例如：
+
+```env
+BIGMODEL_MODELS=glm-4.7-flash,glm-4.6,glm-5.3
+DEEPSEEK_MODELS=deepseek-v4-flash,deepseek-v4-pro
+```
+
+> 提示：大模型（`glm-4.6` / `glm-5.3`）较慢，完整评估可能需 1~2 分钟，可调大 `LLM_TIMEOUT_MS`；免费模型（`*-flash`）偶发 `429 访问量过大`，稍等重试即可。
 
 ## 常用脚本
 
