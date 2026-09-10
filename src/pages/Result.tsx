@@ -3,6 +3,7 @@ import { useParams, useLocation, Link } from "react-router-dom";
 import UrlFetch from "../components/UrlFetch";
 import UserBar from "../components/UserBar";
 import ModelSelect from "../components/ModelSelect";
+import Logo from "../components/Logo";
 import { streamEvaluate } from "../lib/api";
 import { downloadReport, type DownloadFormat } from "../lib/download";
 import { useModels } from "../lib/models";
@@ -326,7 +327,10 @@ export default function Result() {
     <div className="container">
       <div className="header">
         <UserBar />
-        <h1>评估报告</h1>
+        <div className="brand">
+          <Logo size={36} />
+          <h1>评估报告</h1>
+        </div>
         <nav className="nav">
           <Link to="/" onClick={guardUnsaved}>
             新建评估

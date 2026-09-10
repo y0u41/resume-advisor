@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 import UserBar from "../components/UserBar";
+import Logo from "../components/Logo";
 import { useAuth } from "../lib/auth";
 
 interface AdminUser {
@@ -47,7 +48,10 @@ export default function Admin() {
     <div className="container">
       <div className="header">
         <UserBar />
-        <h1>用户管理</h1>
+        <div className="brand">
+          <Logo size={36} />
+          <h1>用户管理</h1>
+        </div>
         <nav className="nav">
           <Link to="/">评估简历</Link>
           <Link to="/history">历史记录</Link>

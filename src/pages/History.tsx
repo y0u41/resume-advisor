@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import UserBar from "../components/UserBar";
+import Logo from "../components/Logo";
 
 interface EvalRecord {
   id: number;
@@ -49,7 +50,10 @@ export default function History() {
     <div className="container">
       <div className="header">
         <UserBar />
-        <h1>历史记录</h1>
+        <div className="brand">
+          <Logo size={36} />
+          <h1>历史记录</h1>
+        </div>
         <nav className="nav">
           <Link to="/">评估简历</Link>
           <Link to="/history">历史记录</Link>

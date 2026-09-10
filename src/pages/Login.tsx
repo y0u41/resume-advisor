@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate, Navigate } from "react-router-dom";
 import { useAuth } from "../lib/auth";
+import Logo from "../components/Logo";
 
 export default function Login() {
   const { user, login, register } = useAuth();
@@ -54,7 +55,10 @@ export default function Login() {
   return (
     <div className="container login-container">
       <div className="header">
-        <h1>简历评估助手</h1>
+        <div className="brand">
+          <Logo size={52} />
+          <h1>简历评估助手</h1>
+        </div>
         <p>贴简历 + 说岗位 → 得分 + 挑刺 + 改法</p>
       </div>
 

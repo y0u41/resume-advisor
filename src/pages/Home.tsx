@@ -4,6 +4,7 @@ import FileUpload from "../components/FileUpload";
 import UrlFetch from "../components/UrlFetch";
 import UserBar from "../components/UserBar";
 import ModelSelect from "../components/ModelSelect";
+import Logo from "../components/Logo";
 import { streamEvaluate } from "../lib/api";
 import { useModels } from "../lib/models";
 import { SAMPLE_RESUME, SAMPLE_JOB_TITLE, SAMPLE_JD } from "../lib/sample";
@@ -76,7 +77,10 @@ export default function Home() {
     <div className="container">
       <div className="header">
         <UserBar />
-        <h1>📋 简历评估助手</h1>
+        <div className="brand">
+          <Logo size={46} />
+          <h1>简历评估助手</h1>
+        </div>
         <p>贴简历 + 说岗位 → 得分 + 挑刺 + 改法</p>
         <nav className="nav">
           <Link to="/">评估简历</Link>
