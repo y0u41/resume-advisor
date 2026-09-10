@@ -62,3 +62,20 @@ export function defaultModel(provider) {
   if (envModel && isModelAllowed(provider, envModel)) return envModel;
   return modelsFor(provider)[0]?.id;
 }
+
+// 各提供商的视觉（多模态）模型，用于图片/扫描版简历的 OCR
+const VISION_MODELS = {
+  deepseek: "deepseek-v4-flash-vision-exp",
+  bigmodel: "glm-5.3-flash",
+};
+
+// 选一个已配置且支持视觉的模型
+export function getVisionOverride() {
+  for (const p of listProviders()) {
+    const m = VISION_MODELS[p.provider];
+    if (m && p.models.some((x) => x.id === m)) {
+      return { provider: p.provider, model: m };
+    }
+  }
+  return undefined;
+}

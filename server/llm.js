@@ -512,3 +512,45 @@ export async function directionsStream(params, onChunk, externalSignal, override
     if (externalSignal) externalSignal.removeEventListener("abort", onAbort);
   }
 }
+
+const OCR_SYSTEM_PROMPT = `你是一个 OCR 助手。请准确提取图片中的全部文字，并保持原有结构（分节标题、换行、项目符号、时间线等）。只输出提取到的文字，不要添加任何解释、评论或额外说明。如果图片不是文档，就提取其中所有可读的文字。`;
+
+// 图片 OCR：把一张图片（data URL）交给视觉模型，返回识别出的文字
+export async function ocrImage(dataUrl, externalSignal, override) {
+  const { apiKey, baseUrl, model } = getConfig(override);
+  const { signal, cleanup } = withTimeout(externalSignal, LLM_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(`${baseUrl}/chat/completions`, {
+      method: "POST",
+      signal,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: "system", content: OCR_SYSTEM_PROMPT },
+          {
+            role: "user",
+            content: [
+              { type: "text", text: "请提取这张图片里的全部文字。" },
+              { type: "image_url", image_url: { url: dataUrl } },
+            ],
+          },
+        ],
+        temperature: 0,
+        max_tokens: 4096,
+      }),
+    });
+
+    await assertOk(response);
+    const data = await response.json();
+    const content = data?.choices?.[0]?.message?.content;
+    if (typeof content !== "string") throw new Error("OCR 未返回内容");
+    return content.trim();
+  } finally {
+    cleanup();
+  }
+}

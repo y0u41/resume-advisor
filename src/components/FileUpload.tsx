@@ -58,7 +58,7 @@ export default function FileUpload({ onText, label = "上传文件" }: Props) {
       <input
         ref={inputRef}
         type="file"
-        accept=".pdf,.docx,.doc,.txt,.md"
+        accept=".pdf,.docx,.doc,.txt,.md,.jpg,.jpeg,.png,.webp"
         style={{ display: "none" }}
         onChange={(e) => {
           const f = e.target.files?.[0];
@@ -78,7 +78,7 @@ export default function FileUpload({ onText, label = "上传文件" }: Props) {
       )}
 
       {filename && !uploading && <span className="file-name">已导入：{filename}</span>}
-      <span className="dropzone-hint">支持 PDF / Word / TXT，单个 ≤ 10MB</span>
+      <span className="dropzone-hint">支持 PDF / Word / 图片（自动识别）/ TXT，单个 ≤ 10MB</span>
     </div>
   );
 }
