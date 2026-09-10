@@ -1,25 +1,29 @@
 # 简历评估助手
 
-贴简历 + 说岗位 → AI 给出 0-10 分评分、逐条挑刺、给出改法，并对照 JD 展示岗位匹配度。
+面向求职者（尤其应届生）的求职全流程工具：**贴简历 + 说岗位 → 评分、挑刺、改法、岗位匹配**，并覆盖「没简历→评估→多岗对比→改简历→面试准备」的完整闭环。
 
 ## 功能
 
 - **简历评估**：十分制评分、一句话结论、岗位匹配对照、三大优点、问题清单、逐条改法、AI 修改建议、关键词补齐、可继续增强的方向
 - **岗位匹配对照**：逐条对照 JD，用 ✅ / ⚠️ / ❌ 标注，并计算匹配度进度条
+- **ATS 关键词覆盖**：报告「关键词补齐」以红色关键词标签展示，一眼看清该补哪些词
 - **应届生模式**：按应届生标准评估，不因缺经验扣分，重点看项目 / 实习 / 竞赛 / 潜力
 - **继续追问**：针对报告反复打磨具体段落（重写自我评价、项目改 STAR、应届生补强等）
 - **多岗位对比**：一份简历同时对比多个 JD，按评分排序给出匹配度与结论
-- **简历模板**：两套视觉模板（单栏经典 / 左右分栏）× 三种内容顺序，可插证件照，导出 PDF/Word/TXT/MD
+- **模拟面试**：根据简历 + JD 生成面试题、回答思路、项目深挖题与自我介绍，可下载
+- **岗位方向推荐**：不知道该投什么？根据简历推荐 3-5 个适合的岗位方向（含理由与关键词）
+- **简历模板**：两套视觉模板（单栏经典 / 左右分栏）× 三种内容顺序，可插证件照，**支持多版本管理**，导出 PDF/Word/TXT/MD
 - **多种录入方式**：直接粘贴、上传文件（PDF / DOCX / DOC / TXT / MD）、粘贴岗位链接**智能提取**岗位重点信息（岗位职责、任职要求、薪资待遇等，自动过滤导航/广告/推荐等噪声）
 - **流式输出**：评估过程实时显示
 - **修改与重评**：评估后可直接编辑简历 / 岗位 / JD 并重新评估
-- **多格式下载**：报告与简历均支持 PDF / Word / TXT / Markdown
+- **多格式下载**：报告、简历、面试准备、方向推荐均支持 PDF / Word / TXT / Markdown
 - **历史记录**：按人分组，同一人最多保留 12 次提交
 - **多用户**：邮箱注册 / 登录，数据按用户隔离，每人每日额度限制
 - **管理员**：可用用户名登录，拥有用户管理页（查看用户、用量）
 - **多模型**：内置 DeepSeek 与智谱 GLM，界面按提供商分组选择具体模型
 - **稳定与省心**：并发队列（超出排队）、结果缓存去重、失败自动重试、请求日志
 - **PWA**：手机浏览器可"添加到主屏幕"，像 App 一样使用
+- **体验细节**：全局 Toast、加载骨架屏、首次使用引导、移动端适配
 - **深色模式 / 品牌**：跟随系统 + 手动切换；「yu」图标与暖色调
 
 ## 技术栈
@@ -172,13 +176,16 @@ server/           后端
   store.js        评估保存 + 每人保留 12 条 + 缓存查询
   person.js       人物标识提取
   llm.js          LLM 调用（多提供商、超时、重试、校验）
-  prompt.js       人设与提示词
+  prompt.js       人设与提示词（评估 / 追问 / 面试 / 方向推荐）
   routes/         auth / evaluate / parse / fetch / admin 路由
+                  （evaluate 内含 evaluate / compare / followup / interview / directions）
   scripts/        create-admin
 src/              前端
   pages/          Login / Home / Result / History / Admin
-  components/     FileUpload / UrlFetch / UserBar / ModelSelect
-  lib/            auth / api / models / download / report
+                  Builder(简历模板) / Compare(多岗位对比) / Interview(模拟面试)
+                  Directions(岗位推荐) / Privacy(隐私政策)
+  components/     FileUpload / UrlFetch / UserBar / ModelSelect / Logo / ThemeToggle
+  lib/            auth / api / models / download / report / resumeTemplate / sample / toast / theme
 public/           PWA（manifest / sw.js / 图标）
 deploy/           Caddyfile
 ecosystem.config.cjs  pm2 配置
