@@ -203,3 +203,25 @@ export function compareStream(
     onDone: (data) => handlers.onDone(data.results || []),
   });
 }
+
+export function interviewStream(
+  payload: {
+    resume: string;
+    jobTitle: string;
+    jobDescription: string;
+    provider?: string;
+    model?: string;
+    candidateType?: string;
+  },
+  onChunk: (textSoFar: string) => void,
+  onDone: (text: string) => void,
+  onError: (message: string) => void,
+  onQueued?: (position: number) => void
+): Promise<void> {
+  return postStream("/api/interview", payload, {
+    onChunk,
+    onQueued,
+    onError,
+    onDone: (data, fullText) => onDone(data.text ?? fullText),
+  });
+}

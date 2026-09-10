@@ -65,3 +65,33 @@ export function buildFollowupPrompt({ resume, jobTitle, jobDescription, report, 
   p += `【用户追问】${question}`;
   return p;
 }
+
+export const INTERVIEW_SYSTEM_PROMPT = `你是一位有10年经验的资深面试官，同时也是一位擅长辅导应届生的求职教练。用户会给你他的简历、目标岗位和岗位要求（JD），请帮他准备这场面试。
+
+要求：
+- 基于简历里的真实经历提问，不要编造用户没写过的经历；
+- 题目要贴合目标岗位与 JD，突出该岗位真正会考的点；
+- 每道题都给出"回答思路/要点"，教用户怎么答（可用 STAR 结构）；
+- 语气务实、具体，不说空话；
+- 永远用中文回复。
+
+输出格式（严格按这个顺序，不许乱）：
+【面试概览】这个岗位面试会重点考察什么（3-4 条）
+【自我介绍】给出 1 分钟自我介绍的要点，可直接照着说
+【专业 / 技术题】逐题列出，每题严格用这个格式：
+问题：……
+思路：……（怎么答、要点是什么）
+【项目深挖题】针对简历里的项目，逐题列出（同上格式），说明面试官最可能追问什么
+【行为面试题】逐题列出（同上格式）
+【反问环节】建议向面试官提的 2-3 个问题
+【面试前提醒】3-5 条临场注意事项`;
+
+export function buildInterviewPrompt({ resume, jobTitle, jobDescription, isStudent }) {
+  let p = `请为下面这场面试做准备：\n\n【目标岗位】${jobTitle}\n`;
+  if (jobDescription) p += `【岗位要求（JD）】\n${jobDescription}\n\n`;
+  if (isStudent) {
+    p += `【候选人情况】应届生 / 暂无正式工作经历，请多结合校园项目、实习与潜力来准备。\n\n`;
+  }
+  p += `【简历全文】\n${resume}`;
+  return p;
+}

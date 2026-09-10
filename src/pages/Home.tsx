@@ -117,6 +117,7 @@ export default function Home() {
           <Link to="/">评估简历</Link>
           <Link to="/builder">简历模板</Link>
           <Link to="/compare">多岗位对比</Link>
+          <Link to="/interview">模拟面试</Link>
           <Link to="/history">历史记录</Link>
           <button type="button" className="nav-btn" onClick={fillSample}>
             ✨ 试用示例

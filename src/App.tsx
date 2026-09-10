@@ -10,6 +10,7 @@ import Admin from "./pages/Admin";
 import Privacy from "./pages/Privacy";
 import Builder from "./pages/Builder";
 import Compare from "./pages/Compare";
+import Interview from "./pages/Interview";
 
 function Protected({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
@@ -74,6 +75,14 @@ export default function App() {
             element={
               <Protected>
                 <Compare />
+              </Protected>
+            }
+          />
+          <Route
+            path="/interview"
+            element={
+              <Protected>
+                <Interview />
               </Protected>
             }
           />

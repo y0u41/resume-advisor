@@ -199,3 +199,12 @@ export function downloadResume(
     format
   );
 }
+
+export function downloadText(
+  title: string,
+  body: string,
+  filename: string,
+  format: DownloadFormat
+) {
+  return downloadDocument({ title, body, filename }, format);
+}
