@@ -1,8 +1,14 @@
 import { useState } from "react";
-import { useNavigate, Navigate } from "react-router-dom";
+import { useNavigate, Navigate, Link } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import Logo from "../components/Logo";
 import ThemeToggle from "../components/ThemeToggle";
+
+const BENEFITS = [
+  { icon: "⚡", title: "几十秒出结果", desc: "贴完即评，实时流式输出，不用干等" },
+  { icon: "🎯", title: "对着 JD 挑刺", desc: "逐条对照岗位要求，指出具体哪句话不行" },
+  { icon: "🔒", title: "隐私可控", desc: "数据存在你自己的服务器，可随时删除" },
+];
 
 const FEATURES = [
   { icon: "🎯", title: "十分制评分", desc: "一句话说清为什么是这个分" },
@@ -138,6 +144,16 @@ export default function Login() {
           像一位挑剔又靠谱的资深 HR，几十秒帮你把简历改到能拿到面试。
         </p>
 
+        <div className="benefits">
+          {BENEFITS.map((b) => (
+            <div key={b.title} className="benefit">
+              <span className="benefit-ico">{b.icon}</span>
+              <b>{b.title}</b>
+              <span>{b.desc}</span>
+            </div>
+          ))}
+        </div>
+
         <ul className="features">
           {FEATURES.map((f) => (
             <li key={f.title} className="feature">
@@ -240,6 +256,16 @@ export default function Login() {
               )}
             </button>
           </form>
+
+          {mode === "register" && (
+            <p className="auth-consent">
+              注册即表示同意我们依据
+              <Link to="/privacy" target="_blank" rel="noreferrer">
+                《隐私政策》
+              </Link>
+              处理你的信息；评估时简历内容会发送给所选 AI 模型服务商。
+            </p>
+          )}
 
           <p className="auth-foot">
             {mode === "register" ? "已有账号？" : "还没有账号？"}
