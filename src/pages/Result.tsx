@@ -4,7 +4,7 @@ import UrlFetch from "../components/UrlFetch";
 import UserBar from "../components/UserBar";
 import ModelSelect from "../components/ModelSelect";
 import Logo from "../components/Logo";
-import { streamEvaluate } from "../lib/api";
+import { streamEvaluate, followUpStream } from "../lib/api";
 import { downloadReport, type DownloadFormat } from "../lib/download";
 import { useModels } from "../lib/models";
 import {
@@ -15,6 +15,14 @@ import {
   type MatchStatus,
 } from "../lib/report";
 
+const FOLLOWUP_CHIPS = [
+  "帮我把自我评价重写一版",
+  "把项目经历改成 STAR 格式",
+  "我是应届生，没实习经历怎么补强",
+  "帮我把简历精简到一页",
+  "针对这个岗位，最该补的技能是什么",
+];
+
 interface EvalData {
   id: number;
   resume: string;
@@ -23,6 +31,7 @@ interface EvalData {
   job_url: string;
   score: number | null;
   report: string;
+  candidate_type: string;
   created_at: string;
 }
 
@@ -136,6 +145,7 @@ export default function Result() {
   const [jobTitle, setJobTitle] = useState("");
   const [jobDescription, setJobDescription] = useState("");
   const [jobUrl, setJobUrl] = useState("");
+  const [isStudent, setIsStudent] = useState(false);
   const [showEditor, setShowEditor] = useState(false);
 
   const [reLoading, setReLoading] = useState(false);
@@ -146,6 +156,9 @@ export default function Result() {
   const [saveMsg, setSaveMsg] = useState("");
   const [downloadFormat, setDownloadFormat] = useState<DownloadFormat>("pdf");
   const [downloading, setDownloading] = useState(false);
+  const [followupQ, setFollowupQ] = useState("");
+  const [followupAnswer, setFollowupAnswer] = useState("");
+  const [followupLoading, setFollowupLoading] = useState(false);
   const { groups, selection, setSelection } = useModels();
 
   const applyFull = (d: EvalData) => {
@@ -154,6 +167,7 @@ export default function Result() {
     setJobTitle(d.job_title || "");
     setJobDescription(d.job_description || "");
     setJobUrl(d.job_url || "");
+    setIsStudent(d.candidate_type === "student");
   };
 
   useEffect(() => {
@@ -167,6 +181,7 @@ export default function Result() {
         job_url: stateData.jobUrl ?? "",
         score: stateData.score ?? null,
         report: stateData.report,
+        candidate_type: stateData.candidateType ?? "general",
         created_at: new Date().toISOString(),
       };
       setData(d);
@@ -174,6 +189,7 @@ export default function Result() {
       setJobTitle(d.job_title);
       setJobDescription(d.job_description);
       setJobUrl(d.job_url);
+      setIsStudent(d.candidate_type === "student");
       setLoading(false);
 
       if (!hasFull && id && id !== "latest") {
@@ -212,6 +228,7 @@ export default function Result() {
           jobUrl,
           provider: selection?.provider,
           model: selection?.model,
+          candidateType: isStudent ? "student" : "general",
         },
         (text) => {
           setQueuePos(0);
@@ -226,6 +243,7 @@ export default function Result() {
             job_url: jobUrl,
             score: result.score,
             report: result.report,
+            candidate_type: isStudent ? "student" : "general",
             created_at: new Date().toISOString(),
           });
         },
@@ -283,6 +301,36 @@ export default function Result() {
       alert("下载失败：" + err.message);
     } finally {
       setDownloading(false);
+    }
+  };
+
+  const runFollowup = async (q: string) => {
+    const question = q.trim();
+    if (!question || !data) return;
+    setFollowupQ(question);
+    setFollowupLoading(true);
+    setFollowupAnswer("");
+    try {
+      await followUpStream(
+        {
+          resume,
+          jobTitle,
+          jobDescription,
+          report: data.report,
+          question,
+          provider: selection?.provider,
+          model: selection?.model,
+          candidateType: isStudent ? "student" : "general",
+        },
+        (text) => setFollowupAnswer(text),
+        () => {},
+        (msg) => setFollowupAnswer("（生成失败：" + msg + "）"),
+        (pos) => setFollowupAnswer(`（排队中，前面还有 ${pos} 位，请稍候…）`)
+      );
+    } catch (err: any) {
+      setFollowupAnswer("（请求失败：" + err.message + "）");
+    } finally {
+      setFollowupLoading(false);
     }
   };
 
@@ -443,6 +491,15 @@ export default function Result() {
             />
           </div>
 
+          <label className="switch-row">
+            <input
+              type="checkbox"
+              checked={isStudent}
+              onChange={(e) => setIsStudent(e.target.checked)}
+            />
+            <span>应届生 / 暂无工作经历</span>
+          </label>
+
           <ModelSelect groups={groups} value={selection} onChange={setSelection} />
 
           <div className="editor-actions">
@@ -506,6 +563,66 @@ export default function Result() {
         </div>
       ) : (
         <ReportView report={data.report} />
+      )}
+
+      {!reLoading && (
+        <div className="card">
+          <h2 className="section-title">
+            <span className="section-icon">💬</span>
+            继续追问
+          </h2>
+          <p className="hint" style={{ marginBottom: 12 }}>
+            针对这份简历继续让 AI 帮你改，点下面的常用指令或直接提问：
+          </p>
+
+          <div className="chips">
+            {FOLLOWUP_CHIPS.map((c) => (
+              <button
+                key={c}
+                type="button"
+                className="chip"
+                disabled={followupLoading}
+                onClick={() => runFollowup(c)}
+              >
+                {c}
+              </button>
+            ))}
+          </div>
+
+          <div className="followup-input">
+            <input
+              type="text"
+              placeholder="例如：帮我把项目经历改成 STAR 格式"
+              value={followupQ}
+              onChange={(e) => setFollowupQ(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") runFollowup(followupQ);
+              }}
+            />
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={followupLoading || !followupQ.trim()}
+              onClick={() => runFollowup(followupQ)}
+            >
+              {followupLoading ? (
+                <>
+                  <span className="spinner" /> 生成中
+                </>
+              ) : (
+                "发送"
+              )}
+            </button>
+          </div>
+
+          {(followupAnswer || followupLoading) && (
+            <div className="followup-answer">
+              <div className={`report ${followupLoading ? "streaming-cursor" : ""}`}>
+                {followupAnswer}
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       {!reLoading && (data.job_description || data.job_url) && (

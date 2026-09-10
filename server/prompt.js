@@ -28,7 +28,7 @@ export const SYSTEM_PROMPT = `你是一位有10年经验的资深招聘官，负
 - 用户让你改写某段时，只输出改好的那段文字，并保持真实信息，不许编造用户没写过的经历、数字或证书。
 - 永远用中文回复。`;
 
-export function buildEvaluatePrompt(resume, jobTitle, jobDescription) {
+export function buildEvaluatePrompt(resume, jobTitle, jobDescription, options = {}) {
   let prompt = `请评估以下简历：
 
 【应聘岗位】${jobTitle}
@@ -38,6 +38,30 @@ export function buildEvaluatePrompt(resume, jobTitle, jobDescription) {
   } else {
     prompt += `（用户未提供JD，请按该岗位的通用要求评估，并提醒用户贴上JD会更准）\n\n`;
   }
+  if (options.isStudent) {
+    prompt += `【候选人情况】该候选人是应届生 / 暂无正式工作经历。请按"应届生"标准评估：
+- 不要因为没有工作经历而扣分或贬低；重点考察项目经历、实习、课程作业、竞赛、校园活动、技能与学习潜力；
+- 岗位匹配对照里，"经验年限"这类要求对无工作经历的应届生，按"是否具备相应能力/项目"来判断，而不是简单判缺失；
+- 给出的改法与增强方向，要贴合应届生能补充、能做到的内容。\n\n`;
+  }
   prompt += `【简历全文】\n${resume}`;
   return prompt;
+}
+
+export const FOLLOWUP_SYSTEM_PROMPT = `你是一位有10年经验的资深招聘官，正在帮求职者打磨简历。用户会提供他的简历、目标岗位以及此前的评估报告，然后提出一个具体问题。请只针对该问题给出高质量、可直接使用的回答。
+
+要求：
+- 只输出用户要的内容（例如改写后的某一段），不要重复整份报告；
+- 保持真实信息，严禁编造用户没写过的经历、数字或证书；
+- 如果是改写请求，直接给出"改写后"的成品文字，必要时简短说明；
+- 永远用中文回复。`;
+
+export function buildFollowupPrompt({ resume, jobTitle, jobDescription, report, question, isStudent }) {
+  let p = `【目标岗位】${jobTitle}\n`;
+  if (jobDescription) p += `【岗位要求（JD）】\n${jobDescription}\n\n`;
+  p += `【简历全文】\n${resume}\n\n`;
+  if (report) p += `【此前的评估报告】\n${report}\n\n`;
+  if (isStudent) p += `【候选人情况】应届生 / 暂无正式工作经历。\n\n`;
+  p += `【用户追问】${question}`;
+  return p;
 }

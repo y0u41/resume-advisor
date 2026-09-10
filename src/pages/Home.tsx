@@ -14,6 +14,7 @@ export default function Home() {
   const [jobTitle, setJobTitle] = useState("");
   const [jobDescription, setJobDescription] = useState("");
   const [jobUrl, setJobUrl] = useState("");
+  const [isStudent, setIsStudent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [streaming, setStreaming] = useState(false);
   const [streamText, setStreamText] = useState("");
@@ -45,6 +46,7 @@ export default function Home() {
           jobUrl,
           provider: selection?.provider,
           model: selection?.model,
+          candidateType: isStudent ? "student" : "general",
         },
         (text) => {
           setQueuePos(0);
@@ -59,6 +61,7 @@ export default function Home() {
               jobTitle,
               jobDescription,
               jobUrl,
+              candidateType: isStudent ? "student" : "general",
             },
           });
         },
@@ -135,6 +138,15 @@ export default function Home() {
               💡 贴上 JD 会让评估更精准，不贴也能用，会按该岗位的通用要求评估
             </p>
           </div>
+
+          <label className="switch-row">
+            <input
+              type="checkbox"
+              checked={isStudent}
+              onChange={(e) => setIsStudent(e.target.checked)}
+            />
+            <span>我是应届生 / 暂无工作经历（按应届生标准评估，不因缺经验扣分）</span>
+          </label>
 
           <ModelSelect groups={groups} value={selection} onChange={setSelection} />
 

@@ -6,8 +6,8 @@ export const MAX_PER_PERSON = 12;
 
 const insertStmt = db.prepare(
   `INSERT INTO evaluations
-    (user_id, resume, job_title, job_description, score, report, job_url, person_key, person_name, cache_key)
-   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    (user_id, resume, job_title, job_description, score, report, job_url, person_key, person_name, cache_key, candidate_type)
+   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 );
 
 const pruneStmt = db.prepare(
@@ -31,7 +31,8 @@ const saveTx = db.transaction((row) => {
     row.jobUrl,
     row.personKey,
     row.personName,
-    row.cacheKey
+    row.cacheKey,
+    row.candidateType || "general"
   );
   pruneStmt.run(row.userId, row.personKey, row.userId, row.personKey, MAX_PER_PERSON);
   return info.lastInsertRowid;
@@ -45,7 +46,8 @@ export function saveEvaluation(
   score,
   report,
   jobUrl = "",
-  cacheKey = null
+  cacheKey = null,
+  candidateType = "general"
 ) {
   return saveTx({
     userId,
@@ -58,6 +60,7 @@ export function saveEvaluation(
     personKey: getPersonKey(resume),
     personName: getPersonName(resume),
     cacheKey,
+    candidateType,
   });
 }
 

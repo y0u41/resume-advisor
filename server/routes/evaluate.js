@@ -1,7 +1,7 @@
 import { Router } from "express";
 import crypto from "crypto";
 import db from "../db.js";
-import { callLLM, callLLMStream } from "../llm.js";
+import { callLLM, callLLMStream, followUpStream } from "../llm.js";
 import { listProviders, defaultModel } from "../models.js";
 import { saveEvaluation, findCachedEvaluation } from "../store.js";
 import { getPersonKey, getPersonName } from "../person.js";
@@ -24,6 +24,7 @@ function computeCacheKey(resume, jobTitle, jobDescription, override) {
         jobDescription,
         provider: override?.provider || "",
         model: override?.model || "",
+        student: override?.isStudent ? 1 : 0,
       })
     )
     .digest("hex")
@@ -44,17 +45,17 @@ router.get("/models", (req, res) => {
   res.json({ providers, default: def });
 });
 
-// 解析请求中的 provider/model，非法则回退默认
+// 解析请求中的 provider/model 与候选人类型，非法则回退默认
 function resolveOverride(body) {
+  const isStudent = body?.candidateType === "student" || body?.isStudent === true;
   const provider = body?.provider;
-  if (!provider) return undefined;
-  const group = listProviders().find((p) => p.provider === provider);
-  if (!group) return undefined;
+  const group = provider ? listProviders().find((p) => p.provider === provider) : null;
+  if (!group) return { isStudent };
   const model =
     body?.model && group.models.some((m) => m.id === body.model)
       ? body.model
       : defaultModel(provider);
-  return { provider, model };
+  return { provider, model, isStudent };
 }
 
 const MAX_RESUME = 40000;
@@ -215,7 +216,8 @@ router.post("/evaluate", async (req, res) => {
         score,
         fullText,
         jobUrl || "",
-        cacheKey
+        cacheKey,
+        override.isStudent ? "student" : "general"
       );
 
       res.write(
@@ -239,7 +241,8 @@ router.post("/evaluate", async (req, res) => {
         score,
         report,
         jobUrl || "",
-        cacheKey
+        cacheKey,
+        override.isStudent ? "student" : "general"
       );
 
       res.json({ id, score, report });
@@ -255,6 +258,85 @@ router.post("/evaluate", async (req, res) => {
       res.end();
     } else {
       res.status(500).json({ error: error.message });
+    }
+  } finally {
+    if (release) release();
+  }
+});
+
+// 继续追问（流式）：基于简历 + 岗位 + 报告回答
+router.post("/followup", async (req, res) => {
+  const { resume, jobTitle, jobDescription, report, question } = req.body || {};
+
+  if (!resume || !jobTitle) return res.status(400).json({ error: "缺少简历或岗位" });
+  if (!question || typeof question !== "string") {
+    return res.status(400).json({ error: "请输入你的问题" });
+  }
+  if (question.length > 1000) return res.status(400).json({ error: "问题过长（上限 1000 字）" });
+
+  const override = resolveOverride(req.body);
+
+  const controller = new AbortController();
+  res.on("close", () => {
+    if (!res.writableEnded) controller.abort(new Error("客户端已断开"));
+  });
+
+  let release;
+  try {
+    release = await acquire((position) => {
+      res.write(`data: ${JSON.stringify({ queued: true, position })}\n\n`);
+    });
+  } catch (error) {
+    res.write(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
+    res.end();
+    return;
+  }
+
+  try {
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+
+    let fullText = "";
+    try {
+      await followUpStream(
+        {
+          resume,
+          jobTitle,
+          jobDescription: jobDescription || "",
+          report: report || "",
+          question,
+          isStudent: override.isStudent,
+        },
+        (chunk) => {
+          fullText += chunk;
+          res.write(`data: ${JSON.stringify({ chunk, done: false })}\n\n`);
+        },
+        controller.signal,
+        override
+      );
+    } catch (error) {
+      if (controller.signal.aborted) {
+        if (!res.writableEnded) res.end();
+        return;
+      }
+      res.write(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
+      res.end();
+      return;
+    }
+
+    if (controller.signal.aborted) {
+      if (!res.writableEnded) res.end();
+      return;
+    }
+
+    res.write(`data: ${JSON.stringify({ chunk: "", done: true, answer: fullText })}\n\n`);
+    res.end();
+  } catch (error) {
+    console.error("追问失败:", error);
+    if (!res.writableEnded) {
+      res.write(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
+      res.end();
     }
   } finally {
     if (release) release();

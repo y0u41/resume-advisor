@@ -37,6 +37,7 @@ db.exec(`
     person_key TEXT,
     person_name TEXT,
     cache_key TEXT,
+    candidate_type TEXT DEFAULT 'general',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )
 `);
@@ -57,6 +58,9 @@ if (!columns.includes("person_name")) db.exec("ALTER TABLE evaluations ADD COLUM
 if (!columns.includes("job_url")) db.exec("ALTER TABLE evaluations ADD COLUMN job_url TEXT DEFAULT ''");
 if (!columns.includes("user_id")) db.exec("ALTER TABLE evaluations ADD COLUMN user_id INTEGER");
 if (!columns.includes("cache_key")) db.exec("ALTER TABLE evaluations ADD COLUMN cache_key TEXT");
+if (!columns.includes("candidate_type")) {
+  db.exec("ALTER TABLE evaluations ADD COLUMN candidate_type TEXT DEFAULT 'general'");
+}
 
 db.exec("CREATE INDEX IF NOT EXISTS idx_eval_person ON evaluations(person_key)");
 db.exec("CREATE INDEX IF NOT EXISTS idx_eval_user ON evaluations(user_id)");

@@ -5,6 +5,7 @@ export interface EvalPayload {
   jobUrl?: string;
   provider?: string;
   model?: string;
+  candidateType?: string;
 }
 
 export interface EvalResult {
@@ -13,17 +14,33 @@ export interface EvalResult {
   report: string;
 }
 
-export async function streamEvaluate(
-  payload: EvalPayload,
-  onChunk: (textSoFar: string) => void,
-  onDone: (result: EvalResult) => void,
-  onError: (message: string) => void,
-  onQueued?: (position: number) => void,
+export interface FollowupPayload {
+  resume: string;
+  jobTitle: string;
+  jobDescription: string;
+  report: string;
+  question: string;
+  provider?: string;
+  model?: string;
+  candidateType?: string;
+}
+
+interface Handlers {
+  onChunk: (textSoFar: string) => void;
+  onDone: (data: any, fullText: string) => void;
+  onError: (message: string) => void;
+  onQueued?: (position: number) => void;
+}
+
+async function postStream(
+  url: string,
+  payload: unknown,
+  handlers: Handlers,
   signal?: AbortSignal
 ): Promise<void> {
   let res: Response;
   try {
-    res = await fetch("/api/evaluate?stream=true", {
+    res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -31,7 +48,7 @@ export async function streamEvaluate(
     });
   } catch (err: any) {
     if (err?.name === "AbortError") return;
-    onError(err?.message || "网络请求失败");
+    handlers.onError(err?.message || "网络请求失败");
     return;
   }
 
@@ -43,12 +60,12 @@ export async function streamEvaluate(
     } catch {
       // 忽略非 JSON 响应
     }
-    onError(msg);
+    handlers.onError(msg);
     return;
   }
 
   if (!res.body) {
-    onError("服务器未返回数据流");
+    handlers.onError("服务器未返回数据流");
     return;
   }
 
@@ -76,28 +93,71 @@ export async function streamEvaluate(
         }
 
         if (data.error) {
-          onError(data.error);
+          handlers.onError(data.error);
           return;
         }
         if (data.queued) {
-          onQueued?.(data.position ?? 0);
+          handlers.onQueued?.(data.position ?? 0);
           continue;
         }
         if (data.done) {
-          onDone({ id: data.id, score: data.score ?? null, report: data.report ?? fullText });
+          handlers.onDone(data, fullText);
           return;
         }
         if (data.chunk) {
           fullText += data.chunk;
-          onChunk(fullText);
+          handlers.onChunk(fullText);
         }
       }
     }
   } catch (err: any) {
     if (err?.name === "AbortError") return;
-    onError(err?.message || "数据流中断");
+    handlers.onError(err?.message || "数据流中断");
     return;
   }
 
-  onDone({ score: null, report: fullText });
+  handlers.onDone({}, fullText);
+}
+
+export function streamEvaluate(
+  payload: EvalPayload,
+  onChunk: (textSoFar: string) => void,
+  onDone: (result: EvalResult) => void,
+  onError: (message: string) => void,
+  onQueued?: (position: number) => void,
+  signal?: AbortSignal
+): Promise<void> {
+  return postStream(
+    "/api/evaluate?stream=true",
+    payload,
+    {
+      onChunk,
+      onQueued,
+      onError,
+      onDone: (data, fullText) =>
+        onDone({ id: data.id, score: data.score ?? null, report: data.report ?? fullText }),
+    },
+    signal
+  );
+}
+
+export function followUpStream(
+  payload: FollowupPayload,
+  onChunk: (textSoFar: string) => void,
+  onDone: (answer: string) => void,
+  onError: (message: string) => void,
+  onQueued?: (position: number) => void,
+  signal?: AbortSignal
+): Promise<void> {
+  return postStream(
+    "/api/followup",
+    payload,
+    {
+      onChunk,
+      onQueued,
+      onError,
+      onDone: (data, fullText) => onDone(data.answer ?? fullText),
+    },
+    signal
+  );
 }

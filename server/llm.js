@@ -1,4 +1,9 @@
-import { SYSTEM_PROMPT, buildEvaluatePrompt } from "./prompt.js";
+import {
+  SYSTEM_PROMPT,
+  buildEvaluatePrompt,
+  FOLLOWUP_SYSTEM_PROMPT,
+  buildFollowupPrompt,
+} from "./prompt.js";
 
 const LLM_TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS || 180000);
 const STREAM_IDLE_MS = Number(process.env.LLM_STREAM_IDLE_MS || 60000);
@@ -36,10 +41,10 @@ export function getProviderInfo(override) {
   return { provider, baseUrl, model };
 }
 
-function buildMessages(resume, jobTitle, jobDescription) {
+function buildMessages(resume, jobTitle, jobDescription, options = {}) {
   return [
     { role: "system", content: SYSTEM_PROMPT },
-    { role: "user", content: buildEvaluatePrompt(resume, jobTitle, jobDescription) },
+    { role: "user", content: buildEvaluatePrompt(resume, jobTitle, jobDescription, options) },
   ];
 }
 
@@ -105,7 +110,7 @@ export async function callLLM(resume, jobTitle, jobDescription, externalSignal, 
         },
         body: JSON.stringify({
           model,
-          messages: buildMessages(resume, jobTitle, jobDescription),
+          messages: buildMessages(resume, jobTitle, jobDescription, override),
           temperature: 0.3,
           max_tokens: 8192,
         }),
@@ -153,7 +158,7 @@ export async function callLLMStream(resume, jobTitle, jobDescription, onChunk, e
       },
       body: JSON.stringify({
         model,
-        messages: buildMessages(resume, jobTitle, jobDescription),
+        messages: buildMessages(resume, jobTitle, jobDescription, override),
         temperature: 0.3,
         max_tokens: 8192,
         stream: true,
@@ -262,4 +267,84 @@ export async function extractJobInfo(rawText, externalSignal, override) {
   };
 
   return withRetry(attempt, 1);
+}
+
+// 继续追问（流式）：基于简历 + 岗位 + 已有报告回答用户的追问
+export async function followUpStream(params, onChunk, externalSignal, override) {
+  const { apiKey, baseUrl, model } = getConfig(override);
+
+  const controller = new AbortController();
+  const totalTimer = setTimeout(() => controller.abort(new Error("LLM 请求超时")), LLM_TIMEOUT_MS);
+  let idleTimer = null;
+  const resetIdle = () => {
+    if (idleTimer) clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => controller.abort(new Error("LLM 流式响应停滞")), STREAM_IDLE_MS);
+  };
+  const onAbort = () => controller.abort(externalSignal.reason);
+  if (externalSignal) {
+    if (externalSignal.aborted) controller.abort(externalSignal.reason);
+    else externalSignal.addEventListener("abort", onAbort, { once: true });
+  }
+
+  try {
+    resetIdle();
+    const response = await fetch(`${baseUrl}/chat/completions`, {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: "system", content: FOLLOWUP_SYSTEM_PROMPT },
+          { role: "user", content: buildFollowupPrompt(params) },
+        ],
+        temperature: 0.4,
+        max_tokens: 4096,
+        stream: true,
+      }),
+    });
+
+    await assertOk(response);
+    resetIdle();
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let fullText = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      resetIdle();
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        const data = line.slice(6).trim();
+        if (data === "[DONE]") continue;
+        try {
+          const parsed = JSON.parse(data);
+          const content = parsed.choices?.[0]?.delta?.content;
+          if (content) {
+            fullText += content;
+            onChunk(content);
+          }
+        } catch {
+          // 忽略不完整/非 JSON 的行
+        }
+      }
+    }
+
+    return fullText;
+  } finally {
+    clearTimeout(totalTimer);
+    if (idleTimer) clearTimeout(idleTimer);
+    if (externalSignal) externalSignal.removeEventListener("abort", onAbort);
+  }
 }
