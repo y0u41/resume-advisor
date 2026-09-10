@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import UserBar from "../components/UserBar";
 import Logo from "../components/Logo";
@@ -58,6 +58,7 @@ export default function Builder() {
   const [style, setStyle] = useState<ResumeStyle>("student");
   const [format, setFormat] = useState<DownloadFormat>("pdf");
   const [downloading, setDownloading] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   const text = buildResume(data, style);
   const html = resumeToHtml(data, style);
@@ -65,6 +66,23 @@ export default function Builder() {
 
   const set = (key: keyof ResumeData, value: string) =>
     setData((prev) => ({ ...prev, [key]: value }));
+
+  const handlePhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      alert("请选择图片文件");
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      alert("图片过大，请选择 2MB 以内的图片");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => set("photo", String(reader.result || ""));
+    reader.readAsDataURL(file);
+    if (photoInputRef.current) photoInputRef.current.value = "";
+  };
 
   const handleDownload = async () => {
     setDownloading(true);
@@ -111,6 +129,44 @@ export default function Builder() {
                   {STYLE_LABELS[s]}
                 </button>
               ))}
+            </div>
+          </div>
+
+          <div className="photo-row">
+            <div className="photo-preview">
+              {data.photo ? (
+                <img src={data.photo} alt="照片" />
+              ) : (
+                <span className="photo-placeholder">照片</span>
+              )}
+            </div>
+            <div className="photo-actions">
+              <input
+                ref={photoInputRef}
+                type="file"
+                accept="image/*"
+                style={{ display: "none" }}
+                onChange={handlePhoto}
+              />
+              <div className="photo-buttons">
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => photoInputRef.current?.click()}
+                >
+                  📷 {data.photo ? "更换照片" : "上传照片"}
+                </button>
+                {data.photo && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => set("photo", "")}
+                  >
+                    移除
+                  </button>
+                )}
+              </div>
+              <span className="file-hint">可选：证件照 / 头像，JPG / PNG，≤ 2MB</span>
             </div>
           </div>
 

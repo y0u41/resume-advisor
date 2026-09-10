@@ -12,6 +12,7 @@ export interface ResumeData {
   skills: string;
   campus: string;
   summary: string;
+  photo: string;
 }
 
 export const EMPTY_RESUME: ResumeData = {
@@ -26,6 +27,7 @@ export const EMPTY_RESUME: ResumeData = {
   skills: "",
   campus: "",
   summary: "",
+  photo: "",
 };
 
 export const SAMPLE_RESUME: ResumeData = {
@@ -46,6 +48,7 @@ export const SAMPLE_RESUME: ResumeData = {
     "校计算机协会 技术部负责人 ｜ 2017.09 - 2018.06\n- 组织 3 场编程入门讲座，累计参与 200+ 人次\n- 带队参加校程序设计大赛，获三等奖",
   summary:
     "计算机专业应届生，具备扎实的 Java 后端基础与完整的项目实践，学习能力强、责任心强，希望在真实业务中快速成长。",
+  photo: "",
 };
 
 const SECTIONS: { key: keyof ResumeData; label: string }[] = [
@@ -81,6 +84,7 @@ const LABELS: Record<keyof ResumeData, string> = {
   campus: "校园经历",
   skills: "技能特长",
   summary: "自我评价",
+  photo: "照片",
 };
 
 function escapeHtml(s: string): string {
@@ -110,9 +114,12 @@ export function resumeToHtml(d: ResumeData, style: ResumeStyle): string {
 
   return `<div class="resume">
     <header class="rhead">
-      <div class="rname">${escapeHtml(d.name.trim() || "姓名")}</div>
-      ${contact ? `<div class="rcontact">${contact}</div>` : ""}
-      ${d.intention.trim() ? `<div class="rintention">求职意向：${escapeHtml(d.intention.trim())}</div>` : ""}
+      <div class="rhead-main">
+        <div class="rname">${escapeHtml(d.name.trim() || "姓名")}</div>
+        ${contact ? `<div class="rcontact">${contact}</div>` : ""}
+        ${d.intention.trim() ? `<div class="rintention">求职意向：${escapeHtml(d.intention.trim())}</div>` : ""}
+      </div>
+      ${d.photo ? `<img class="rphoto" src="${d.photo}" alt="" />` : ""}
     </header>
     ${sections}
   </div>`;
