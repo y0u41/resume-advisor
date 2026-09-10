@@ -87,12 +87,26 @@ const LABELS: Record<keyof ResumeData, string> = {
   photo: "照片",
 };
 
+export type ResumeLayout = "single" | "sidebar";
+
+export const LAYOUT_LABELS: Record<ResumeLayout, string> = {
+  single: "单栏经典",
+  sidebar: "左右分栏",
+};
+
 function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-// 排版好的简历 HTML（用于实时预览与 PDF 导出）
-export function resumeToHtml(d: ResumeData, style: ResumeStyle): string {
+function sectionHtml(label: string, content: string): string {
+  return `<section class="rsec">
+    <h2 class="rsec-title">${label}</h2>
+    <div class="rsec-body">${escapeHtml(content)}</div>
+  </section>`;
+}
+
+// 单栏经典
+function singleHtml(d: ResumeData, style: ResumeStyle): string {
   const contact = [
     d.phone.trim() && `手机：${escapeHtml(d.phone.trim())}`,
     d.email.trim() && `邮箱：${escapeHtml(d.email.trim())}`,
@@ -104,11 +118,7 @@ export function resumeToHtml(d: ResumeData, style: ResumeStyle): string {
   const sections = ORDER[style]
     .map((key) => {
       const content = (d[key] || "").trim();
-      if (!content) return "";
-      return `<section class="rsec">
-        <h2 class="rsec-title">${LABELS[key]}</h2>
-        <div class="rsec-body">${escapeHtml(content)}</div>
-      </section>`;
+      return content ? sectionHtml(LABELS[key], content) : "";
     })
     .join("");
 
@@ -123,6 +133,62 @@ export function resumeToHtml(d: ResumeData, style: ResumeStyle): string {
     </header>
     ${sections}
   </div>`;
+}
+
+// 左右分栏
+function sidebarHtml(d: ResumeData, style: ResumeStyle): string {
+  const contactLines = [
+    d.phone.trim() && `手机：${escapeHtml(d.phone.trim())}`,
+    d.email.trim() && `邮箱：${escapeHtml(d.email.trim())}`,
+    d.city.trim() && `城市：${escapeHtml(d.city.trim())}`,
+  ].filter(Boolean);
+
+  const sideBlocks: string[] = [];
+  if (contactLines.length) {
+    sideBlocks.push(
+      `<div class="rside-block"><div class="rside-title">联系方式</div><div class="rside-body">${contactLines.join(
+        "\n"
+      )}</div></div>`
+    );
+  }
+  if (d.skills.trim()) {
+    sideBlocks.push(
+      `<div class="rside-block"><div class="rside-title">技能特长</div><div class="rside-body">${escapeHtml(
+        d.skills.trim()
+      )}</div></div>`
+    );
+  }
+
+  const mainSections = ORDER[style]
+    .filter((key) => key !== "skills")
+    .map((key) => {
+      const content = (d[key] || "").trim();
+      return content ? sectionHtml(LABELS[key], content) : "";
+    })
+    .join("");
+
+  return `<div class="resume resume-sidebar">
+    <aside class="rside">
+      ${d.photo ? `<img class="rphoto-side" src="${d.photo}" alt="" />` : ""}
+      ${sideBlocks.join("")}
+    </aside>
+    <main class="rmain">
+      <div class="rmain-head">
+        <div class="rname">${escapeHtml(d.name.trim() || "姓名")}</div>
+        ${d.intention.trim() ? `<div class="rintention">求职意向：${escapeHtml(d.intention.trim())}</div>` : ""}
+      </div>
+      ${mainSections}
+    </main>
+  </div>`;
+}
+
+// 排版好的简历 HTML（用于实时预览与 PDF 导出）
+export function resumeToHtml(
+  d: ResumeData,
+  style: ResumeStyle,
+  layout: ResumeLayout = "single"
+): string {
+  return layout === "sidebar" ? sidebarHtml(d, style) : singleHtml(d, style);
 }
 
 export function buildResume(d: ResumeData, style: ResumeStyle): string {

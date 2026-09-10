@@ -8,8 +8,10 @@ import {
   buildResume,
   resumeToHtml,
   STYLE_LABELS,
+  LAYOUT_LABELS,
   type ResumeData,
   type ResumeStyle,
+  type ResumeLayout,
 } from "../lib/resumeTemplate";
 import { downloadResume, type DownloadFormat } from "../lib/download";
 
@@ -51,17 +53,19 @@ const AREA_FIELDS: { key: keyof ResumeData; label: string; placeholder: string; 
 ];
 
 const STYLES: ResumeStyle[] = ["student", "classic", "project"];
+const LAYOUTS: ResumeLayout[] = ["single", "sidebar"];
 
 export default function Builder() {
   const navigate = useNavigate();
   const [data, setData] = useState<ResumeData>(EMPTY_RESUME);
   const [style, setStyle] = useState<ResumeStyle>("student");
+  const [layout, setLayout] = useState<ResumeLayout>("single");
   const [format, setFormat] = useState<DownloadFormat>("pdf");
   const [downloading, setDownloading] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
   const text = buildResume(data, style);
-  const html = resumeToHtml(data, style);
+  const html = resumeToHtml(data, style, layout);
   const canDownload = data.name.trim().length > 0 || text.replace(/^姓名\s*$/m, "").trim().length > 0;
 
   const set = (key: keyof ResumeData, value: string) =>
@@ -117,7 +121,23 @@ export default function Builder() {
       <div className="builder">
         <div className="builder-form card">
           <div className="builder-toolbar">
-            <span className="builder-toolbar-label">模板风格</span>
+            <span className="builder-toolbar-label">视觉模板</span>
+            <div className="chips">
+              {LAYOUTS.map((l) => (
+                <button
+                  key={l}
+                  type="button"
+                  className={`chip ${layout === l ? "chip-active" : ""}`}
+                  onClick={() => setLayout(l)}
+                >
+                  {LAYOUT_LABELS[l]}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="builder-toolbar">
+            <span className="builder-toolbar-label">内容顺序</span>
             <div className="chips">
               {STYLES.map((s) => (
                 <button

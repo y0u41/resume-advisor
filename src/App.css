@@ -1699,6 +1699,64 @@ body,
   padding-left: 2px;
 }
 
+/* ---------- 左右分栏模板 ---------- */
+.resume-sidebar {
+  display: flex;
+  align-items: stretch;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.resume-sidebar .rside {
+  width: 200px;
+  flex-shrink: 0;
+  background: linear-gradient(180deg, #eef1ff 0%, #fdf2f8 100%);
+  padding: 26px 18px;
+}
+
+.resume-sidebar .rphoto-side {
+  width: 92px;
+  height: 118px;
+  object-fit: cover;
+  border-radius: 8px;
+  display: block;
+  margin: 0 auto 18px;
+  border: 3px solid #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+.resume-sidebar .rside-block {
+  margin-bottom: 18px;
+}
+
+.resume-sidebar .rside-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #4338ca;
+  padding-bottom: 6px;
+  border-bottom: 2px solid #c7d2fe;
+  margin-bottom: 8px;
+}
+
+.resume-sidebar .rside-body {
+  white-space: pre-wrap;
+  font-size: 12px;
+  color: #374151;
+  line-height: 1.7;
+}
+
+.resume-sidebar .rmain {
+  flex: 1;
+  min-width: 0;
+  padding: 26px 22px;
+}
+
+.resume-sidebar .rmain-head {
+  border-bottom: 2px solid var(--primary);
+  padding-bottom: 12px;
+  margin-bottom: 18px;
+}
+
 .builder-download {
   display: flex;
   gap: 10px;
