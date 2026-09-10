@@ -47,6 +47,7 @@ npm start       # 后端同时服务前端，访问 http://127.0.0.1:3001
 | `LLM_BASE_URL` | `https://api.deepseek.com` | OpenAI 兼容接口地址 |
 | `LLM_MODEL` | `deepseek-v4-flash` | 模型名（可用 `deepseek-v4-pro` 提升质量） |
 | `LLM_TIMEOUT_MS` | `120000` | LLM 请求超时（毫秒） |
+| `LLM_STREAM_IDLE_MS` | `45000` | 流式响应无数据的停滞超时（毫秒），超时自动回退非流式 |
 | `JD_EXTRACT` | `true` | 链接抓取后是否用 LLM 智能提取岗位重点信息（`false` 则返回清洗后的原文） |
 | `PORT` | `3001` | 后端端口 |
 | `HOST` | `127.0.0.1` | 监听地址（默认仅本机，安全） |

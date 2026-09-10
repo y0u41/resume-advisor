@@ -49,16 +49,53 @@ router.post("/evaluate", async (req, res) => {
       res.setHeader("Connection", "keep-alive");
 
       let fullText = "";
-      await callLLMStream(
-        resume,
-        jobTitle,
-        jobDescription || "",
-        (chunk) => {
-          fullText += chunk;
-          res.write(`data: ${JSON.stringify({ chunk, done: false })}\n\n`);
-        },
-        controller.signal
-      );
+
+      try {
+        await callLLMStream(
+          resume,
+          jobTitle,
+          jobDescription || "",
+          (chunk) => {
+            fullText += chunk;
+            res.write(`data: ${JSON.stringify({ chunk, done: false })}\n\n`);
+          },
+          controller.signal
+        );
+      } catch (error) {
+        if (controller.signal.aborted) {
+          if (!res.writableEnded) res.end();
+          return;
+        }
+        console.warn("流式评估失败，回退非流式:", error.message);
+      }
+
+      // 流式无内容（停滞/为空）时回退非流式，保证有结果
+      if (!fullText.trim() && !controller.signal.aborted) {
+        try {
+          const report = await callLLM(resume, jobTitle, jobDescription || "", controller.signal);
+          fullText = report;
+          res.write(`data: ${JSON.stringify({ chunk: report, done: false })}\n\n`);
+        } catch (error) {
+          if (controller.signal.aborted) {
+            if (!res.writableEnded) res.end();
+            return;
+          }
+          res.write(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
+          res.end();
+          return;
+        }
+      }
+
+      if (controller.signal.aborted) {
+        if (!res.writableEnded) res.end();
+        return;
+      }
+
+      if (!fullText.trim()) {
+        res.write(`data: ${JSON.stringify({ error: "评估结果为空，请重试", done: true })}\n\n`);
+        res.end();
+        return;
+      }
 
       const score = extractScore(fullText);
       const id = saveEvaluation(resume, jobTitle, jobDescription || "", score, fullText, jobUrl || "");

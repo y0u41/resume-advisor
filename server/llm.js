@@ -1,6 +1,7 @@
 import { SYSTEM_PROMPT, buildEvaluatePrompt } from "./prompt.js";
 
 const LLM_TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS || 120000);
+const STREAM_IDLE_MS = Number(process.env.LLM_STREAM_IDLE_MS || 45000);
 
 function getConfig() {
   const apiKey = process.env.LLM_API_KEY;
@@ -76,12 +77,25 @@ export async function callLLM(resume, jobTitle, jobDescription, externalSignal) 
 
 export async function callLLMStream(resume, jobTitle, jobDescription, onChunk, externalSignal) {
   const { apiKey, baseUrl, model } = getConfig();
-  const { signal, cleanup } = withTimeout(externalSignal, LLM_TIMEOUT_MS);
+
+  const controller = new AbortController();
+  const totalTimer = setTimeout(() => controller.abort(new Error("LLM 请求超时")), LLM_TIMEOUT_MS);
+  let idleTimer = null;
+  const resetIdle = () => {
+    if (idleTimer) clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => controller.abort(new Error("LLM 流式响应停滞")), STREAM_IDLE_MS);
+  };
+  const onAbort = () => controller.abort(externalSignal.reason);
+  if (externalSignal) {
+    if (externalSignal.aborted) controller.abort(externalSignal.reason);
+    else externalSignal.addEventListener("abort", onAbort, { once: true });
+  }
 
   try {
+    resetIdle();
     const response = await fetch(`${baseUrl}/chat/completions`, {
       method: "POST",
-      signal,
+      signal: controller.signal,
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${apiKey}`,
@@ -96,6 +110,7 @@ export async function callLLMStream(resume, jobTitle, jobDescription, onChunk, e
     });
 
     await assertOk(response);
+    resetIdle();
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
@@ -105,6 +120,7 @@ export async function callLLMStream(resume, jobTitle, jobDescription, onChunk, e
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
+      resetIdle();
 
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split("\n");
@@ -129,7 +145,9 @@ export async function callLLMStream(resume, jobTitle, jobDescription, onChunk, e
 
     return fullText;
   } finally {
-    cleanup();
+    clearTimeout(totalTimer);
+    if (idleTimer) clearTimeout(idleTimer);
+    if (externalSignal) externalSignal.removeEventListener("abort", onAbort);
   }
 }
 
