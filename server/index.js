@@ -41,8 +41,10 @@ const allowedOrigins = (process.env.CORS_ORIGINS || "http://localhost:5173,http:
 app.use(
   cors({
     origin(origin, cb) {
+      // 同源/无 Origin（curl、服务端）放行；白名单内放行；其余不设 CORS 头
+      // （不抛错，否则会波及同源带 crossorigin 的资源请求）
       if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
-      cb(new Error("不允许的来源"));
+      cb(null, false);
     },
   })
 );

@@ -3,25 +3,20 @@
 #
 # 用法（Linux 服务器）：
 #   1) 安装 Caddy：https://caddyserver.com/docs/install
-#   2) 把本文件放到 /etc/caddy/Caddyfile（或 sudo caddy reload --config 本文件）
-#   3) systemctl reload caddy
+#   2) 把本文件放到 /etc/caddy/Caddyfile（域名改成你的）
+#   3) sudo systemctl reload caddy
 
 your-domain.com {
+	# 压缩（SSE 事件流不会被压缩，Caddy 会自动跳过）
 	encode gzip zstd
-
-	# 简历较长，放宽请求体
-	request_body {
-		max_size 6MB
-	}
 
 	# 反代到本机 Node 服务
 	reverse_proxy 127.0.0.1:3001 {
-		# 流式评估需要较长的读超时
-		transport http {
-			read_timeout 300s
-		}
+		# 评估是 SSE 流式，必须立即刷新，否则前端会“卡住”直到结束
+		flush_interval -1
 	}
 
+	# 隐藏 Server 头
 	header {
 		-Server
 	}
