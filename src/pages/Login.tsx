@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate, Navigate } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import Logo from "../components/Logo";
+import ThemeToggle from "../components/ThemeToggle";
 
 export default function Login() {
   const { user, login, register } = useAuth();
@@ -54,6 +55,9 @@ export default function Login() {
 
   return (
     <div className="container login-container">
+      <div className="auth-topbar">
+        <ThemeToggle />
+      </div>
       <div className="header">
         <div className="brand">
           <Logo size={52} />

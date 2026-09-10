@@ -1,12 +1,17 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
   <defs>
     <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#6366f1"/>
-      <stop offset="0.42" stop-color="#8b5cf6"/>
-      <stop offset="0.7" stop-color="#fb7185"/>
-      <stop offset="1" stop-color="#f97316"/>
+      <stop offset="0" stop-color="#6d6bf0"/>
+      <stop offset="0.5" stop-color="#9a7cf5"/>
+      <stop offset="0.78" stop-color="#f0a6c0"/>
+      <stop offset="1" stop-color="#f9c09a"/>
     </linearGradient>
   </defs>
   <rect width="64" height="64" rx="15" fill="url(#g)"/>
-  <text x="32" y="45" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="34" font-weight="700" fill="#ffffff">yu</text>
+  <g fill="none" stroke="#ffffff" stroke-width="5.6" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M7.4 19.2 Q12.2 27.5 15.7 34.9"/>
+    <path d="M24 19.2 Q15.7 35.2 8.6 50.2"/>
+    <path d="M32 19.2 L32 35.2 Q32 46.1 39 46.1 Q46.1 46.1 46.1 35.2 L46.1 19.2"/>
+    <path d="M45.8 35.2 Q48.6 42.2 51.5 48.3"/>
+  </g>
 </svg>

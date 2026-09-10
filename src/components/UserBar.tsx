@@ -1,5 +1,6 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../lib/auth";
+import ThemeToggle from "./ThemeToggle";
 
 export default function UserBar() {
   const { user, logout } = useAuth();
@@ -23,6 +24,7 @@ export default function UserBar() {
         {user.username || user.email}
         {user.role === "admin" && <span className="role-badge admin">管理员</span>}
       </span>
+      <ThemeToggle />
       <button type="button" className="btn-link" onClick={handleLogout}>
         退出
       </button>
