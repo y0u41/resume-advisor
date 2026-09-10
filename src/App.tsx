@@ -11,6 +11,7 @@ import Privacy from "./pages/Privacy";
 import Builder from "./pages/Builder";
 import Compare from "./pages/Compare";
 import Interview from "./pages/Interview";
+import Directions from "./pages/Directions";
 
 function Protected({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
@@ -83,6 +84,14 @@ export default function App() {
             element={
               <Protected>
                 <Interview />
+              </Protected>
+            }
+          />
+          <Route
+            path="/directions"
+            element={
+              <Protected>
+                <Directions />
               </Protected>
             }
           />

@@ -98,6 +98,7 @@ export default function Compare() {
           <Link to="/builder">简历模板</Link>
           <Link to="/compare">多岗位对比</Link>
           <Link to="/interview">模拟面试</Link>
+          <Link to="/directions">岗位推荐</Link>
           <Link to="/history">历史记录</Link>
         </nav>
         <p>一份简历同时对比多个岗位，看看哪个更匹配、更值得投</p>

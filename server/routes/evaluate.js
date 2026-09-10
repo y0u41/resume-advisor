@@ -1,7 +1,7 @@
 import { Router } from "express";
 import crypto from "crypto";
 import db from "../db.js";
-import { callLLM, callLLMStream, followUpStream, interviewStream } from "../llm.js";
+import { callLLM, callLLMStream, followUpStream, interviewStream, directionsStream } from "../llm.js";
 import { listProviders, defaultModel } from "../models.js";
 import { saveEvaluation, findCachedEvaluation } from "../store.js";
 import { getPersonKey, getPersonName } from "../person.js";
@@ -538,6 +538,80 @@ router.post("/interview", async (req, res) => {
       return;
     }
     console.error("面试准备失败:", error);
+    res.write(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
+    res.end();
+  } finally {
+    if (release) release();
+  }
+});
+
+// 岗位方向推荐（流式）
+router.post("/directions", async (req, res) => {
+  const { resume } = req.body || {};
+
+  if (!resume || typeof resume !== "string") {
+    return res.status(400).json({ error: "请提供简历全文" });
+  }
+  if (resume.length > MAX_RESUME) {
+    return res.status(400).json({ error: `简历过长（上限 ${MAX_RESUME} 字）` });
+  }
+
+  const override = resolveOverride(req.body);
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+
+  const controller = new AbortController();
+  res.on("close", () => {
+    if (!res.writableEnded) controller.abort(new Error("客户端已断开"));
+  });
+
+  const quota = consumeQuota(req.user.id);
+  if (!quota.allowed) {
+    res.write(
+      `data: ${JSON.stringify({ error: `今日额度已用完（${quota.used}/${quota.limit}）`, done: true })}\n\n`
+    );
+    res.end();
+    return;
+  }
+
+  let release;
+  try {
+    release = await acquire((position) => {
+      res.write(`data: ${JSON.stringify({ queued: true, position })}\n\n`);
+    });
+  } catch (error) {
+    res.write(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
+    res.end();
+    return;
+  }
+
+  try {
+    let fullText = "";
+    await directionsStream(
+      { resume, isStudent: override.isStudent },
+      (chunk) => {
+        fullText += chunk;
+        res.write(`data: ${JSON.stringify({ chunk, done: false })}\n\n`);
+      },
+      controller.signal,
+      override
+    );
+
+    if (controller.signal.aborted) {
+      if (!res.writableEnded) res.end();
+      return;
+    }
+
+    res.write(`data: ${JSON.stringify({ chunk: "", done: true, text: fullText })}\n\n`);
+    res.end();
+  } catch (error) {
+    if (controller.signal.aborted) {
+      if (!res.writableEnded) res.end();
+      return;
+    }
+    console.error("方向推荐失败:", error);
     res.write(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
     res.end();
   } finally {

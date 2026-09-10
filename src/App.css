@@ -308,6 +308,19 @@ body {
   cursor: not-allowed;
 }
 
+.chip-miss {
+  background: #fee2e2;
+  border-color: #fecaca;
+  color: #b91c1c;
+  cursor: default;
+}
+
+:root[data-theme="dark"] .chip-miss {
+  background: #3a2226;
+  border-color: #5b2b2b;
+  color: #fca5a5;
+}
+
 .followup-input {
   display: flex;
   gap: 10px;

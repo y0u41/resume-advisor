@@ -5,6 +5,8 @@ import {
   buildFollowupPrompt,
   INTERVIEW_SYSTEM_PROMPT,
   buildInterviewPrompt,
+  DIRECTIONS_SYSTEM_PROMPT,
+  buildDirectionsPrompt,
 } from "./prompt.js";
 
 const LLM_TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS || 180000);
@@ -385,6 +387,86 @@ export async function interviewStream(params, onChunk, externalSignal, override)
         ],
         temperature: 0.5,
         max_tokens: 6000,
+        stream: true,
+      }),
+    });
+
+    await assertOk(response);
+    resetIdle();
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let fullText = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      resetIdle();
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        const data = line.slice(6).trim();
+        if (data === "[DONE]") continue;
+        try {
+          const parsed = JSON.parse(data);
+          const content = parsed.choices?.[0]?.delta?.content;
+          if (content) {
+            fullText += content;
+            onChunk(content);
+          }
+        } catch {
+          // 忽略不完整/非 JSON 的行
+        }
+      }
+    }
+
+    return fullText;
+  } finally {
+    clearTimeout(totalTimer);
+    if (idleTimer) clearTimeout(idleTimer);
+    if (externalSignal) externalSignal.removeEventListener("abort", onAbort);
+  }
+}
+
+// 岗位方向推荐（流式）
+export async function directionsStream(params, onChunk, externalSignal, override) {
+  const { apiKey, baseUrl, model } = getConfig(override);
+
+  const controller = new AbortController();
+  const totalTimer = setTimeout(() => controller.abort(new Error("LLM 请求超时")), LLM_TIMEOUT_MS);
+  let idleTimer = null;
+  const resetIdle = () => {
+    if (idleTimer) clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => controller.abort(new Error("LLM 流式响应停滞")), STREAM_IDLE_MS);
+  };
+  const onAbort = () => controller.abort(externalSignal.reason);
+  if (externalSignal) {
+    if (externalSignal.aborted) controller.abort(externalSignal.reason);
+    else externalSignal.addEventListener("abort", onAbort, { once: true });
+  }
+
+  try {
+    resetIdle();
+    const response = await fetch(`${baseUrl}/chat/completions`, {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: "system", content: DIRECTIONS_SYSTEM_PROMPT },
+          { role: "user", content: buildDirectionsPrompt(params) },
+        ],
+        temperature: 0.5,
+        max_tokens: 3000,
         stream: true,
       }),
     });

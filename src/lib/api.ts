@@ -225,3 +225,23 @@ export function interviewStream(
     onDone: (data, fullText) => onDone(data.text ?? fullText),
   });
 }
+
+export function directionsStream(
+  payload: {
+    resume: string;
+    provider?: string;
+    model?: string;
+    candidateType?: string;
+  },
+  onChunk: (textSoFar: string) => void,
+  onDone: (text: string) => void,
+  onError: (message: string) => void,
+  onQueued?: (position: number) => void
+): Promise<void> {
+  return postStream("/api/directions", payload, {
+    onChunk,
+    onQueued,
+    onError,
+    onDone: (data, fullText) => onDone(data.text ?? fullText),
+  });
+}

@@ -206,6 +206,7 @@ export default function Builder() {
           <Link to="/builder">简历模板</Link>
           <Link to="/compare">多岗位对比</Link>
           <Link to="/interview">模拟面试</Link>
+          <Link to="/directions">岗位推荐</Link>
           <Link to="/history">历史记录</Link>
         </nav>
         <p>没有简历？按模板填写内容，自动排版、可下载、还能直接去评估</p>
