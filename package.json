@@ -17,6 +17,7 @@
   "dependencies": {
     "better-sqlite3": "^13.0.3",
     "cheerio": "^1.2.0",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "docx": "^9.7.1",
     "dotenv": "^16.5.0",
@@ -24,6 +25,7 @@
     "express-rate-limit": "^8.7.0",
     "helmet": "^8.3.0",
     "html2canvas": "^1.4.1",
+    "jsonwebtoken": "^9.0.3",
     "jspdf": "^4.2.1",
     "mammoth": "^1.12.2",
     "multer": "^2.3.0",

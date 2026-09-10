@@ -3,8 +3,13 @@ import db from "../db.js";
 import { callLLM, callLLMStream } from "../llm.js";
 import { saveEvaluation } from "../store.js";
 import { getPersonKey, getPersonName } from "../person.js";
+import { requireAuth } from "../auth.js";
+import { consumeQuota, getUsage, DAILY_LIMIT } from "../quota.js";
 
 const router = Router();
+
+// 所有评估相关接口都需要登录
+router.use(requireAuth);
 
 const MAX_RESUME = 40000;
 const MAX_JD = 40000;
@@ -32,6 +37,13 @@ router.post("/evaluate", async (req, res) => {
   const invalid = validateInput({ resume, jobTitle, jobDescription, jobUrl });
   if (invalid) {
     return res.status(400).json({ error: invalid });
+  }
+
+  const quota = consumeQuota(req.user.id);
+  if (!quota.allowed) {
+    return res.status(429).json({
+      error: `今日评估次数已用完（${quota.used}/${quota.limit}），请明天再试`,
+    });
   }
 
   const stream = req.query.stream === "true";
@@ -98,7 +110,15 @@ router.post("/evaluate", async (req, res) => {
       }
 
       const score = extractScore(fullText);
-      const id = saveEvaluation(resume, jobTitle, jobDescription || "", score, fullText, jobUrl || "");
+      const id = saveEvaluation(
+        req.user.id,
+        resume,
+        jobTitle,
+        jobDescription || "",
+        score,
+        fullText,
+        jobUrl || ""
+      );
 
       res.write(
         `data: ${JSON.stringify({ chunk: "", done: true, id, score, report: fullText })}\n\n`
@@ -107,13 +127,20 @@ router.post("/evaluate", async (req, res) => {
     } else {
       const report = await callLLM(resume, jobTitle, jobDescription || "", controller.signal);
       const score = extractScore(report);
-      const id = saveEvaluation(resume, jobTitle, jobDescription || "", score, report, jobUrl || "");
+      const id = saveEvaluation(
+        req.user.id,
+        resume,
+        jobTitle,
+        jobDescription || "",
+        score,
+        report,
+        jobUrl || ""
+      );
 
       res.json({ id, score, report });
     }
   } catch (error) {
     if (controller.signal.aborted) {
-      // 客户端主动断开，无需写响应
       if (!res.writableEnded) res.end();
       return;
     }
@@ -131,20 +158,24 @@ router.get("/evaluations", (req, res) => {
   const rows = db
     .prepare(
       `SELECT id, job_title, score, person_name, person_key, created_at
-       FROM evaluations ORDER BY id DESC LIMIT 300`
+       FROM evaluations WHERE user_id = ? ORDER BY id DESC LIMIT 300`
     )
-    .all();
-  res.json(rows);
+    .all(req.user.id);
+  res.json({ records: rows, usage: { used: getUsage(req.user.id), limit: DAILY_LIMIT } });
 });
 
 router.get("/evaluations/:id", (req, res) => {
-  const row = db.prepare("SELECT * FROM evaluations WHERE id = ?").get(req.params.id);
+  const row = db
+    .prepare("SELECT * FROM evaluations WHERE id = ? AND user_id = ?")
+    .get(req.params.id, req.user.id);
   if (!row) return res.status(404).json({ error: "记录不存在" });
   res.json(row);
 });
 
 router.put("/evaluations/:id", (req, res) => {
-  const row = db.prepare("SELECT * FROM evaluations WHERE id = ?").get(req.params.id);
+  const row = db
+    .prepare("SELECT * FROM evaluations WHERE id = ? AND user_id = ?")
+    .get(req.params.id, req.user.id);
   if (!row) return res.status(404).json({ error: "记录不存在" });
 
   const { report, score, resume, job_title, job_description, job_url } = req.body || {};
@@ -174,7 +205,7 @@ router.put("/evaluations/:id", (req, res) => {
     `UPDATE evaluations
      SET report = ?, score = ?, resume = ?, job_title = ?, job_description = ?,
          job_url = ?, person_key = ?, person_name = ?
-     WHERE id = ?`
+     WHERE id = ? AND user_id = ?`
   ).run(
     next.report,
     next.score,
@@ -184,15 +215,21 @@ router.put("/evaluations/:id", (req, res) => {
     next.job_url,
     personKey,
     personName,
-    req.params.id
+    req.params.id,
+    req.user.id
   );
 
-  const updated = db.prepare("SELECT * FROM evaluations WHERE id = ?").get(req.params.id);
+  const updated = db
+    .prepare("SELECT * FROM evaluations WHERE id = ? AND user_id = ?")
+    .get(req.params.id, req.user.id);
   res.json(updated);
 });
 
 router.delete("/evaluations/:id", (req, res) => {
-  db.prepare("DELETE FROM evaluations WHERE id = ?").run(req.params.id);
+  db.prepare("DELETE FROM evaluations WHERE id = ? AND user_id = ?").run(
+    req.params.id,
+    req.user.id
+  );
   res.json({ ok: true });
 });
 

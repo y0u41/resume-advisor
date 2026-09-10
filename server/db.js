@@ -14,8 +14,18 @@ const db = new Database(dbPath);
 db.pragma("journal_mode = WAL");
 
 db.exec(`
+  CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )
+`);
+
+db.exec(`
   CREATE TABLE IF NOT EXISTS evaluations (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
     resume TEXT NOT NULL,
     job_title TEXT NOT NULL,
     job_description TEXT DEFAULT '',
@@ -28,18 +38,23 @@ db.exec(`
   )
 `);
 
+db.exec(`
+  CREATE TABLE IF NOT EXISTS usage_log (
+    user_id INTEGER NOT NULL,
+    day TEXT NOT NULL,
+    count INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, day)
+  )
+`);
+
 // 兼容旧库：补上新增字段
 const columns = db.prepare("PRAGMA table_info(evaluations)").all().map((c) => c.name);
-if (!columns.includes("person_key")) {
-  db.exec("ALTER TABLE evaluations ADD COLUMN person_key TEXT");
-}
-if (!columns.includes("person_name")) {
-  db.exec("ALTER TABLE evaluations ADD COLUMN person_name TEXT");
-}
-if (!columns.includes("job_url")) {
-  db.exec("ALTER TABLE evaluations ADD COLUMN job_url TEXT DEFAULT ''");
-}
+if (!columns.includes("person_key")) db.exec("ALTER TABLE evaluations ADD COLUMN person_key TEXT");
+if (!columns.includes("person_name")) db.exec("ALTER TABLE evaluations ADD COLUMN person_name TEXT");
+if (!columns.includes("job_url")) db.exec("ALTER TABLE evaluations ADD COLUMN job_url TEXT DEFAULT ''");
+if (!columns.includes("user_id")) db.exec("ALTER TABLE evaluations ADD COLUMN user_id INTEGER");
 
 db.exec("CREATE INDEX IF NOT EXISTS idx_eval_person ON evaluations(person_key)");
+db.exec("CREATE INDEX IF NOT EXISTS idx_eval_user ON evaluations(user_id)");
 
 export default db;

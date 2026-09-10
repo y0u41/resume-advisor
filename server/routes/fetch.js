@@ -3,8 +3,10 @@ import * as cheerio from "cheerio";
 import dns from "dns/promises";
 import net from "net";
 import { extractJobInfo } from "../llm.js";
+import { requireAuth } from "../auth.js";
 
 const router = Router();
+router.use(requireAuth);
 
 const MAX_LEN = 20000;
 const EXTRACT_MAX_LEN = 6000;

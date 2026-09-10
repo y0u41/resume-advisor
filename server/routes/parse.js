@@ -3,8 +3,11 @@ import multer from "multer";
 import { PDFParse } from "pdf-parse";
 import mammoth from "mammoth";
 import WordExtractor from "word-extractor";
+import { requireAuth } from "../auth.js";
 
 const router = Router();
+router.use(requireAuth);
+
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 },

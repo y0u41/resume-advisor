@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import FileUpload from "../components/FileUpload";
 import UrlFetch from "../components/UrlFetch";
+import UserBar from "../components/UserBar";
 import { streamEvaluate } from "../lib/api";
 
 export default function Home() {
@@ -51,6 +52,7 @@ export default function Home() {
   return (
     <div className="container">
       <div className="header">
+        <UserBar />
         <h1>📋 简历评估助手</h1>
         <p>贴简历 + 说岗位 → 得分 + 挑刺 + 改法</p>
         <nav className="nav">

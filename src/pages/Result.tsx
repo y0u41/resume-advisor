@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useLocation, Link } from "react-router-dom";
 import UrlFetch from "../components/UrlFetch";
+import UserBar from "../components/UserBar";
 import { streamEvaluate } from "../lib/api";
 import { downloadReport, type DownloadFormat } from "../lib/download";
 import {
@@ -308,6 +309,7 @@ export default function Result() {
   return (
     <div className="container">
       <div className="header">
+        <UserBar />
         <h1>评估报告</h1>
         <nav className="nav">
           <Link to="/" onClick={guardUnsaved}>

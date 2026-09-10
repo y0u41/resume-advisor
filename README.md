@@ -11,6 +11,7 @@
 - **修改与重评**：评估后可直接编辑简历 / 岗位 / JD 并重新评估
 - **多格式下载**：PDF / Word / TXT / Markdown
 - **历史记录**：按人分组，同一人最多保留 12 次提交
+- **多用户**：邮箱注册 / 登录，数据按用户隔离，每人每日额度限制
 
 ## 技术栈
 
@@ -53,6 +54,11 @@ npm start       # 后端同时服务前端，访问 http://127.0.0.1:3001
 | `HOST` | `127.0.0.1` | 监听地址（默认仅本机，安全） |
 | `CORS_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` | 允许的跨域来源（逗号分隔） |
 | `DB_PATH` | `data/app.db` | SQLite 数据库路径（测试用 `:memory:`） |
+| `AUTH_SECRET` | （生产必填） | 登录令牌签名密钥，随机长字符串；不设则每次重启失效 |
+| `AUTH_TOKEN_TTL` | `7d` | 登录态有效期 |
+| `COOKIE_SECURE` | `false` | Cookie 是否仅走 HTTPS（对外部署启用 HTTPS 后设为 `true`） |
+| `DAILY_LIMIT` | `30` | 每人每日评估次数上限 |
+| `REGISTRATION_OPEN` | `true` | 是否开放注册（`false` 则关闭注册入口） |
 
 ## 常用脚本
 
@@ -67,10 +73,12 @@ npm run typecheck  # TypeScript 类型检查
 ## 安全说明（重要）
 
 1. **API Key**：`.env` 已在 `.gitignore` 中，切勿提交。若密钥曾泄露，请立即到控制台**吊销并重建**。
-2. **仅本机访问**：默认只监听 `127.0.0.1`。如需局域网访问，请自行评估风险后设置 `HOST=0.0.0.0` 并配置 `CORS_ORIGINS`。
-3. **SSRF 防护**：链接抓取接口会拒绝内网 / 回环 / 链路本地地址，并校验重定向目标。
-4. **数据隐私**：`data/` 目录（含简历隐私）已被忽略，不会进入版本库。
-5. **速率限制**：评估 / 抓取 / 解析接口有限流，防止 API 额度被刷。
+2. **仅本机访问**：默认只监听 `127.0.0.1`。对外部署时设置 `HOST=0.0.0.0`，务必配合**反向代理 + HTTPS**，并设置 `COOKIE_SECURE=true`、`AUTH_SECRET`、`CORS_ORIGINS`。
+3. **鉴权**：除注册/登录外，所有接口都要求登录；数据按 `user_id` 严格隔离；登录接口有独立限流防暴力破解。
+4. **SSRF 防护**：链接抓取接口会拒绝内网 / 回环 / 链路本地地址，并校验重定向目标。
+5. **数据隐私**：`data/` 目录（含简历隐私）已被忽略，不会进入版本库。
+6. **速率限制**：评估 / 抓取 / 解析接口有限流，另有每人每日额度，防止 API 额度被刷。
+7. **首个注册用户**会继承升级前遗留的本地历史数据。
 
 ## 已知限制
 
@@ -86,14 +94,16 @@ npm run typecheck  # TypeScript 类型检查
 ```
 server/           后端
   index.js        服务入口（安全中间件、限流、静态服务）
-  db.js           SQLite 初始化与迁移
+  db.js           SQLite 初始化与迁移（users / evaluations / usage_log）
+  auth.js         密码加密、JWT、登录中间件
+  quota.js        每人每日额度
   store.js        评估保存 + 每人保留 12 条
   person.js       人物标识提取
   llm.js          LLM 调用（超时/取消/校验）
   prompt.js       人设与提示词
-  routes/         evaluate / parse / fetch 路由
+  routes/         auth / evaluate / parse / fetch 路由
 src/              前端
-  pages/          Home / Result / History
-  components/     FileUpload / UrlFetch
-  lib/            api / download / report
+  pages/          Login / Home / Result / History
+  components/     FileUpload / UrlFetch / UserBar
+  lib/            auth / api / download / report
 ```

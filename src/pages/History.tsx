@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import UserBar from "../components/UserBar";
 
 interface EvalRecord {
   id: number;
@@ -14,13 +15,15 @@ const MAX_PER_PERSON = 12;
 
 export default function History() {
   const [records, setRecords] = useState<EvalRecord[]>([]);
+  const [usage, setUsage] = useState<{ used: number; limit: number } | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetch("/api/evaluations")
       .then((r) => r.json())
       .then((d) => {
-        setRecords(d);
+        setRecords(d.records || []);
+        setUsage(d.usage || null);
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -45,11 +48,17 @@ export default function History() {
   return (
     <div className="container">
       <div className="header">
+        <UserBar />
         <h1>历史记录</h1>
         <nav className="nav">
           <Link to="/">评估简历</Link>
           <Link to="/history">历史记录</Link>
         </nav>
+        {usage && (
+          <p className="usage-hint">
+            今日已用 {usage.used} / {usage.limit} 次
+          </p>
+        )}
       </div>
 
       {loading ? (

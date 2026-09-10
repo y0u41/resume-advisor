@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
+import cookieParser from "cookie-parser";
 import dotenv from "dotenv";
 import { fileURLToPath } from "url";
 import path from "path";
@@ -49,6 +50,7 @@ app.use(
 );
 
 app.use(express.json({ limit: "5mb" }));
+app.use(cookieParser());
 
 // 速率限制
 const generalLimiter = rateLimit({
@@ -65,15 +67,25 @@ const heavyLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: "操作过于频繁，请稍后再试" },
 });
+const authLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "尝试过于频繁，请稍后再试" },
+});
 
 app.use("/api", generalLimiter);
+app.use("/api/auth", authLimiter);
 app.use("/api/evaluate", heavyLimiter);
 app.use("/api/fetch-url", heavyLimiter);
 app.use("/api/parse-file", heavyLimiter);
 
+import authRoutes from "./routes/auth.js";
 import evaluateRoutes from "./routes/evaluate.js";
 import parseRoutes from "./routes/parse.js";
 import fetchRoutes from "./routes/fetch.js";
+app.use("/api", authRoutes);
 app.use("/api", evaluateRoutes);
 app.use("/api", parseRoutes);
 app.use("/api", fetchRoutes);

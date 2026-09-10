@@ -1,0 +1,69 @@
+import crypto from "crypto";
+import jwt from "jsonwebtoken";
+import db from "./db.js";
+
+const AUTH_SECRET = process.env.AUTH_SECRET || crypto.randomBytes(32).toString("hex");
+if (!process.env.AUTH_SECRET) {
+  console.warn(
+    "[auth] 未设置 AUTH_SECRET，已使用临时密钥（服务重启后登录会失效）。生产环境请在 .env 配置。"
+  );
+}
+
+const TOKEN_TTL = process.env.AUTH_TOKEN_TTL || "7d";
+const COOKIE_NAME = "token";
+const COOKIE_SECURE = process.env.COOKIE_SECURE === "true";
+
+export function hashPassword(password) {
+  const salt = crypto.randomBytes(16).toString("hex");
+  const hash = crypto.scryptSync(password, salt, 64).toString("hex");
+  return `${salt}:${hash}`;
+}
+
+export function verifyPassword(password, stored) {
+  const [salt, hash] = (stored || "").split(":");
+  if (!salt || !hash) return false;
+  const test = crypto.scryptSync(password, salt, 64);
+  const expected = Buffer.from(hash, "hex");
+  return expected.length === test.length && crypto.timingSafeEqual(expected, test);
+}
+
+export function signToken(user) {
+  return jwt.sign({ uid: user.id, email: user.email }, AUTH_SECRET, { expiresIn: TOKEN_TTL });
+}
+
+function cookieOptions() {
+  return {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: COOKIE_SECURE,
+    path: "/",
+  };
+}
+
+export function setAuthCookie(res, token) {
+  res.cookie(COOKIE_NAME, token, { ...cookieOptions(), maxAge: 7 * 24 * 60 * 60 * 1000 });
+}
+
+export function clearAuthCookie(res) {
+  res.clearCookie(COOKIE_NAME, cookieOptions());
+}
+
+export function getUserFromToken(token) {
+  try {
+    const payload = jwt.verify(token, AUTH_SECRET);
+    const user = db
+      .prepare("SELECT id, email, created_at FROM users WHERE id = ?")
+      .get(payload.uid);
+    return user || null;
+  } catch {
+    return null;
+  }
+}
+
+export function requireAuth(req, res, next) {
+  const token = req.cookies?.[COOKIE_NAME];
+  const user = token ? getUserFromToken(token) : null;
+  if (!user) return res.status(401).json({ error: "请先登录" });
+  req.user = user;
+  next();
+}
