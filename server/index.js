@@ -85,10 +85,12 @@ import authRoutes from "./routes/auth.js";
 import evaluateRoutes from "./routes/evaluate.js";
 import parseRoutes from "./routes/parse.js";
 import fetchRoutes from "./routes/fetch.js";
+import adminRoutes from "./routes/admin.js";
 app.use("/api", authRoutes);
 app.use("/api", evaluateRoutes);
 app.use("/api", parseRoutes);
 app.use("/api", fetchRoutes);
+app.use("/api", adminRoutes);
 
 // 未匹配的 API 返回 JSON 404，避免被前端静态兜底吞掉
 app.use("/api", (req, res) => {

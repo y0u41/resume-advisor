@@ -52,7 +52,7 @@ export function getUserFromToken(token) {
   try {
     const payload = jwt.verify(token, AUTH_SECRET);
     const user = db
-      .prepare("SELECT id, email, created_at FROM users WHERE id = ?")
+      .prepare("SELECT id, email, username, role, created_at FROM users WHERE id = ?")
       .get(payload.uid);
     return user || null;
   } catch {
@@ -60,10 +60,28 @@ export function getUserFromToken(token) {
   }
 }
 
+// 按邮箱或用户名查找用户（大小写不敏感）
+export function findUserByAccount(account) {
+  const value = String(account || "").trim().toLowerCase();
+  if (!value) return null;
+  return db
+    .prepare(
+      "SELECT * FROM users WHERE lower(email) = ? OR lower(username) = ? LIMIT 1"
+    )
+    .get(value, value);
+}
+
 export function requireAuth(req, res, next) {
   const token = req.cookies?.[COOKIE_NAME];
   const user = token ? getUserFromToken(token) : null;
   if (!user) return res.status(401).json({ error: "请先登录" });
   req.user = user;
+  next();
+}
+
+export function requireAdmin(req, res, next) {
+  if (req.user?.role !== "admin") {
+    return res.status(403).json({ error: "需要管理员权限" });
+  }
   next();
 }

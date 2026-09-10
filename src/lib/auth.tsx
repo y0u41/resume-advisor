@@ -3,13 +3,15 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 export interface User {
   id: number;
   email: string;
+  username?: string | null;
+  role?: string;
   created_at?: string;
 }
 
 interface AuthContextValue {
   user: User | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (account: string, password: string) => Promise<void>;
   register: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
 }
@@ -39,8 +41,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => setLoading(false));
   }, []);
 
-  const login = async (email: string, password: string) => {
-    const data = await postJson("/api/auth/login", { email, password });
+  const login = async (account: string, password: string) => {
+    const data = await postJson("/api/auth/login", { account, password });
     setUser(data.user);
   };
 

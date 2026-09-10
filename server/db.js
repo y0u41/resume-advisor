@@ -17,6 +17,8 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     email TEXT UNIQUE NOT NULL,
+    username TEXT,
+    role TEXT NOT NULL DEFAULT 'user',
     password_hash TEXT NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )
@@ -56,5 +58,15 @@ if (!columns.includes("user_id")) db.exec("ALTER TABLE evaluations ADD COLUMN us
 
 db.exec("CREATE INDEX IF NOT EXISTS idx_eval_person ON evaluations(person_key)");
 db.exec("CREATE INDEX IF NOT EXISTS idx_eval_user ON evaluations(user_id)");
+
+// 兼容旧库：users 补上 username / role
+const userColumns = db.prepare("PRAGMA table_info(users)").all().map((c) => c.name);
+if (!userColumns.includes("username")) db.exec("ALTER TABLE users ADD COLUMN username TEXT");
+if (!userColumns.includes("role")) {
+  db.exec("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user'");
+}
+db.exec(
+  "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username) WHERE username IS NOT NULL"
+);
 
 export default db;

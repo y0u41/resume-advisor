@@ -12,7 +12,8 @@
     "start": "node server/index.js",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "create-admin": "node server/scripts/create-admin.js"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",

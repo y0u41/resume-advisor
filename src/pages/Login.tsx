@@ -22,7 +22,7 @@ export default function Login() {
     setError("");
 
     if (!email.trim() || !password) {
-      setError("请填写邮箱和密码");
+      setError("请填写账号和密码");
       return;
     }
     if (mode === "register") {
@@ -84,13 +84,13 @@ export default function Login() {
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label>邮箱</label>
+            <label>{mode === "login" ? "邮箱 / 账号" : "邮箱"}</label>
             <input
-              type="email"
-              placeholder="you@example.com"
+              type="text"
+              placeholder={mode === "login" ? "邮箱或用户名" : "you@example.com"}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              autoComplete="email"
+              autoComplete="username"
             />
           </div>
 

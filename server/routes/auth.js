@@ -7,6 +7,7 @@ import {
   setAuthCookie,
   clearAuthCookie,
   requireAuth,
+  findUserByAccount,
 } from "../auth.js";
 
 const router = Router();
@@ -44,21 +45,23 @@ router.post("/auth/register", (req, res) => {
 
   const user = { id: info.lastInsertRowid, email: normalized };
   setAuthCookie(res, signToken(user));
-  res.json({ user });
+  res.json({ user: { ...user, username: null, role: "user" } });
 });
 
 router.post("/auth/login", (req, res) => {
-  const { email, password } = req.body || {};
-  if (!email || !password) return res.status(400).json({ error: "请填写邮箱和密码" });
+  const account = req.body?.account ?? req.body?.email ?? req.body?.username;
+  const password = req.body?.password;
+  if (!account || !password) return res.status(400).json({ error: "请填写账号和密码" });
 
-  const normalized = email.trim().toLowerCase();
-  const row = db.prepare("SELECT * FROM users WHERE email = ?").get(normalized);
+  const row = findUserByAccount(account);
   if (!row || !verifyPassword(String(password), row.password_hash)) {
-    return res.status(401).json({ error: "邮箱或密码错误" });
+    return res.status(401).json({ error: "账号或密码错误" });
   }
 
   setAuthCookie(res, signToken(row));
-  res.json({ user: { id: row.id, email: row.email } });
+  res.json({
+    user: { id: row.id, email: row.email, username: row.username, role: row.role },
+  });
 });
 
 router.post("/auth/logout", (req, res) => {

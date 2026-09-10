@@ -5,6 +5,7 @@ import Home from "./pages/Home";
 import Result from "./pages/Result";
 import History from "./pages/History";
 import Login from "./pages/Login";
+import Admin from "./pages/Admin";
 
 function Protected({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
@@ -51,6 +52,14 @@ export default function App() {
             element={
               <Protected>
                 <History />
+              </Protected>
+            }
+          />
+          <Route
+            path="/admin"
+            element={
+              <Protected>
+                <Admin />
               </Protected>
             }
           />
