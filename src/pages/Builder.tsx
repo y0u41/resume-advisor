@@ -56,11 +56,30 @@ const AREA_FIELDS: { key: keyof ResumeData; label: string; placeholder: string; 
 const STYLES: ResumeStyle[] = ["student", "classic", "project"];
 const LAYOUTS: ResumeLayout[] = ["single", "sidebar"];
 const DRAFT_KEY = "resume_builder_draft";
+const VERSIONS_KEY = "resume_builder_versions";
 
 interface Draft {
   data: ResumeData;
   style: ResumeStyle;
   layout: ResumeLayout;
+}
+
+interface Version {
+  id: number;
+  name: string;
+  data: ResumeData;
+  style: ResumeStyle;
+  layout: ResumeLayout;
+  savedAt: string;
+}
+
+function loadVersions(): Version[] {
+  try {
+    const raw = localStorage.getItem(VERSIONS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
 }
 
 function loadDraft(): Draft | null {
@@ -96,6 +115,43 @@ export default function Builder() {
       // 忽略写入失败（隐私模式等）
     }
   }, [data, style, layout]);
+
+  const [versions, setVersions] = useState<Version[]>(loadVersions);
+  const [versionName, setVersionName] = useState("");
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(VERSIONS_KEY, JSON.stringify(versions));
+    } catch {
+      // 忽略
+    }
+  }, [versions]);
+
+  const saveVersion = () => {
+    const name = versionName.trim() || `版本 ${versions.length + 1}`;
+    const v: Version = {
+      id: Date.now(),
+      name,
+      data,
+      style,
+      layout,
+      savedAt: new Date().toISOString(),
+    };
+    setVersions((prev) => [v, ...prev].slice(0, 20));
+    setVersionName("");
+    toast(`已保存版本「${name}」`, "success");
+  };
+
+  const loadVersion = (v: Version) => {
+    setData({ ...EMPTY_RESUME, ...v.data });
+    setStyle(v.style);
+    setLayout(v.layout);
+    toast(`已载入「${v.name}」`, "success");
+  };
+
+  const deleteVersion = (id: number) => {
+    setVersions((prev) => prev.filter((v) => v.id !== id));
+  };
 
   const text = buildResume(data, style);
   const html = resumeToHtml(data, style, layout);
@@ -260,6 +316,48 @@ export default function Builder() {
             <button type="button" className="btn btn-secondary" onClick={() => setData(EMPTY_RESUME)}>
               清空
             </button>
+          </div>
+
+          <div className="versions">
+            <label>我的简历版本</label>
+            <div className="versions-save">
+              <input
+                type="text"
+                placeholder="版本名称，如：Java岗版"
+                value={versionName}
+                onChange={(e) => setVersionName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") saveVersion();
+                }}
+              />
+              <button type="button" className="btn btn-secondary btn-sm" onClick={saveVersion}>
+                保存为新版本
+              </button>
+            </div>
+
+            {versions.length > 0 ? (
+              <ul className="versions-list">
+                {versions.map((v) => (
+                  <li key={v.id}>
+                    <button type="button" className="btn-link" onClick={() => loadVersion(v)}>
+                      {v.name}
+                    </button>
+                    <span className="versions-meta">
+                      {new Date(v.savedAt).toLocaleDateString("zh-CN")}
+                    </span>
+                    <button
+                      type="button"
+                      className="btn-link versions-del"
+                      onClick={() => deleteVersion(v.id)}
+                    >
+                      删除
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="hint">把简历按不同岗位存成多个版本，投递时切换即可。</p>
+            )}
           </div>
         </div>
 
