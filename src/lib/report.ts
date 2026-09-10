@@ -95,3 +95,56 @@ export function matchRate(items: MatchItem[]): number {
   const partial = items.filter((i) => i.status === "partial").length;
   return Math.round(((ok + partial * 0.5) / items.length) * 100);
 }
+
+export interface ReportDocData {
+  job_title: string;
+  job_url?: string;
+  score: number | null;
+  report: string;
+  created_at: string;
+}
+
+function esc(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+// 排版好的报告 HTML（用于 PDF 导出）
+export function reportToHtml(data: ReportDocData): string {
+  const scoreCls =
+    data.score == null ? "" : data.score >= 7 ? "hi" : data.score >= 4 ? "mid" : "lo";
+
+  const meta = [
+    `应聘岗位：${esc(data.job_title || "—")}`,
+    data.job_url ? `岗位链接：${esc(data.job_url)}` : "",
+    `评估时间：${new Date(data.created_at).toLocaleString("zh-CN")}`,
+  ]
+    .filter(Boolean)
+    .join("　｜　");
+
+  const sections = parseReport(data.report);
+  const body = sections.length
+    ? sections
+        .map(
+          (s) =>
+            `<section class="rdsec"><h2 class="rdsec-title">${esc(s.title)}</h2><div class="rdsec-body">${esc(
+              s.content
+            )}</div></section>`
+        )
+        .join("")
+    : `<section class="rdsec"><div class="rdsec-body">${esc(data.report)}</div></section>`;
+
+  return `<div class="report-doc">
+    <header class="rdhead">
+      <div class="rdhead-top">
+        <div class="rdtitle">简历评估报告</div>
+        ${
+          data.score != null
+            ? `<div class="rdscore rdscore-${scoreCls}">${data.score}<small>/10</small></div>`
+            : ""
+        }
+      </div>
+      <div class="rdmeta">${meta}</div>
+    </header>
+    ${body}
+  </div>`;
+}

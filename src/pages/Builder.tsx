@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import UserBar from "../components/UserBar";
 import Logo from "../components/Logo";
@@ -14,6 +14,7 @@ import {
   type ResumeLayout,
 } from "../lib/resumeTemplate";
 import { downloadResume, type DownloadFormat } from "../lib/download";
+import { useToast } from "../lib/toast";
 
 const SHORT_FIELDS: { key: keyof ResumeData; label: string; placeholder: string }[] = [
   { key: "name", label: "姓名", placeholder: "刘星宇" },
@@ -54,15 +55,47 @@ const AREA_FIELDS: { key: keyof ResumeData; label: string; placeholder: string; 
 
 const STYLES: ResumeStyle[] = ["student", "classic", "project"];
 const LAYOUTS: ResumeLayout[] = ["single", "sidebar"];
+const DRAFT_KEY = "resume_builder_draft";
+
+interface Draft {
+  data: ResumeData;
+  style: ResumeStyle;
+  layout: ResumeLayout;
+}
+
+function loadDraft(): Draft | null {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return {
+      data: { ...EMPTY_RESUME, ...(parsed.data || {}) },
+      style: STYLES.includes(parsed.style) ? parsed.style : "student",
+      layout: LAYOUTS.includes(parsed.layout) ? parsed.layout : "single",
+    };
+  } catch {
+    return null;
+  }
+}
 
 export default function Builder() {
   const navigate = useNavigate();
-  const [data, setData] = useState<ResumeData>(EMPTY_RESUME);
-  const [style, setStyle] = useState<ResumeStyle>("student");
-  const [layout, setLayout] = useState<ResumeLayout>("single");
+  const initialDraft = useRef<Draft | null>(loadDraft());
+  const [data, setData] = useState<ResumeData>(initialDraft.current?.data || EMPTY_RESUME);
+  const [style, setStyle] = useState<ResumeStyle>(initialDraft.current?.style || "student");
+  const [layout, setLayout] = useState<ResumeLayout>(initialDraft.current?.layout || "single");
   const [format, setFormat] = useState<DownloadFormat>("pdf");
   const [downloading, setDownloading] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
+  const toast = useToast();
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({ data, style, layout }));
+    } catch {
+      // 忽略写入失败（隐私模式等）
+    }
+  }, [data, style, layout]);
 
   const text = buildResume(data, style);
   const html = resumeToHtml(data, style, layout);
@@ -75,11 +108,11 @@ export default function Builder() {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.type.startsWith("image/")) {
-      alert("请选择图片文件");
+      toast("请选择图片文件", "error");
       return;
     }
     if (file.size > 2 * 1024 * 1024) {
-      alert("图片过大，请选择 2MB 以内的图片");
+      toast("图片过大，请选择 2MB 以内的图片", "error");
       return;
     }
     const reader = new FileReader();
@@ -92,8 +125,9 @@ export default function Builder() {
     setDownloading(true);
     try {
       await downloadResume(text, html, data.name.trim(), format);
+      toast("已开始下载", "success");
     } catch (err: any) {
-      alert("下载失败：" + err.message);
+      toast("下载失败：" + err.message, "error");
     } finally {
       setDownloading(false);
     }

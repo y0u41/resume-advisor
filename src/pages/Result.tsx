@@ -6,6 +6,7 @@ import ModelSelect from "../components/ModelSelect";
 import Logo from "../components/Logo";
 import { streamEvaluate, followUpStream } from "../lib/api";
 import { downloadReport, type DownloadFormat } from "../lib/download";
+import { useToast } from "../lib/toast";
 import { useModels } from "../lib/models";
 import {
   parseReport,
@@ -160,6 +161,7 @@ export default function Result() {
   const [followupAnswer, setFollowupAnswer] = useState("");
   const [followupLoading, setFollowupLoading] = useState(false);
   const { groups, selection, setSelection } = useModels();
+  const toast = useToast();
 
   const applyFull = (d: EvalData) => {
     setData(d);
@@ -247,11 +249,11 @@ export default function Result() {
             created_at: new Date().toISOString(),
           });
         },
-        (msg) => alert("再次评估失败: " + msg),
+        (msg) => toast("再次评估失败：" + msg, "error"),
         (position) => setQueuePos(position)
       );
     } catch (err: any) {
-      alert("请求失败: " + err.message);
+      toast("请求失败：" + err.message, "error");
     } finally {
       setReLoading(false);
       setReText("");
@@ -297,8 +299,9 @@ export default function Result() {
     setDownloading(true);
     try {
       await downloadReport(data, downloadFormat);
+      toast("已开始下载", "success");
     } catch (err: any) {
-      alert("下载失败：" + err.message);
+      toast("下载失败：" + err.message, "error");
     } finally {
       setDownloading(false);
     }

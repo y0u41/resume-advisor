@@ -8,6 +8,7 @@ import Logo from "../components/Logo";
 import { streamEvaluate } from "../lib/api";
 import { useModels } from "../lib/models";
 import { SAMPLE_RESUME, SAMPLE_JOB_TITLE, SAMPLE_JD } from "../lib/sample";
+import { useToast } from "../lib/toast";
 
 export default function Home() {
   const [resume, setResume] = useState("");
@@ -22,6 +23,7 @@ export default function Home() {
   const navigate = useNavigate();
   const location = useLocation();
   const { groups, selection, setSelection } = useModels();
+  const toast = useToast();
 
   useEffect(() => {
     const st = location.state as { resume?: string; jobTitle?: string } | null;
@@ -75,11 +77,11 @@ export default function Home() {
             },
           });
         },
-        (msg) => alert("评估失败: " + msg),
+        (msg) => toast("评估失败：" + msg, "error"),
         (position) => setQueuePos(position)
       );
     } catch (err: any) {
-      alert("请求失败: " + err.message);
+      toast("请求失败：" + err.message, "error");
     } finally {
       setLoading(false);
       setStreaming(false);

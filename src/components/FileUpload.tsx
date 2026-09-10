@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { useToast } from "../lib/toast";
 
 interface Props {
   onText: (text: string) => void;
@@ -10,6 +11,7 @@ export default function FileUpload({ onText, label = "上传文件" }: Props) {
   const [uploading, setUploading] = useState(false);
   const [filename, setFilename] = useState("");
   const [dragging, setDragging] = useState(false);
+  const toast = useToast();
 
   const handleFile = async (file: File) => {
     setUploading(true);
@@ -22,14 +24,14 @@ export default function FileUpload({ onText, label = "上传文件" }: Props) {
       const data = await res.json();
 
       if (!res.ok) {
-        alert("文件解析失败：" + (data.error || "未知错误"));
+        toast("文件解析失败：" + (data.error || "未知错误"), "error");
         setFilename("");
         return;
       }
 
       onText(data.text);
     } catch (err: any) {
-      alert("上传失败：" + err.message);
+      toast("上传失败：" + err.message, "error");
       setFilename("");
     } finally {
       setUploading(false);

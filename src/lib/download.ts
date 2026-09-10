@@ -1,5 +1,7 @@
 export type DownloadFormat = "pdf" | "docx" | "txt" | "md";
 
+import { reportToHtml } from "./report";
+
 export interface ReportData {
   job_title: string;
   job_url?: string;
@@ -174,6 +176,7 @@ export function downloadReport(data: ReportData, format: DownloadFormat) {
       title: "简历评估报告",
       meta,
       body: data.report,
+      html: reportToHtml(data),
       filename: `简历评估报告_${data.job_title || "岗位"}_${todayStr()}`,
     },
     format
