@@ -8,34 +8,31 @@ export interface ReportData {
   created_at: string;
 }
 
-function metaRows(data: ReportData) {
-  const rows: { label: string; value: string }[] = [
-    { label: "应聘岗位", value: data.job_title || "—" },
-  ];
-  if (data.job_url) rows.push({ label: "岗位链接", value: data.job_url });
-  rows.push({ label: "评分", value: `${data.score ?? "—"} / 10` });
-  rows.push({ label: "评估时间", value: new Date(data.created_at).toLocaleString("zh-CN") });
-  return rows;
+interface DocSpec {
+  title: string;
+  meta?: { label: string; value: string }[];
+  body: string;
+  filename: string;
 }
 
-function buildPlainText(data: ReportData): string {
-  const lines: string[] = ["简历评估报告", ""];
-  for (const r of metaRows(data)) lines.push(`${r.label}：${r.value}`);
-  lines.push("", "----------------------------------------", "");
-  lines.push(data.report);
+function todayStr() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function buildPlainText(doc: DocSpec): string {
+  const lines: string[] = [doc.title, ""];
+  for (const r of doc.meta || []) lines.push(`${r.label}：${r.value}`);
+  if (doc.meta?.length) lines.push("");
+  lines.push(doc.body);
   return lines.join("\n");
 }
 
-function buildMarkdown(data: ReportData): string {
-  const lines: string[] = ["# 简历评估报告", ""];
-  for (const r of metaRows(data)) lines.push(`- ${r.label}：${r.value}`);
-  lines.push("", "---", "", data.report);
+function buildMarkdown(doc: DocSpec): string {
+  const lines: string[] = [`# ${doc.title}`, ""];
+  for (const r of doc.meta || []) lines.push(`- ${r.label}：${r.value}`);
+  if (doc.meta?.length) lines.push("");
+  lines.push("---", "", doc.body);
   return lines.join("\n");
-}
-
-function baseFilename(data: ReportData): string {
-  const date = new Date().toISOString().slice(0, 10);
-  return `简历评估报告_${data.job_title || "岗位"}_${date}`;
 }
 
 function saveBlob(blob: Blob, filename: string) {
@@ -53,22 +50,22 @@ function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-async function downloadDocx(data: ReportData, name: string) {
+async function downloadDocx(doc: DocSpec) {
   const { Document, Packer, Paragraph, TextRun, HeadingLevel } = await import("docx");
 
   const children: any[] = [
-    new Paragraph({ text: "简历评估报告", heading: HeadingLevel.HEADING_1 }),
+    new Paragraph({ text: doc.title, heading: HeadingLevel.HEADING_1 }),
   ];
-  for (const r of metaRows(data)) {
+  for (const r of doc.meta || []) {
     children.push(
       new Paragraph({
         children: [new TextRun({ text: `${r.label}：`, bold: true }), new TextRun({ text: r.value })],
       })
     );
   }
-  children.push(new Paragraph({ text: "" }));
+  if (doc.meta?.length) children.push(new Paragraph({ text: "" }));
 
-  for (const line of data.report.split("\n")) {
+  for (const line of doc.body.split("\n")) {
     const trimmed = line.trim();
     const sec = trimmed.match(/^【(.+?)】\s*(.*)$/);
     if (sec) {
@@ -79,12 +76,12 @@ async function downloadDocx(data: ReportData, name: string) {
     }
   }
 
-  const doc = new Document({ sections: [{ children }] });
-  const blob = await Packer.toBlob(doc);
-  saveBlob(blob, `${name}.docx`);
+  const docx = new Document({ sections: [{ children }] });
+  const blob = await Packer.toBlob(docx);
+  saveBlob(blob, `${doc.filename}.docx`);
 }
 
-async function downloadPdf(data: ReportData, name: string) {
+async function downloadPdf(doc: DocSpec) {
   const html2canvas = (await import("html2canvas")).default;
   const { jsPDF } = await import("jspdf");
 
@@ -100,7 +97,7 @@ async function downloadPdf(data: ReportData, name: string) {
   holder.style.fontSize = "14px";
   holder.style.lineHeight = "1.75";
 
-  const metaHtml = metaRows(data)
+  const metaHtml = (doc.meta || [])
     .map(
       (r) =>
         `<div style="margin-bottom:4px;"><b>${escapeHtml(r.label)}：</b>${escapeHtml(r.value)}</div>`
@@ -108,10 +105,10 @@ async function downloadPdf(data: ReportData, name: string) {
     .join("");
 
   holder.innerHTML = `
-    <h1 style="font-size:24px;margin:0 0 16px;color:#1e293b;">简历评估报告</h1>
+    <h1 style="font-size:24px;margin:0 0 16px;color:#1e293b;">${escapeHtml(doc.title)}</h1>
     ${metaHtml}
     <hr style="border:none;border-top:1px solid #e2e8f0;margin:16px 0;" />
-    <div style="white-space:pre-wrap;">${escapeHtml(data.report)}</div>
+    <div style="white-space:pre-wrap;">${escapeHtml(doc.body)}</div>
   `;
   document.body.appendChild(holder);
 
@@ -141,25 +138,50 @@ async function downloadPdf(data: ReportData, name: string) {
       heightLeft -= pageHeight;
     }
 
-    pdf.save(`${name}.pdf`);
+    pdf.save(`${doc.filename}.pdf`);
   } finally {
     document.body.removeChild(holder);
   }
 }
 
-export async function downloadReport(data: ReportData, format: DownloadFormat) {
-  const name = baseFilename(data);
-
+export async function downloadDocument(doc: DocSpec, format: DownloadFormat) {
   if (format === "txt") {
-    saveBlob(new Blob([buildPlainText(data)], { type: "text/plain;charset=utf-8" }), `${name}.txt`);
+    saveBlob(new Blob([buildPlainText(doc)], { type: "text/plain;charset=utf-8" }), `${doc.filename}.txt`);
   } else if (format === "md") {
-    saveBlob(
-      new Blob([buildMarkdown(data)], { type: "text/markdown;charset=utf-8" }),
-      `${name}.md`
-    );
+    saveBlob(new Blob([buildMarkdown(doc)], { type: "text/markdown;charset=utf-8" }), `${doc.filename}.md`);
   } else if (format === "docx") {
-    await downloadDocx(data, name);
+    await downloadDocx(doc);
   } else if (format === "pdf") {
-    await downloadPdf(data, name);
+    await downloadPdf(doc);
   }
+}
+
+export function downloadReport(data: ReportData, format: DownloadFormat) {
+  const meta: { label: string; value: string }[] = [
+    { label: "应聘岗位", value: data.job_title || "—" },
+  ];
+  if (data.job_url) meta.push({ label: "岗位链接", value: data.job_url });
+  meta.push({ label: "评分", value: `${data.score ?? "—"} / 10` });
+  meta.push({ label: "评估时间", value: new Date(data.created_at).toLocaleString("zh-CN") });
+
+  return downloadDocument(
+    {
+      title: "简历评估报告",
+      meta,
+      body: data.report,
+      filename: `简历评估报告_${data.job_title || "岗位"}_${todayStr()}`,
+    },
+    format
+  );
+}
+
+export function downloadResume(resumeText: string, name: string, format: DownloadFormat) {
+  return downloadDocument(
+    {
+      title: name ? `${name} 的简历` : "个人简历",
+      body: resumeText,
+      filename: `简历_${name || "个人"}_${todayStr()}`,
+    },
+    format
+  );
 }

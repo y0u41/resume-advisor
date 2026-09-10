@@ -1511,3 +1511,95 @@ body,
   color: var(--primary);
   transform: translateY(-1px);
 }
+
+/* ---------- 简历模板生成器 ---------- */
+.builder {
+  display: grid;
+  /* 黄金分割：表单 : 预览 = 1.618 : 1 */
+  grid-template-columns: 1.618fr 1fr;
+  gap: 32px;
+  align-items: start;
+}
+
+.builder-form {
+  margin-bottom: 0;
+}
+
+.builder-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+.builder-toolbar-label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.builder-toolbar .chips {
+  margin-bottom: 0;
+}
+
+.chip-active {
+  border-color: var(--primary);
+  background: var(--tint);
+  color: var(--primary);
+}
+
+.builder-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 16px;
+}
+
+.builder-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.builder-preview {
+  position: sticky;
+  top: 24px;
+}
+
+.builder-preview-head {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  letter-spacing: 0.05em;
+  margin-bottom: 10px;
+}
+
+.builder-paper {
+  margin-bottom: 14px;
+}
+
+.builder-text {
+  font-size: 0.85rem;
+  line-height: 1.85;
+  min-height: 340px;
+}
+
+.builder-download {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 900px) {
+  .builder {
+    grid-template-columns: 1fr;
+  }
+
+  .builder-preview {
+    position: static;
+  }
+
+  .builder-grid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useNavigate, useLocation, Link } from "react-router-dom";
 import FileUpload from "../components/FileUpload";
 import UrlFetch from "../components/UrlFetch";
 import UserBar from "../components/UserBar";
@@ -20,7 +20,17 @@ export default function Home() {
   const [streamText, setStreamText] = useState("");
   const [queuePos, setQueuePos] = useState(0);
   const navigate = useNavigate();
+  const location = useLocation();
   const { groups, selection, setSelection } = useModels();
+
+  useEffect(() => {
+    const st = location.state as { resume?: string; jobTitle?: string } | null;
+    if (st?.resume) {
+      setResume(st.resume);
+      if (st.jobTitle) setJobTitle(st.jobTitle);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const fillSample = () => {
     setResume(SAMPLE_RESUME);
@@ -87,6 +97,7 @@ export default function Home() {
         <p>贴简历 + 说岗位 → 得分 + 挑刺 + 改法</p>
         <nav className="nav">
           <Link to="/">评估简历</Link>
+          <Link to="/builder">简历模板</Link>
           <Link to="/history">历史记录</Link>
           <button type="button" className="nav-btn" onClick={fillSample}>
             ✨ 试用示例
