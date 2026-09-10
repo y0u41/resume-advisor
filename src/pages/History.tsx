@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import UserBar from "../components/UserBar";
 import Logo from "../components/Logo";
+import Nav from "../components/Nav";
 
 interface EvalRecord {
   id: number;
@@ -54,10 +55,7 @@ export default function History() {
           <Logo size={36} />
           <h1>历史记录</h1>
         </div>
-        <nav className="nav">
-          <Link to="/">评估简历</Link>
-          <Link to="/history">历史记录</Link>
-        </nav>
+        <Nav />
         {usage && (
           <p className="usage-hint">
             今日已用 {usage.used} / {usage.limit} 次

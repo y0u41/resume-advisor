@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
 import UserBar from "../components/UserBar";
 import Logo from "../components/Logo";
+import Nav from "../components/Nav";
 import ModelSelect from "../components/ModelSelect";
 import { useModels } from "../lib/models";
 import { useToast } from "../lib/toast";
@@ -71,13 +71,7 @@ export default function Directions() {
           <Logo size={36} />
           <h1>岗位方向推荐</h1>
         </div>
-        <nav className="nav">
-          <Link to="/">评估简历</Link>
-          <Link to="/builder">简历模板</Link>
-          <Link to="/compare">多岗位对比</Link>
-          <Link to="/interview">模拟面试</Link>
-          <Link to="/history">历史记录</Link>
-        </nav>
+        <Nav />
         <p>不知道该投什么？根据简历推荐适合你的岗位方向</p>
       </div>
 

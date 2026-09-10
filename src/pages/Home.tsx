@@ -5,6 +5,7 @@ import UrlFetch from "../components/UrlFetch";
 import UserBar from "../components/UserBar";
 import ModelSelect from "../components/ModelSelect";
 import Logo from "../components/Logo";
+import Nav from "../components/Nav";
 import { streamEvaluate } from "../lib/api";
 import { useModels } from "../lib/models";
 import { SAMPLE_RESUME, SAMPLE_JOB_TITLE, SAMPLE_JD } from "../lib/sample";
@@ -113,17 +114,11 @@ export default function Home() {
           <h1>简历评估助手</h1>
         </div>
         <p>贴简历 + 说岗位 → 得分 + 挑刺 + 改法</p>
-        <nav className="nav">
-          <Link to="/">评估简历</Link>
-          <Link to="/builder">简历模板</Link>
-          <Link to="/compare">多岗位对比</Link>
-          <Link to="/interview">模拟面试</Link>
-          <Link to="/directions">岗位推荐</Link>
-          <Link to="/history">历史记录</Link>
+        <Nav>
           <button type="button" className="nav-btn" onClick={fillSample}>
             ✨ 试用示例
           </button>
-        </nav>
+        </Nav>
       </div>
 
       {showGuide && (

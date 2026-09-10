@@ -4,6 +4,7 @@ import UrlFetch from "../components/UrlFetch";
 import UserBar from "../components/UserBar";
 import ModelSelect from "../components/ModelSelect";
 import Logo from "../components/Logo";
+import Nav from "../components/Nav";
 import { streamEvaluate, followUpStream } from "../lib/api";
 import { downloadReport, type DownloadFormat } from "../lib/download";
 import { useToast } from "../lib/toast";
@@ -404,12 +405,7 @@ export default function Result() {
           <Logo size={36} />
           <h1>评估报告</h1>
         </div>
-        <nav className="nav">
-          <Link to="/" onClick={guardUnsaved}>
-            新建评估
-          </Link>
-          <Link to="/history">历史记录</Link>
-        </nav>
+        <Nav onNavigate={guardUnsaved} />
       </div>
 
       <div className="card">

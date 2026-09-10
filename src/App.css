@@ -958,14 +958,6 @@ body {
 }
 
 /* ---------- File upload ---------- */
-.file-upload {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-bottom: 10px;
-}
-
 .file-name {
   font-size: 0.8rem;
   color: var(--success);

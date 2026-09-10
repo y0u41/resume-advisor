@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 import UserBar from "../components/UserBar";
 import Logo from "../components/Logo";
+import Nav from "../components/Nav";
 import { useAuth } from "../lib/auth";
 
 interface AdminUser {
@@ -52,11 +53,9 @@ export default function Admin() {
           <Logo size={36} />
           <h1>用户管理</h1>
         </div>
-        <nav className="nav">
-          <Link to="/">评估简历</Link>
-          <Link to="/history">历史记录</Link>
+        <Nav>
           <Link to="/admin">用户管理</Link>
-        </nav>
+        </Nav>
       </div>
 
       <div className="card">
