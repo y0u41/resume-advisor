@@ -663,7 +663,7 @@ body {
 .landing-auth {
   position: sticky;
   top: 24px;
-  margin-top: 33vh;
+  margin-top: 16.5vh;
   animation: fadeInUp 0.5s var(--ease) 0.1s both;
 }
 
