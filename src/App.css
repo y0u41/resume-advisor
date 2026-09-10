@@ -507,18 +507,34 @@ body {
 }
 
 .demo-card {
+  display: grid;
+  grid-template-columns: 188px 1fr;
+  gap: 20px;
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: 18px;
+  padding: 20px;
   box-shadow: var(--shadow-md);
 }
 
-.demo-head {
+.demo-score-col {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 14px;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 4px;
+}
+
+.demo-score-col .score-badge {
+  font-size: 1.8rem;
+  padding: 8px 18px;
+  border-radius: var(--radius-md);
+  margin: 10px 0;
+}
+
+.demo-score-col .demo-match-label,
+.demo-score-col .progress-track {
+  width: 100%;
 }
 
 .demo-label {
@@ -527,18 +543,15 @@ body {
 }
 
 .demo-job {
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-weight: 700;
-}
-
-.demo-match {
-  margin-bottom: 14px;
+  line-height: 1.35;
 }
 
 .demo-match-label {
   display: flex;
   justify-content: space-between;
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   font-weight: 600;
   color: var(--text-secondary);
   margin-bottom: 5px;
@@ -556,6 +569,7 @@ body {
 }
 
 .demo-fix {
+  grid-column: 1 / -1;
   border-top: 1px dashed var(--border);
   padding-top: 12px;
 }
@@ -636,6 +650,10 @@ body {
   .landing-topbar {
     top: 16px;
     right: 16px;
+  }
+
+  .demo-card {
+    grid-template-columns: 1fr;
   }
 }
 

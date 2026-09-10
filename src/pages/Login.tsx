@@ -18,17 +18,14 @@ const FEATURES = [
 function DemoPreview() {
   return (
     <div className="demo-card">
-      <div className="demo-head">
-        <div>
-          <div className="demo-label">应聘岗位</div>
-          <div className="demo-job">Java 后端开发工程师</div>
-        </div>
+      <div className="demo-score-col">
+        <div className="demo-label">应聘岗位</div>
+        <div className="demo-job">Java 后端开发工程师</div>
+
         <div className="score-badge score-mid">
           6<small>/ 10</small>
         </div>
-      </div>
 
-      <div className="demo-match">
         <div className="demo-match-label">
           <span>岗位匹配度</span>
           <span>55%</span>
