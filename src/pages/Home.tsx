@@ -6,6 +6,7 @@ import UserBar from "../components/UserBar";
 import ModelSelect from "../components/ModelSelect";
 import { streamEvaluate } from "../lib/api";
 import { useModels } from "../lib/models";
+import { SAMPLE_RESUME, SAMPLE_JOB_TITLE, SAMPLE_JD } from "../lib/sample";
 
 export default function Home() {
   const [resume, setResume] = useState("");
@@ -18,6 +19,12 @@ export default function Home() {
   const [queuePos, setQueuePos] = useState(0);
   const navigate = useNavigate();
   const { groups, selection, setSelection } = useModels();
+
+  const fillSample = () => {
+    setResume(SAMPLE_RESUME);
+    setJobTitle(SAMPLE_JOB_TITLE);
+    setJobDescription(SAMPLE_JD);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -74,6 +81,9 @@ export default function Home() {
         <nav className="nav">
           <Link to="/">评估简历</Link>
           <Link to="/history">历史记录</Link>
+          <button type="button" className="nav-btn" onClick={fillSample}>
+            ✨ 试用示例
+          </button>
         </nav>
       </div>
 

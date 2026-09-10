@@ -9,6 +9,7 @@ export default function FileUpload({ onText, label = "上传文件" }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [filename, setFilename] = useState("");
+  const [dragging, setDragging] = useState(false);
 
   const handleFile = async (file: File) => {
     setUploading(true);
@@ -17,10 +18,7 @@ export default function FileUpload({ onText, label = "上传文件" }: Props) {
       const formData = new FormData();
       formData.append("file", file);
 
-      const res = await fetch("/api/parse-file", {
-        method: "POST",
-        body: formData,
-      });
+      const res = await fetch("/api/parse-file", { method: "POST", body: formData });
       const data = await res.json();
 
       if (!res.ok) {
@@ -40,7 +38,21 @@ export default function FileUpload({ onText, label = "上传文件" }: Props) {
   };
 
   return (
-    <div className="file-upload">
+    <div
+      className={`dropzone ${dragging ? "dragging" : ""} ${uploading ? "uploading" : ""}`}
+      onClick={() => inputRef.current?.click()}
+      onDragOver={(e) => {
+        e.preventDefault();
+        setDragging(true);
+      }}
+      onDragLeave={() => setDragging(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setDragging(false);
+        const file = e.dataTransfer.files?.[0];
+        if (file) handleFile(file);
+      }}
+    >
       <input
         ref={inputRef}
         type="file"
@@ -51,24 +63,20 @@ export default function FileUpload({ onText, label = "上传文件" }: Props) {
           if (f) handleFile(f);
         }}
       />
-      <button
-        type="button"
-        className="btn btn-secondary btn-sm"
-        disabled={uploading}
-        onClick={() => inputRef.current?.click()}
-      >
-        {uploading ? (
-          <>
-            <span className="spinner spinner-sm" /> 解析中...
-          </>
-        ) : (
-          <>📎 {label}</>
-        )}
-      </button>
-      {filename && !uploading && (
-        <span className="file-name">已导入：{filename}</span>
+
+      {uploading ? (
+        <span className="dropzone-text">
+          <span className="spinner spinner-sm" style={{ color: "var(--primary)" }} /> 解析中...
+        </span>
+      ) : (
+        <span className="dropzone-text">
+          <span className="dropzone-icon">📎</span>
+          点击或拖拽文件到此处（{label}）
+        </span>
       )}
-      <span className="file-hint">支持 PDF / Word / TXT（扫描版 PDF 无法识别）</span>
+
+      {filename && !uploading && <span className="file-name">已导入：{filename}</span>}
+      <span className="dropzone-hint">支持 PDF / Word / TXT，单个 ≤ 10MB</span>
     </div>
   );
 }
