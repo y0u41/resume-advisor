@@ -418,7 +418,8 @@ body {
   margin: 0 auto;
   padding: 24px 24px 60px;
   display: grid;
-  grid-template-columns: 1.15fr 0.85fr;
+  /* 黄金分割：展示区 : 表单 ≈ 1.618 : 1 */
+  grid-template-columns: 1.618fr 1fr;
   gap: 48px;
   align-items: start;
   position: relative;
@@ -557,7 +558,8 @@ body {
 
 .demo-card {
   display: grid;
-  grid-template-columns: 188px 1fr;
+  /* 黄金分割：评分栏 : 明细 ≈ 1 : 1.618 */
+  grid-template-columns: 1fr 1.618fr;
   gap: 20px;
   background: var(--card);
   border: 1px solid var(--border);
