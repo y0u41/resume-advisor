@@ -1,13 +1,34 @@
 import { Router } from "express";
+import crypto from "crypto";
 import db from "../db.js";
 import { callLLM, callLLMStream } from "../llm.js";
 import { listProviders, defaultModel } from "../models.js";
-import { saveEvaluation } from "../store.js";
+import { saveEvaluation, findCachedEvaluation } from "../store.js";
 import { getPersonKey, getPersonName } from "../person.js";
 import { requireAuth } from "../auth.js";
 import { consumeQuota, getUsage, DAILY_LIMIT } from "../quota.js";
+import { acquire } from "../queue.js";
 
 const router = Router();
+
+const CACHE_ENABLED = process.env.CACHE_ENABLED !== "false";
+const CACHE_TTL_HOURS = Number(process.env.CACHE_TTL_HOURS || 24);
+
+function computeCacheKey(resume, jobTitle, jobDescription, override) {
+  return crypto
+    .createHash("sha256")
+    .update(
+      JSON.stringify({
+        resume,
+        jobTitle,
+        jobDescription,
+        provider: override?.provider || "",
+        model: override?.model || "",
+      })
+    )
+    .digest("hex")
+    .slice(0, 32);
+}
 
 // 所有评估相关接口都需要登录
 router.use(requireAuth);
@@ -57,7 +78,7 @@ function validateInput({ resume, jobTitle, jobDescription, jobUrl }) {
 }
 
 router.post("/evaluate", async (req, res) => {
-  const { resume, jobTitle, jobDescription, jobUrl, provider } = req.body || {};
+  const { resume, jobTitle, jobDescription, jobUrl } = req.body || {};
 
   const invalid = validateInput({ resume, jobTitle, jobDescription, jobUrl });
   if (invalid) {
@@ -65,15 +86,27 @@ router.post("/evaluate", async (req, res) => {
   }
 
   const override = resolveOverride(req.body);
-
-  const quota = consumeQuota(req.user.id);
-  if (!quota.allowed) {
-    return res.status(429).json({
-      error: `今日评估次数已用完（${quota.used}/${quota.limit}），请明天再试`,
-    });
-  }
-
   const stream = req.query.stream === "true";
+  const cacheKey = computeCacheKey(resume, jobTitle, jobDescription || "", override);
+
+  // 缓存命中：直接返回，不消耗额度、不占用并发
+  if (CACHE_ENABLED) {
+    const cached = findCachedEvaluation(req.user.id, cacheKey, CACHE_TTL_HOURS);
+    if (cached) {
+      if (stream) {
+        res.setHeader("Content-Type", "text/event-stream");
+        res.setHeader("Cache-Control", "no-cache");
+        res.write(`data: ${JSON.stringify({ chunk: cached.report, done: false })}\n\n`);
+        res.write(
+          `data: ${JSON.stringify({ chunk: "", done: true, id: cached.id, score: cached.score, report: cached.report, cached: true })}\n\n`
+        );
+        res.end();
+      } else {
+        res.json({ id: cached.id, score: cached.score, report: cached.report, cached: true });
+      }
+      return;
+    }
+  }
 
   // 客户端断开时中止上游 LLM 请求
   const controller = new AbortController();
@@ -81,12 +114,42 @@ router.post("/evaluate", async (req, res) => {
     if (!res.writableEnded) controller.abort(new Error("客户端已断开"));
   });
 
-  try {
-    if (stream) {
-      res.setHeader("Content-Type", "text/event-stream");
-      res.setHeader("Cache-Control", "no-cache");
-      res.setHeader("Connection", "keep-alive");
+  if (stream) {
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+  }
 
+  // 获取并发槽位，超出则排队
+  let release;
+  try {
+    release = await acquire((position) => {
+      if (stream) res.write(`data: ${JSON.stringify({ queued: true, position })}\n\n`);
+    });
+  } catch (error) {
+    if (stream) {
+      res.write(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
+      res.end();
+    } else {
+      res.status(503).json({ error: error.message });
+    }
+    return;
+  }
+
+  try {
+    const quota = consumeQuota(req.user.id);
+    if (!quota.allowed) {
+      const msg = `今日评估次数已用完（${quota.used}/${quota.limit}），请明天再试`;
+      if (stream) {
+        res.write(`data: ${JSON.stringify({ error: msg, done: true })}\n\n`);
+        res.end();
+      } else {
+        res.status(429).json({ error: msg });
+      }
+      return;
+    }
+
+    if (stream) {
       let fullText = "";
 
       try {
@@ -151,7 +214,8 @@ router.post("/evaluate", async (req, res) => {
         jobDescription || "",
         score,
         fullText,
-        jobUrl || ""
+        jobUrl || "",
+        cacheKey
       );
 
       res.write(
@@ -174,7 +238,8 @@ router.post("/evaluate", async (req, res) => {
         jobDescription || "",
         score,
         report,
-        jobUrl || ""
+        jobUrl || "",
+        cacheKey
       );
 
       res.json({ id, score, report });
@@ -191,6 +256,8 @@ router.post("/evaluate", async (req, res) => {
     } else {
       res.status(500).json({ error: error.message });
     }
+  } finally {
+    if (release) release();
   }
 });
 

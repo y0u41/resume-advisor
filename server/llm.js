@@ -2,6 +2,7 @@ import { SYSTEM_PROMPT, buildEvaluatePrompt } from "./prompt.js";
 
 const LLM_TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS || 180000);
 const STREAM_IDLE_MS = Number(process.env.LLM_STREAM_IDLE_MS || 60000);
+const LLM_MAX_RETRIES = Number(process.env.LLM_MAX_RETRIES || 2);
 
 function getConfig(override) {
   const provider = (override?.provider || process.env.LLM_PROVIDER || "").trim().toLowerCase();
@@ -65,36 +66,64 @@ async function assertOk(response) {
   throw new Error(`LLM API 调用失败 (${response.status}): ${error.slice(0, 500)}`);
 }
 
+// 可重试的错误：限流、服务端错误、超时、网络问题
+function isRetryable(error) {
+  const msg = error?.message || "";
+  return (
+    /\((429|500|502|503|504)\)/.test(msg) ||
+    /超时|timeout|ECONNRESET|fetch failed|network|socket/i.test(msg)
+  );
+}
+
+async function withRetry(fn, retries = LLM_MAX_RETRIES) {
+  let lastError;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      if (attempt >= retries || !isRetryable(error)) throw error;
+      console.warn(`LLM 调用失败，${attempt + 1}/${retries} 次重试...（${error.message.slice(0, 80)}）`);
+      await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
+    }
+  }
+  throw lastError;
+}
+
 export async function callLLM(resume, jobTitle, jobDescription, externalSignal, override) {
   const { apiKey, baseUrl, model } = getConfig(override);
-  const { signal, cleanup } = withTimeout(externalSignal, LLM_TIMEOUT_MS);
 
-  try {
-    const response = await fetch(`${baseUrl}/chat/completions`, {
-      method: "POST",
-      signal,
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model,
-        messages: buildMessages(resume, jobTitle, jobDescription),
-        temperature: 0.3,
-        max_tokens: 8192,
-      }),
-    });
+  const attempt = async () => {
+    const { signal, cleanup } = withTimeout(externalSignal, LLM_TIMEOUT_MS);
+    try {
+      const response = await fetch(`${baseUrl}/chat/completions`, {
+        method: "POST",
+        signal,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model,
+          messages: buildMessages(resume, jobTitle, jobDescription),
+          temperature: 0.3,
+          max_tokens: 8192,
+        }),
+      });
 
-    await assertOk(response);
-    const data = await response.json();
-    const content = data?.choices?.[0]?.message?.content;
-    if (typeof content !== "string") {
-      throw new Error("LLM 返回格式异常：未找到回复内容");
+      await assertOk(response);
+      const data = await response.json();
+      const content = data?.choices?.[0]?.message?.content;
+      if (typeof content !== "string") {
+        throw new Error("LLM 返回格式异常：未找到回复内容");
+      }
+      return content;
+    } finally {
+      cleanup();
     }
-    return content;
-  } finally {
-    cleanup();
-  }
+  };
+
+  return withRetry(attempt);
 }
 
 export async function callLLMStream(resume, jobTitle, jobDescription, onChunk, externalSignal, override) {
@@ -198,35 +227,39 @@ const JD_EXTRACT_PROMPT = `你是一个招聘信息抽取助手。用户会给�
 
 export async function extractJobInfo(rawText, externalSignal, override) {
   const { apiKey, baseUrl, model } = getConfig(override);
-  const { signal, cleanup } = withTimeout(externalSignal, LLM_TIMEOUT_MS);
 
-  try {
-    const response = await fetch(`${baseUrl}/chat/completions`, {
-      method: "POST",
-      signal,
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: "system", content: JD_EXTRACT_PROMPT },
-          { role: "user", content: rawText },
-        ],
-        temperature: 0.1,
-        max_tokens: 2500,
-      }),
-    });
+  const attempt = async () => {
+    const { signal, cleanup } = withTimeout(externalSignal, LLM_TIMEOUT_MS);
+    try {
+      const response = await fetch(`${baseUrl}/chat/completions`, {
+        method: "POST",
+        signal,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: "system", content: JD_EXTRACT_PROMPT },
+            { role: "user", content: rawText },
+          ],
+          temperature: 0.1,
+          max_tokens: 2500,
+        }),
+      });
 
-    await assertOk(response);
-    const data = await response.json();
-    const content = data?.choices?.[0]?.message?.content;
-    if (typeof content !== "string" || !content.trim()) {
-      throw new Error("LLM 未返回有效内容");
+      await assertOk(response);
+      const data = await response.json();
+      const content = data?.choices?.[0]?.message?.content;
+      if (typeof content !== "string" || !content.trim()) {
+        throw new Error("LLM 未返回有效内容");
+      }
+      return content.trim();
+    } finally {
+      cleanup();
     }
-    return content.trim();
-  } finally {
-    cleanup();
-  }
+  };
+
+  return withRetry(attempt, 1);
 }

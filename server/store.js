@@ -6,8 +6,8 @@ export const MAX_PER_PERSON = 12;
 
 const insertStmt = db.prepare(
   `INSERT INTO evaluations
-    (user_id, resume, job_title, job_description, score, report, job_url, person_key, person_name)
-   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    (user_id, resume, job_title, job_description, score, report, job_url, person_key, person_name, cache_key)
+   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 );
 
 const pruneStmt = db.prepare(
@@ -30,7 +30,8 @@ const saveTx = db.transaction((row) => {
     row.report,
     row.jobUrl,
     row.personKey,
-    row.personName
+    row.personName,
+    row.cacheKey
   );
   pruneStmt.run(row.userId, row.personKey, row.userId, row.personKey, MAX_PER_PERSON);
   return info.lastInsertRowid;
@@ -43,7 +44,8 @@ export function saveEvaluation(
   jobDescription,
   score,
   report,
-  jobUrl = ""
+  jobUrl = "",
+  cacheKey = null
 ) {
   return saveTx({
     userId,
@@ -55,5 +57,18 @@ export function saveEvaluation(
     jobUrl: jobUrl || "",
     personKey: getPersonKey(resume),
     personName: getPersonName(resume),
+    cacheKey,
   });
+}
+
+// 查找该用户近期相同输入的评估结果（缓存命中）
+export function findCachedEvaluation(userId, cacheKey, ttlHours) {
+  if (!cacheKey) return null;
+  return db
+    .prepare(
+      `SELECT * FROM evaluations
+       WHERE user_id = ? AND cache_key = ? AND created_at >= datetime('now', ?)
+       ORDER BY id DESC LIMIT 1`
+    )
+    .get(userId, cacheKey, `-${ttlHours} hours`);
 }

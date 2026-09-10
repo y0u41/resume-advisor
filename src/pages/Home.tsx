@@ -15,6 +15,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [streaming, setStreaming] = useState(false);
   const [streamText, setStreamText] = useState("");
+  const [queuePos, setQueuePos] = useState(0);
   const navigate = useNavigate();
   const { groups, selection, setSelection } = useModels();
 
@@ -25,6 +26,7 @@ export default function Home() {
     setLoading(true);
     setStreaming(true);
     setStreamText("");
+    setQueuePos(0);
 
     try {
       await streamEvaluate(
@@ -36,7 +38,10 @@ export default function Home() {
           provider: selection?.provider,
           model: selection?.model,
         },
-        (text) => setStreamText(text),
+        (text) => {
+          setQueuePos(0);
+          setStreamText(text);
+        },
         (result) => {
           navigate(`/result/${result.id || "latest"}`, {
             state: {
@@ -49,7 +54,8 @@ export default function Home() {
             },
           });
         },
-        (msg) => alert("评估失败: " + msg)
+        (msg) => alert("评估失败: " + msg),
+        (position) => setQueuePos(position)
       );
     } catch (err: any) {
       alert("请求失败: " + err.message);
@@ -149,7 +155,9 @@ export default function Home() {
             }}
           >
             <span className="spinner" style={{ color: "var(--primary)" }} />
-            AI 正在逐条对照 JD 分析，请稍候...
+            {queuePos > 0
+              ? `排队中，前面还有 ${queuePos} 位，请稍候...`
+              : "AI 正在逐条对照 JD 分析，请稍候..."}
           </div>
           <div className="report streaming-cursor">{streamText}</div>
         </div>

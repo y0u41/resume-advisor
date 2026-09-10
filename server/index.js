@@ -50,6 +50,19 @@ app.use(
 app.use(express.json({ limit: "5mb" }));
 app.use(cookieParser());
 
+// 请求日志
+if (process.env.LOG_REQUESTS !== "false") {
+  app.use((req, res, next) => {
+    const start = Date.now();
+    res.on("finish", () => {
+      console.log(
+        `${new Date().toISOString()} ${req.method} ${req.originalUrl} ${res.statusCode} ${Date.now() - start}ms`
+      );
+    });
+    next();
+  });
+}
+
 // 速率限制
 const generalLimiter = rateLimit({
   windowMs: 60_000,

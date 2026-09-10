@@ -36,6 +36,7 @@ db.exec(`
     job_url TEXT DEFAULT '',
     person_key TEXT,
     person_name TEXT,
+    cache_key TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )
 `);
@@ -55,9 +56,11 @@ if (!columns.includes("person_key")) db.exec("ALTER TABLE evaluations ADD COLUMN
 if (!columns.includes("person_name")) db.exec("ALTER TABLE evaluations ADD COLUMN person_name TEXT");
 if (!columns.includes("job_url")) db.exec("ALTER TABLE evaluations ADD COLUMN job_url TEXT DEFAULT ''");
 if (!columns.includes("user_id")) db.exec("ALTER TABLE evaluations ADD COLUMN user_id INTEGER");
+if (!columns.includes("cache_key")) db.exec("ALTER TABLE evaluations ADD COLUMN cache_key TEXT");
 
 db.exec("CREATE INDEX IF NOT EXISTS idx_eval_person ON evaluations(person_key)");
 db.exec("CREATE INDEX IF NOT EXISTS idx_eval_user ON evaluations(user_id)");
+db.exec("CREATE INDEX IF NOT EXISTS idx_eval_cache ON evaluations(user_id, cache_key)");
 
 // 兼容旧库：users 补上 username / role
 const userColumns = db.prepare("PRAGMA table_info(users)").all().map((c) => c.name);

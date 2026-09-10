@@ -18,6 +18,7 @@ export async function streamEvaluate(
   onChunk: (textSoFar: string) => void,
   onDone: (result: EvalResult) => void,
   onError: (message: string) => void,
+  onQueued?: (position: number) => void,
   signal?: AbortSignal
 ): Promise<void> {
   let res: Response;
@@ -77,6 +78,10 @@ export async function streamEvaluate(
         if (data.error) {
           onError(data.error);
           return;
+        }
+        if (data.queued) {
+          onQueued?.(data.position ?? 0);
+          continue;
         }
         if (data.done) {
           onDone({ id: data.id, score: data.score ?? null, report: data.report ?? fullText });

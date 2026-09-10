@@ -139,6 +139,7 @@ export default function Result() {
 
   const [reLoading, setReLoading] = useState(false);
   const [reText, setReText] = useState("");
+  const [queuePos, setQueuePos] = useState(0);
 
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState("");
@@ -200,6 +201,7 @@ export default function Result() {
     if (!resume.trim() || !jobTitle.trim()) return;
     setReLoading(true);
     setReText("");
+    setQueuePos(0);
     try {
       await streamEvaluate(
         {
@@ -210,7 +212,10 @@ export default function Result() {
           provider: selection?.provider,
           model: selection?.model,
         },
-        (text) => setReText(text),
+        (text) => {
+          setQueuePos(0);
+          setReText(text);
+        },
         (result) => {
           setData({
             id: result.id ?? data?.id ?? 0,
@@ -223,7 +228,8 @@ export default function Result() {
             created_at: new Date().toISOString(),
           });
         },
-        (msg) => alert("再次评估失败: " + msg)
+        (msg) => alert("再次评估失败: " + msg),
+        (position) => setQueuePos(position)
       );
     } catch (err: any) {
       alert("请求失败: " + err.message);
@@ -488,7 +494,9 @@ export default function Result() {
             }}
           >
             <span className="spinner" style={{ color: "var(--primary)" }} />
-            AI 正在再次评估，请稍候...
+            {queuePos > 0
+              ? `排队中，前面还有 ${queuePos} 位，请稍候...`
+              : "AI 正在再次评估，请稍候..."}
           </div>
           <div className="report streaming-cursor">{reText}</div>
         </div>

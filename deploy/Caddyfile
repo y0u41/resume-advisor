@@ -1,0 +1,28 @@
+# 简历评估助手 反向代理配置
+# 将 your-domain.com 换成你的域名；Caddy 会自动申请并续期 HTTPS 证书
+#
+# 用法（Linux 服务器）：
+#   1) 安装 Caddy：https://caddyserver.com/docs/install
+#   2) 把本文件放到 /etc/caddy/Caddyfile（或 sudo caddy reload --config 本文件）
+#   3) systemctl reload caddy
+
+your-domain.com {
+	encode gzip zstd
+
+	# 简历较长，放宽请求体
+	request_body {
+		max_size 6MB
+	}
+
+	# 反代到本机 Node 服务
+	reverse_proxy 127.0.0.1:3001 {
+		# 流式评估需要较长的读超时
+		transport http {
+			read_timeout 300s
+		}
+	}
+
+	header {
+		-Server
+	}
+}

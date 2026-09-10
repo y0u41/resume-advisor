@@ -13,6 +13,9 @@
 - **历史记录**：按人分组，同一人最多保留 12 次提交
 - **多用户**：邮箱注册 / 登录，数据按用户隔离，每人每日额度限制
 - **管理员**：可用用户名登录，拥有用户管理页（查看用户、用量）
+- **多模型**：内置 DeepSeek 与智谱 GLM，界面按提供商分组选择具体模型
+- **稳定与省心**：并发队列（超出排队）、结果缓存去重、失败自动重试、请求日志
+- **PWA**：手机浏览器可"添加到主屏幕"，像 App 一样使用
 
 ## 技术栈
 
@@ -64,6 +67,17 @@ npm start       # 后端同时服务前端，访问 http://127.0.0.1:3001
 | `COOKIE_SECURE` | `false` | Cookie 是否仅走 HTTPS（对外部署启用 HTTPS 后设为 `true`） |
 | `DAILY_LIMIT` | `30` | 每人每日评估次数上限 |
 | `REGISTRATION_OPEN` | `true` | 是否开放注册（`false` 则关闭注册入口） |
+| `LLM_MAX_RETRIES` | `2` | 失败自动重试次数（限流 / 5xx / 超时） |
+| `CACHE_ENABLED` | `true` | 相同输入是否走结果缓存 |
+| `CACHE_TTL_HOURS` | `24` | 缓存有效期（小时） |
+| `MAX_CONCURRENCY` | `5` | 同时进行的评估数上限，超出排队 |
+| `MAX_QUEUE` | `50` | 排队队列上限 |
+| `LOG_REQUESTS` | `true` | 是否输出请求日志 |
+
+## 部署上线
+
+完整步骤见 **[DEPLOY.md](./DEPLOY.md)**（Ubuntu + pm2 + Caddy 自动 HTTPS）。
+关键三步：`npm run build` → `pm2 start ecosystem.config.cjs` → Caddy 反代到 `127.0.0.1:3001`。
 
 ## 切换模型提供商
 
@@ -144,17 +158,24 @@ npm run create-admin -- yu yourpassword
 
 ```
 server/           后端
-  index.js        服务入口（安全中间件、限流、静态服务）
+  index.js        服务入口（安全中间件、限流、请求日志、静态服务）
   db.js           SQLite 初始化与迁移（users / evaluations / usage_log）
-  auth.js         密码加密、JWT、登录中间件
+  auth.js         密码加密、JWT、登录/管理员中间件
   quota.js        每人每日额度
-  store.js        评估保存 + 每人保留 12 条
+  queue.js        评估并发队列
+  models.js       模型目录（提供商与可选模型）
+  store.js        评估保存 + 每人保留 12 条 + 缓存查询
   person.js       人物标识提取
-  llm.js          LLM 调用（超时/取消/校验）
+  llm.js          LLM 调用（多提供商、超时、重试、校验）
   prompt.js       人设与提示词
-  routes/         auth / evaluate / parse / fetch 路由
+  routes/         auth / evaluate / parse / fetch / admin 路由
+  scripts/        create-admin
 src/              前端
-  pages/          Login / Home / Result / History
-  components/     FileUpload / UrlFetch / UserBar
-  lib/            auth / api / download / report
+  pages/          Login / Home / Result / History / Admin
+  components/     FileUpload / UrlFetch / UserBar / ModelSelect
+  lib/            auth / api / models / download / report
+public/           PWA（manifest / sw.js / 图标）
+deploy/           Caddyfile
+ecosystem.config.cjs  pm2 配置
+DEPLOY.md         部署指南
 ```
