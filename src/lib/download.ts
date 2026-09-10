@@ -12,6 +12,7 @@ interface DocSpec {
   title: string;
   meta?: { label: string; value: string }[];
   body: string;
+  html?: string;
   filename: string;
 }
 
@@ -104,12 +105,16 @@ async function downloadPdf(doc: DocSpec) {
     )
     .join("");
 
-  holder.innerHTML = `
-    <h1 style="font-size:24px;margin:0 0 16px;color:#1e293b;">${escapeHtml(doc.title)}</h1>
-    ${metaHtml}
-    <hr style="border:none;border-top:1px solid #e2e8f0;margin:16px 0;" />
-    <div style="white-space:pre-wrap;">${escapeHtml(doc.body)}</div>
-  `;
+  if (doc.html) {
+    holder.innerHTML = doc.html;
+  } else {
+    holder.innerHTML = `
+      <h1 style="font-size:24px;margin:0 0 16px;color:#1e293b;">${escapeHtml(doc.title)}</h1>
+      ${metaHtml}
+      <hr style="border:none;border-top:1px solid #e2e8f0;margin:16px 0;" />
+      <div style="white-space:pre-wrap;">${escapeHtml(doc.body)}</div>
+    `;
+  }
   document.body.appendChild(holder);
 
   try {
@@ -175,11 +180,17 @@ export function downloadReport(data: ReportData, format: DownloadFormat) {
   );
 }
 
-export function downloadResume(resumeText: string, name: string, format: DownloadFormat) {
+export function downloadResume(
+  resumeText: string,
+  html: string,
+  name: string,
+  format: DownloadFormat
+) {
   return downloadDocument(
     {
       title: name ? `${name} 的简历` : "个人简历",
       body: resumeText,
+      html,
       filename: `简历_${name || "个人"}_${todayStr()}`,
     },
     format

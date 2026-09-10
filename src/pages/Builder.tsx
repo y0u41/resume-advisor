@@ -6,6 +6,7 @@ import {
   EMPTY_RESUME,
   SAMPLE_RESUME,
   buildResume,
+  resumeToHtml,
   STYLE_LABELS,
   type ResumeData,
   type ResumeStyle,
@@ -59,6 +60,7 @@ export default function Builder() {
   const [downloading, setDownloading] = useState(false);
 
   const text = buildResume(data, style);
+  const html = resumeToHtml(data, style);
   const canDownload = data.name.trim().length > 0 || text.replace(/^姓名\s*$/m, "").trim().length > 0;
 
   const set = (key: keyof ResumeData, value: string) =>
@@ -67,7 +69,7 @@ export default function Builder() {
   const handleDownload = async () => {
     setDownloading(true);
     try {
-      await downloadResume(text, data.name.trim(), format);
+      await downloadResume(text, html, data.name.trim(), format);
     } catch (err: any) {
       alert("下载失败：" + err.message);
     } finally {
@@ -153,7 +155,7 @@ export default function Builder() {
             <span>实时预览</span>
           </div>
           <div className="card builder-paper">
-            <pre className="report builder-text">{text}</pre>
+            <div dangerouslySetInnerHTML={{ __html: html }} />
           </div>
 
           <div className="builder-download">

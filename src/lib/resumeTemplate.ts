@@ -69,6 +69,55 @@ export const STYLE_LABELS: Record<ResumeStyle, string> = {
   student: "应届生推荐",
 };
 
+const LABELS: Record<keyof ResumeData, string> = {
+  name: "姓名",
+  phone: "手机",
+  email: "邮箱",
+  city: "城市",
+  intention: "求职意向",
+  education: "教育背景",
+  projects: "项目经历",
+  experience: "实习 / 工作经历",
+  campus: "校园经历",
+  skills: "技能特长",
+  summary: "自我评价",
+};
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+// 排版好的简历 HTML（用于实时预览与 PDF 导出）
+export function resumeToHtml(d: ResumeData, style: ResumeStyle): string {
+  const contact = [
+    d.phone.trim() && `手机：${escapeHtml(d.phone.trim())}`,
+    d.email.trim() && `邮箱：${escapeHtml(d.email.trim())}`,
+    d.city.trim() && `城市：${escapeHtml(d.city.trim())}`,
+  ]
+    .filter(Boolean)
+    .join("　｜　");
+
+  const sections = ORDER[style]
+    .map((key) => {
+      const content = (d[key] || "").trim();
+      if (!content) return "";
+      return `<section class="rsec">
+        <h2 class="rsec-title">${LABELS[key]}</h2>
+        <div class="rsec-body">${escapeHtml(content)}</div>
+      </section>`;
+    })
+    .join("");
+
+  return `<div class="resume">
+    <header class="rhead">
+      <div class="rname">${escapeHtml(d.name.trim() || "姓名")}</div>
+      ${contact ? `<div class="rcontact">${contact}</div>` : ""}
+      ${d.intention.trim() ? `<div class="rintention">求职意向：${escapeHtml(d.intention.trim())}</div>` : ""}
+    </header>
+    ${sections}
+  </div>`;
+}
+
 export function buildResume(d: ResumeData, style: ResumeStyle): string {
   const lines: string[] = [];
   lines.push(d.name.trim() || "姓名");
