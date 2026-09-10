@@ -54,6 +54,12 @@ async function postStream(
   }
 
   if (!res.ok) {
+    if (res.status === 401) {
+      if (typeof window !== "undefined" && window.location.pathname !== "/login") {
+        window.location.href = "/login";
+      }
+      return;
+    }
     let msg = `请求失败 (${res.status})`;
     try {
       const body = await res.json();
