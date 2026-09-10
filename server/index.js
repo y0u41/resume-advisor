@@ -1,14 +1,12 @@
+import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import cookieParser from "cookie-parser";
-import dotenv from "dotenv";
 import { fileURLToPath } from "url";
 import path from "path";
 import fs from "fs";
-
-dotenv.config();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -86,6 +84,7 @@ import evaluateRoutes from "./routes/evaluate.js";
 import parseRoutes from "./routes/parse.js";
 import fetchRoutes from "./routes/fetch.js";
 import adminRoutes from "./routes/admin.js";
+import { getProviderInfo } from "./llm.js";
 app.use("/api", authRoutes);
 app.use("/api", evaluateRoutes);
 app.use("/api", parseRoutes);
@@ -123,7 +122,12 @@ app.use((err, req, res, next) => {
 
 app.listen(PORT, HOST, () => {
   console.log(`服务器运行在 http://${HOST}:${PORT}`);
-  console.log(`LLM_BASE_URL = ${process.env.LLM_BASE_URL}`);
-  console.log(`LLM_MODEL = ${process.env.LLM_MODEL}`);
-  console.log(`LLM_API_KEY = ${process.env.LLM_API_KEY ? "已配置" : "未配置"}`);
+  try {
+    const { provider, baseUrl, model } = getProviderInfo();
+    console.log(`LLM 提供商 = ${provider}`);
+    console.log(`LLM 地址 = ${baseUrl}`);
+    console.log(`LLM 模型 = ${model}`);
+  } catch (err) {
+    console.error("LLM 配置错误:", err.message);
+  }
 });

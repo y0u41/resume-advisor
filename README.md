@@ -45,9 +45,13 @@ npm start       # 后端同时服务前端，访问 http://127.0.0.1:3001
 
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
-| `LLM_API_KEY` | （必填） | LLM 接口密钥 |
-| `LLM_BASE_URL` | `https://api.deepseek.com` | OpenAI 兼容接口地址 |
-| `LLM_MODEL` | `deepseek-v4-flash` | 模型名（可用 `deepseek-v4-pro` 提升质量） |
+| `LLM_PROVIDER` | `deepseek` | 当前使用的提供商：`deepseek` 或 `bigmodel` |
+| `DEEPSEEK_API_KEY` | — | DeepSeek 密钥 |
+| `DEEPSEEK_BASE_URL` | `https://api.deepseek.com` | DeepSeek 接口地址 |
+| `DEEPSEEK_MODEL` | `deepseek-v4-flash` | DeepSeek 模型 |
+| `BIGMODEL_API_KEY` | — | 智谱 BigModel 密钥 |
+| `BIGMODEL_BASE_URL` | `https://open.bigmodel.cn/api/paas/v4` | BigModel 接口地址 |
+| `BIGMODEL_MODEL` | `glm-4.7-flash` | BigModel 模型 |
 | `LLM_TIMEOUT_MS` | `120000` | LLM 请求超时（毫秒） |
 | `LLM_STREAM_IDLE_MS` | `45000` | 流式响应无数据的停滞超时（毫秒），超时自动回退非流式 |
 | `JD_EXTRACT` | `true` | 链接抓取后是否用 LLM 智能提取岗位重点信息（`false` 则返回清洗后的原文） |
@@ -60,6 +64,28 @@ npm start       # 后端同时服务前端，访问 http://127.0.0.1:3001
 | `COOKIE_SECURE` | `false` | Cookie 是否仅走 HTTPS（对外部署启用 HTTPS 后设为 `true`） |
 | `DAILY_LIMIT` | `30` | 每人每日评估次数上限 |
 | `REGISTRATION_OPEN` | `true` | 是否开放注册（`false` 则关闭注册入口） |
+
+## 切换模型提供商
+
+支持任意 OpenAI 兼容服务。内置 DeepSeek 与智谱 BigModel，切换只需改 `LLM_PROVIDER`：
+
+```env
+# 用 DeepSeek
+LLM_PROVIDER=deepseek
+DEEPSEEK_API_KEY=sk-xxx
+
+# 或用智谱 BigModel
+LLM_PROVIDER=bigmodel
+BIGMODEL_API_KEY=xxx
+BIGMODEL_MODEL=glm-4.7-flash
+```
+
+**智谱 BigModel**（[文档](https://docs.bigmodel.cn/cn/guide/develop/openai/introduction)）
+- 接口地址：`https://open.bigmodel.cn/api/paas/v4`
+- 模型：`glm-5.3`（旗舰）、`glm-4.6`、`glm-4.7-flash`（免费）、`glm-4.5-flash`（免费）
+- ⚠️ 其 `temperature` 区间为 (0,1)，不支持 0（本项目已适配）
+
+**接入其它服务**：设 `LLM_PROVIDER=<名字>`，再配置 `<名字>_API_KEY` / `<名字>_BASE_URL` / `<名字>_MODEL`（前缀大写）。
 
 ## 常用脚本
 

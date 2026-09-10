@@ -4,13 +4,35 @@ const LLM_TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS || 120000);
 const STREAM_IDLE_MS = Number(process.env.LLM_STREAM_IDLE_MS || 45000);
 
 function getConfig() {
+  const provider = (process.env.LLM_PROVIDER || "").trim().toLowerCase();
+
+  // 多提供商模式：LLM_PROVIDER=deepseek / bigmodel ...
+  if (provider) {
+    const prefix = provider.toUpperCase();
+    const apiKey = process.env[`${prefix}_API_KEY`];
+    const baseUrl = process.env[`${prefix}_BASE_URL`];
+    const model = process.env[`${prefix}_MODEL`];
+    if (!apiKey || !baseUrl || !model) {
+      throw new Error(
+        `未正确配置模型提供商「${provider}」：请在 .env 设置 ${prefix}_API_KEY / ${prefix}_BASE_URL / ${prefix}_MODEL`
+      );
+    }
+    return { provider, apiKey, baseUrl: baseUrl.replace(/\/+$/, ""), model };
+  }
+
+  // 兼容旧配置
   const apiKey = process.env.LLM_API_KEY;
-  const baseUrl = process.env.LLM_BASE_URL || "https://api.openai.com/v1";
-  const model = process.env.LLM_MODEL || "gpt-4o";
+  const baseUrl = process.env.LLM_BASE_URL || "https://api.deepseek.com";
+  const model = process.env.LLM_MODEL || "deepseek-v4-flash";
   if (!apiKey) {
     throw new Error("未配置 LLM_API_KEY，请在 .env 文件中设置");
   }
-  return { apiKey, baseUrl, model };
+  return { provider: "default", apiKey, baseUrl: baseUrl.replace(/\/+$/, ""), model };
+}
+
+export function getProviderInfo() {
+  const { provider, baseUrl, model } = getConfig();
+  return { provider, baseUrl, model };
 }
 
 function buildMessages(resume, jobTitle, jobDescription) {
@@ -192,7 +214,7 @@ export async function extractJobInfo(rawText, externalSignal) {
           { role: "system", content: JD_EXTRACT_PROMPT },
           { role: "user", content: rawText },
         ],
-        temperature: 0,
+        temperature: 0.1,
         max_tokens: 2500,
       }),
     });
