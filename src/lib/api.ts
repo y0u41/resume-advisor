@@ -30,6 +30,7 @@ interface Handlers {
   onDone: (data: any, fullText: string) => void;
   onError: (message: string) => void;
   onQueued?: (position: number) => void;
+  onProgress?: (data: any) => void;
 }
 
 async function postStream(
@@ -100,6 +101,10 @@ async function postStream(
           handlers.onQueued?.(data.position ?? 0);
           continue;
         }
+        if (data.progress) {
+          handlers.onProgress?.(data.progress);
+          continue;
+        }
         if (data.done) {
           handlers.onDone(data, fullText);
           return;
@@ -160,4 +165,41 @@ export function followUpStream(
     },
     signal
   );
+}
+
+export interface CompareJob {
+  title: string;
+  jd: string;
+}
+
+export interface CompareResult {
+  id: number;
+  title: string;
+  score: number | null;
+  matchRate: number | null;
+  conclusion: string;
+}
+
+export function compareStream(
+  payload: {
+    resume: string;
+    jobs: CompareJob[];
+    provider?: string;
+    model?: string;
+    candidateType?: string;
+  },
+  handlers: {
+    onProgress?: (p: { index: number; total: number; title: string }) => void;
+    onDone: (results: CompareResult[]) => void;
+    onError: (message: string) => void;
+    onQueued?: (position: number) => void;
+  }
+): Promise<void> {
+  return postStream("/api/compare", payload, {
+    onChunk: () => {},
+    onQueued: handlers.onQueued,
+    onProgress: handlers.onProgress,
+    onError: handlers.onError,
+    onDone: (data) => handlers.onDone(data.results || []),
+  });
 }

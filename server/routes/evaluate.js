@@ -68,6 +68,21 @@ function extractScore(report) {
   return match ? parseFloat(match[1]) : null;
 }
 
+// 从报告里统计岗位匹配度（✅=1 分、⚠️=0.5 分）
+function computeMatchRate(report) {
+  const ok = (report.match(/✅/g) || []).length;
+  const partial = (report.match(/⚠/g) || []).length;
+  const miss = (report.match(/❌/g) || []).length;
+  const total = ok + partial + miss;
+  if (!total) return null;
+  return Math.round(((ok + partial * 0.5) / total) * 100);
+}
+
+function extractConclusion(report) {
+  const m = report.match(/【一句话结论】\s*([\s\S]*?)(?=\s*【|$)/);
+  return m ? m[1].trim().slice(0, 120) : "";
+}
+
 function validateInput({ resume, jobTitle, jobDescription, jobUrl }) {
   if (!resume || !jobTitle) return "请提供简历全文和应聘岗位";
   if (typeof resume !== "string" || typeof jobTitle !== "string") return "参数类型错误";
@@ -259,6 +274,114 @@ router.post("/evaluate", async (req, res) => {
     } else {
       res.status(500).json({ error: error.message });
     }
+  } finally {
+    if (release) release();
+  }
+});
+
+// 多岗位对比：一份简历同时对比多个 JD
+router.post("/compare", async (req, res) => {
+  const { resume, jobs } = req.body || {};
+
+  if (!resume || typeof resume !== "string") {
+    return res.status(400).json({ error: "请提供简历全文" });
+  }
+  if (!Array.isArray(jobs) || jobs.length < 2) {
+    return res.status(400).json({ error: "请至少提供 2 个岗位进行对比" });
+  }
+  if (jobs.length > 4) {
+    return res.status(400).json({ error: "最多同时对比 4 个岗位" });
+  }
+  for (const j of jobs) {
+    if (!j || typeof j.title !== "string" || !j.title.trim()) {
+      return res.status(400).json({ error: "每个岗位都要填写岗位名称" });
+    }
+  }
+
+  const override = resolveOverride(req.body);
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+
+  const controller = new AbortController();
+  res.on("close", () => {
+    if (!res.writableEnded) controller.abort(new Error("客户端已断开"));
+  });
+
+  const used = getUsage(req.user.id);
+  if (used + jobs.length > DAILY_LIMIT) {
+    res.write(
+      `data: ${JSON.stringify({
+        error: `今日额度不足（需 ${jobs.length} 次，剩余 ${DAILY_LIMIT - used} 次）`,
+        done: true,
+      })}\n\n`
+    );
+    res.end();
+    return;
+  }
+
+  let release;
+  try {
+    release = await acquire((position) => {
+      res.write(`data: ${JSON.stringify({ queued: true, position })}\n\n`);
+    });
+  } catch (error) {
+    res.write(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
+    res.end();
+    return;
+  }
+
+  try {
+    const results = [];
+    for (let i = 0; i < jobs.length; i++) {
+      if (controller.signal.aborted) {
+        if (!res.writableEnded) res.end();
+        return;
+      }
+      const job = jobs[i];
+      res.write(
+        `data: ${JSON.stringify({ progress: { index: i, total: jobs.length, title: job.title } })}\n\n`
+      );
+
+      const report = await callLLM(resume, job.title, job.jd || "", controller.signal, override);
+      const score = extractScore(report);
+      const matchRate = computeMatchRate(report);
+      const conclusion = extractConclusion(report);
+
+      consumeQuota(req.user.id);
+
+      const id = saveEvaluation(
+        req.user.id,
+        resume,
+        job.title,
+        job.jd || "",
+        score,
+        report,
+        "",
+        computeCacheKey(resume, job.title, job.jd || "", override),
+        override.isStudent ? "student" : "general"
+      );
+
+      results.push({ id, title: job.title, score, matchRate, conclusion });
+    }
+
+    if (controller.signal.aborted) {
+      if (!res.writableEnded) res.end();
+      return;
+    }
+
+    results.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+    res.write(`data: ${JSON.stringify({ done: true, results })}\n\n`);
+    res.end();
+  } catch (error) {
+    if (controller.signal.aborted) {
+      if (!res.writableEnded) res.end();
+      return;
+    }
+    console.error("对比失败:", error);
+    res.write(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
+    res.end();
   } finally {
     if (release) release();
   }
