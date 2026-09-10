@@ -212,7 +212,7 @@ export default function Result() {
             created_at: new Date().toISOString(),
           });
         },
-        (msg) => alert("重新评估失败: " + msg)
+        (msg) => alert("再次评估失败: " + msg)
       );
     } catch (err: any) {
       alert("请求失败: " + err.message);
@@ -268,6 +268,19 @@ export default function Result() {
     }
   };
 
+  const dirty =
+    !!data &&
+    (resume !== (data.resume || "") ||
+      jobTitle !== (data.job_title || "") ||
+      jobDescription !== (data.job_description || "") ||
+      jobUrl !== (data.job_url || ""));
+
+  const guardUnsaved = (e: { preventDefault: () => void }) => {
+    if (dirty && !confirm("当前修改尚未保存，确定离开吗？未保存的修改会丢失。")) {
+      e.preventDefault();
+    }
+  };
+
   if (loading) {
     return (
       <div className="container">
@@ -297,7 +310,9 @@ export default function Result() {
       <div className="header">
         <h1>评估报告</h1>
         <nav className="nav">
-          <Link to="/">重新评估</Link>
+          <Link to="/" onClick={guardUnsaved}>
+            新建评估
+          </Link>
           <Link to="/history">历史记录</Link>
         </nav>
       </div>
@@ -430,10 +445,13 @@ export default function Result() {
                   <span className="spinner" /> 评估中...
                 </>
               ) : (
-                "🔄 重新评估"
+                "🔄 再次评估"
               )}
             </button>
           </div>
+          <p className="hint" style={{ marginTop: 10 }}>
+            「保存」更新当前这条记录；「再次评估」用当前内容重跑一遍并生成一条新记录。
+          </p>
           {saveMsg && (
             <p className="hint" style={{ marginTop: 10 }}>
               {saveMsg}
@@ -456,7 +474,7 @@ export default function Result() {
             }}
           >
             <span className="spinner" style={{ color: "var(--primary)" }} />
-            AI 正在重新评估，请稍候...
+            AI 正在再次评估，请稍候...
           </div>
           <div className="report streaming-cursor">{reText}</div>
         </div>
