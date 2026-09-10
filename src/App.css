@@ -77,6 +77,7 @@ body {
   line-height: 1.65;
   -webkit-font-smoothing: antialiased;
   min-height: 100vh;
+  overflow-x: hidden;
 }
 
 .container {
@@ -500,7 +501,7 @@ body {
   padding: 24px 24px 60px;
   display: grid;
   /* 黄金分割：展示区 : 表单 ≈ 1.618 : 1 */
-  grid-template-columns: 1.618fr 1fr;
+  grid-template-columns: minmax(0, 1.618fr) minmax(0, 1fr);
   gap: 48px;
   align-items: start;
   position: relative;
@@ -515,6 +516,20 @@ body {
 .landing-showcase {
   padding-top: 20px;
   animation: fadeInUp 0.5s var(--ease) both;
+  min-width: 0;
+}
+
+/* 防止 grid/flex 子项被内容撑宽导致横向溢出 */
+.landing-auth,
+.demo-preview,
+.demo-card,
+.demo-score-col,
+.features,
+.benefits,
+.feature,
+.feature-text,
+.benefit {
+  min-width: 0;
 }
 
 .landing-brand {
@@ -547,7 +562,7 @@ body {
 
 .benefits {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 26px;
 }
@@ -597,7 +612,7 @@ body {
 .features {
   list-style: none;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 12px 20px;
   margin-bottom: 28px;
 }
@@ -640,7 +655,7 @@ body {
 .demo-card {
   display: grid;
   /* 黄金分割：评分栏 : 明细 ≈ 1 : 1.618 */
-  grid-template-columns: 1fr 1.618fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.618fr);
   gap: 20px;
   background: var(--card);
   border: 1px solid var(--border);
@@ -767,7 +782,7 @@ body {
 
 @media (max-width: 900px) {
   .landing {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     gap: 28px;
     padding-top: 56px;
   }
@@ -777,11 +792,11 @@ body {
   }
 
   .features {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .benefits {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .landing-topbar {
@@ -790,7 +805,7 @@ body {
   }
 
   .demo-card {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -1516,7 +1531,7 @@ body,
 .builder {
   display: grid;
   /* 黄金分割：表单 : 预览 = 1.618 : 1 */
-  grid-template-columns: 1.618fr 1fr;
+  grid-template-columns: minmax(0, 1.618fr) minmax(0, 1fr);
   gap: 32px;
   align-items: start;
 }
@@ -1551,7 +1566,7 @@ body,
 
 .builder-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 0 16px;
 }
 
@@ -1849,7 +1864,7 @@ body,
 
 @media (max-width: 900px) {
   .builder {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .builder-preview {
@@ -1857,7 +1872,7 @@ body,
   }
 
   .builder-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -1987,4 +2002,187 @@ body,
   font-size: 0.82rem;
   color: var(--text-secondary);
   min-width: 220px;
+}
+
+/* ---------- 移动端适配 ---------- */
+@media (max-width: 640px) {
+  .container {
+    padding: 16px 14px 48px;
+  }
+
+  .header {
+    padding: 24px 0 16px;
+  }
+
+  .header h1 {
+    font-size: 1.55rem;
+  }
+
+  .brand {
+    gap: 8px;
+  }
+
+  .nav {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .nav a,
+  .nav-btn {
+    font-size: 0.82rem;
+    padding: 6px 13px;
+  }
+
+  .card {
+    padding: 18px;
+    border-radius: 16px;
+  }
+
+  .followup-input {
+    flex-direction: column;
+  }
+
+  .followup-input .btn {
+    width: 100%;
+  }
+
+  .photo-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .builder-download {
+    width: 100%;
+  }
+
+  .builder-download .btn {
+    flex: 1;
+  }
+
+  .compare-job-top {
+    flex-direction: column;
+  }
+
+  .toast-container {
+    left: 14px;
+    right: 14px;
+  }
+
+  .toast {
+    max-width: none;
+  }
+
+  .score-badge {
+    font-size: 1.9rem;
+  }
+
+  .admin-table {
+    font-size: 0.78rem;
+  }
+
+  .admin-table th,
+  .admin-table td {
+    padding: 8px;
+  }
+
+  .user-bar {
+    justify-content: center;
+  }
+
+  .landing-sub,
+  .demo-job,
+  .demo-match-label,
+  .benefit > span:last-child,
+  .feature-text span,
+  .guide-step,
+  .compare-conclusion {
+    overflow-wrap: anywhere;
+  }
+}
+
+/* ---------- 骨架屏 ---------- */
+.skeleton-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.skeleton-line {
+  height: 12px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, var(--chip) 25%, var(--surface) 50%, var(--chip) 75%);
+  background-size: 200% 100%;
+  animation: skeleton 1.4s ease infinite;
+}
+
+.skeleton-line:nth-child(2) {
+  width: 92%;
+}
+.skeleton-line:nth-child(3) {
+  width: 78%;
+}
+.skeleton-line:nth-child(4) {
+  width: 85%;
+}
+
+@keyframes skeleton {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* ---------- 首次使用引导 ---------- */
+.guide {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  border-radius: var(--radius-md);
+  background: linear-gradient(120deg, var(--accent-soft), var(--tint));
+  border: 1px solid var(--border);
+  font-size: 0.85rem;
+  color: var(--text);
+}
+
+.guide-steps {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  flex: 1;
+}
+
+.guide-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary);
+}
+
+.guide-step b {
+  color: var(--primary);
+}
+
+.guide-close {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 1rem;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+}
+
+.guide-close:hover {
+  background: var(--surface-hover);
+}
+
+@media (max-width: 640px) {
+  .guide {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }

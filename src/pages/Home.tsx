@@ -20,10 +20,26 @@ export default function Home() {
   const [streaming, setStreaming] = useState(false);
   const [streamText, setStreamText] = useState("");
   const [queuePos, setQueuePos] = useState(0);
+  const [showGuide, setShowGuide] = useState(() => {
+    try {
+      return localStorage.getItem("hide_guide") !== "1";
+    } catch {
+      return true;
+    }
+  });
   const navigate = useNavigate();
   const location = useLocation();
   const { groups, selection, setSelection } = useModels();
   const toast = useToast();
+
+  const dismissGuide = () => {
+    setShowGuide(false);
+    try {
+      localStorage.setItem("hide_guide", "1");
+    } catch {
+      // 忽略
+    }
+  };
 
   useEffect(() => {
     const st = location.state as { resume?: string; jobTitle?: string } | null;
@@ -107,6 +123,28 @@ export default function Home() {
           </button>
         </nav>
       </div>
+
+      {showGuide && (
+        <div className="guide">
+          <div className="guide-steps">
+            <span className="guide-step">
+              <b>1</b> 贴简历
+            </span>
+            <span className="guide-step">
+              <b>2</b> 填岗位 + JD
+            </span>
+            <span className="guide-step">
+              <b>3</b> 开始评估
+            </span>
+            <span className="guide-step">
+              没有简历？先去 <Link to="/builder">简历模板</Link>
+            </span>
+          </div>
+          <button type="button" className="guide-close" onClick={dismissGuide} title="不再提示">
+            ✕
+          </button>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit}>
         <div className="card">
@@ -199,7 +237,16 @@ export default function Home() {
               ? `排队中，前面还有 ${queuePos} 位，请稍候...`
               : "AI 正在逐条对照 JD 分析，请稍候..."}
           </div>
-          <div className="report streaming-cursor">{streamText}</div>
+          {streamText ? (
+            <div className="report streaming-cursor">{streamText}</div>
+          ) : (
+            <div className="skeleton-lines">
+              <div className="skeleton-line" />
+              <div className="skeleton-line" />
+              <div className="skeleton-line" />
+              <div className="skeleton-line" />
+            </div>
+          )}
         </div>
       )}
     </div>
