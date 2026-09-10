@@ -132,3 +132,61 @@ export async function callLLMStream(resume, jobTitle, jobDescription, onChunk, e
     cleanup();
   }
 }
+
+const JD_EXTRACT_PROMPT = `你是一个招聘信息抽取助手。用户会给你一段从招聘网页抓取来的文本，里面混杂了大量无关内容（网站导航、推荐职位、广告、页脚、评论、版权信息、无关链接等）。
+
+请只提取该招聘岗位的核心信息，忽略一切无关内容。按下面的结构输出，没有的项直接省略，不要保留空标题：
+
+【岗位名称】
+【公司名称】
+【薪资待遇】
+【工作地点】
+【经验要求】
+【学历要求】
+【岗位职责】
+（逐条列出）
+【任职要求】
+（逐条列出）
+【加分项】
+【福利待遇】
+
+要求：
+- 只保留原文中真实出现的信息，严禁编造
+- 删除导航、推荐、广告、评论、页脚、版权等噪声内容
+- 条目化、简洁，不要大段照抄无关文字
+- 如果文本不是招聘信息，就提炼其中最像岗位要求的部分`;
+
+export async function extractJobInfo(rawText, externalSignal) {
+  const { apiKey, baseUrl, model } = getConfig();
+  const { signal, cleanup } = withTimeout(externalSignal, LLM_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(`${baseUrl}/chat/completions`, {
+      method: "POST",
+      signal,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: "system", content: JD_EXTRACT_PROMPT },
+          { role: "user", content: rawText },
+        ],
+        temperature: 0,
+        max_tokens: 2500,
+      }),
+    });
+
+    await assertOk(response);
+    const data = await response.json();
+    const content = data?.choices?.[0]?.message?.content;
+    if (typeof content !== "string" || !content.trim()) {
+      throw new Error("LLM 未返回有效内容");
+    }
+    return content.trim();
+  } finally {
+    cleanup();
+  }
+}

@@ -30,7 +30,11 @@ export default function UrlFetch({ value, onChange, onFetched }: Props) {
       }
 
       onFetched(data.text, data.url || url);
-      setMsg(`已抓取 ${data.length} 字${data.title ? "：" + data.title : ""}`);
+      if (data.extracted) {
+        setMsg(`已智能提取岗位重点信息（${data.length} 字），可再手动编辑`);
+      } else {
+        setMsg(`已抓取 ${data.length} 字${data.title ? "：" + data.title : ""}`);
+      }
     } catch (err: any) {
       setMsg("抓取失败：" + err.message);
     } finally {
@@ -42,7 +46,7 @@ export default function UrlFetch({ value, onChange, onFetched }: Props) {
     <div className="url-fetch">
       <input
         type="url"
-        placeholder="粘贴岗位链接（招聘网站 JD 页面），点右侧自动抓取"
+        placeholder="粘贴岗位链接（招聘网站 JD 页面），点右侧自动提取"
         value={value}
         onChange={(e) => onChange(e.target.value)}
       />
@@ -54,10 +58,10 @@ export default function UrlFetch({ value, onChange, onFetched }: Props) {
       >
         {loading ? (
           <>
-            <span className="spinner spinner-sm" /> 抓取中
+            <span className="spinner spinner-sm" /> 提取中
           </>
         ) : (
-          "🔗 抓取"
+          "🔗 提取"
         )}
       </button>
       {msg && <span className="url-msg">{msg}</span>}
