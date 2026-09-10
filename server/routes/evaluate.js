@@ -1,6 +1,6 @@
 import { Router } from "express";
 import db from "../db.js";
-import { callLLM, callLLMStream } from "../llm.js";
+import { callLLM, callLLMStream, listProviders } from "../llm.js";
 import { saveEvaluation } from "../store.js";
 import { getPersonKey, getPersonName } from "../person.js";
 import { requireAuth } from "../auth.js";
@@ -10,6 +10,23 @@ const router = Router();
 
 // 所有评估相关接口都需要登录
 router.use(requireAuth);
+
+// 已配置的模型提供商列表
+router.get("/models", (req, res) => {
+  const providers = listProviders();
+  const preferred = (process.env.LLM_PROVIDER || "").trim().toLowerCase();
+  const def = providers.some((p) => p.provider === preferred)
+    ? preferred
+    : providers[0]?.provider || null;
+  res.json({ providers, default: def });
+});
+
+function resolveProvider(requested) {
+  const providers = listProviders();
+  if (!providers.length) return undefined;
+  if (requested && providers.some((p) => p.provider === requested)) return requested;
+  return undefined;
+}
 
 const MAX_RESUME = 40000;
 const MAX_JD = 40000;
@@ -32,12 +49,14 @@ function validateInput({ resume, jobTitle, jobDescription, jobUrl }) {
 }
 
 router.post("/evaluate", async (req, res) => {
-  const { resume, jobTitle, jobDescription, jobUrl } = req.body || {};
+  const { resume, jobTitle, jobDescription, jobUrl, provider } = req.body || {};
 
   const invalid = validateInput({ resume, jobTitle, jobDescription, jobUrl });
   if (invalid) {
     return res.status(400).json({ error: invalid });
   }
+
+  const chosenProvider = resolveProvider(provider);
 
   const quota = consumeQuota(req.user.id);
   if (!quota.allowed) {
@@ -71,7 +90,8 @@ router.post("/evaluate", async (req, res) => {
             fullText += chunk;
             res.write(`data: ${JSON.stringify({ chunk, done: false })}\n\n`);
           },
-          controller.signal
+          controller.signal,
+          chosenProvider
         );
       } catch (error) {
         if (controller.signal.aborted) {
@@ -84,7 +104,13 @@ router.post("/evaluate", async (req, res) => {
       // 流式无内容（停滞/为空）时回退非流式，保证有结果
       if (!fullText.trim() && !controller.signal.aborted) {
         try {
-          const report = await callLLM(resume, jobTitle, jobDescription || "", controller.signal);
+          const report = await callLLM(
+            resume,
+            jobTitle,
+            jobDescription || "",
+            controller.signal,
+            chosenProvider
+          );
           fullText = report;
           res.write(`data: ${JSON.stringify({ chunk: report, done: false })}\n\n`);
         } catch (error) {
@@ -125,7 +151,13 @@ router.post("/evaluate", async (req, res) => {
       );
       res.end();
     } else {
-      const report = await callLLM(resume, jobTitle, jobDescription || "", controller.signal);
+      const report = await callLLM(
+        resume,
+        jobTitle,
+        jobDescription || "",
+        controller.signal,
+        chosenProvider
+      );
       const score = extractScore(report);
       const id = saveEvaluation(
         req.user.id,

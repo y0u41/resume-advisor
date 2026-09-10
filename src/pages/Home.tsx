@@ -3,7 +3,9 @@ import { useNavigate, Link } from "react-router-dom";
 import FileUpload from "../components/FileUpload";
 import UrlFetch from "../components/UrlFetch";
 import UserBar from "../components/UserBar";
+import ModelSelect from "../components/ModelSelect";
 import { streamEvaluate } from "../lib/api";
+import { useModels } from "../lib/models";
 
 export default function Home() {
   const [resume, setResume] = useState("");
@@ -14,6 +16,7 @@ export default function Home() {
   const [streaming, setStreaming] = useState(false);
   const [streamText, setStreamText] = useState("");
   const navigate = useNavigate();
+  const { providers, provider, setProvider } = useModels();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,7 +28,7 @@ export default function Home() {
 
     try {
       await streamEvaluate(
-        { resume, jobTitle, jobDescription, jobUrl },
+        { resume, jobTitle, jobDescription, jobUrl, provider },
         (text) => setStreamText(text),
         (result) => {
           navigate(`/result/${result.id || "latest"}`, {
@@ -105,6 +108,8 @@ export default function Home() {
               💡 贴上 JD 会让评估更精准，不贴也能用，会按该岗位的通用要求评估
             </p>
           </div>
+
+          <ModelSelect providers={providers} value={provider} onChange={setProvider} />
 
           <button
             type="submit"

@@ -2,8 +2,10 @@ import { useEffect, useState } from "react";
 import { useParams, useLocation, Link } from "react-router-dom";
 import UrlFetch from "../components/UrlFetch";
 import UserBar from "../components/UserBar";
+import ModelSelect from "../components/ModelSelect";
 import { streamEvaluate } from "../lib/api";
 import { downloadReport, type DownloadFormat } from "../lib/download";
+import { useModels } from "../lib/models";
 import {
   parseReport,
   parseMatchItems,
@@ -142,6 +144,7 @@ export default function Result() {
   const [saveMsg, setSaveMsg] = useState("");
   const [downloadFormat, setDownloadFormat] = useState<DownloadFormat>("pdf");
   const [downloading, setDownloading] = useState(false);
+  const { providers, provider, setProvider } = useModels();
 
   const applyFull = (d: EvalData) => {
     setData(d);
@@ -199,7 +202,7 @@ export default function Result() {
     setReText("");
     try {
       await streamEvaluate(
-        { resume, jobTitle, jobDescription, jobUrl },
+        { resume, jobTitle, jobDescription, jobUrl, provider },
         (text) => setReText(text),
         (result) => {
           setData({
@@ -422,6 +425,8 @@ export default function Result() {
               placeholder="岗位要求（选填）"
             />
           </div>
+
+          <ModelSelect providers={providers} value={provider} onChange={setProvider} />
 
           <div className="editor-actions">
             <button

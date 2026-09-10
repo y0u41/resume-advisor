@@ -3,6 +3,7 @@ export interface EvalPayload {
   jobTitle: string;
   jobDescription: string;
   jobUrl?: string;
+  provider?: string;
 }
 
 export interface EvalResult {
