@@ -1,8 +1,5 @@
 import { Router } from "express";
 import multer from "multer";
-import { PDFParse } from "pdf-parse";
-import mammoth from "mammoth";
-import WordExtractor from "word-extractor";
 import { requireAuth } from "../auth.js";
 
 const router = Router();
@@ -13,7 +10,10 @@ const upload = multer({
   limits: { fileSize: 10 * 1024 * 1024 },
 });
 
+// 这些库（尤其 pdf-parse / word-extractor）含原生或较重的依赖，
+// 改为「用到时才加载」，避免启动时加载导致崩溃（Segmentation fault）。
 async function extractPdf(buffer) {
+  const { PDFParse } = await import("pdf-parse");
   const parser = new PDFParse({ data: buffer });
   try {
     const result = await parser.getText();
@@ -23,8 +23,17 @@ async function extractPdf(buffer) {
   }
 }
 
-const extractDocx = (buffer) => mammoth.extractRawText({ buffer }).then((r) => r.value);
-const extractDoc = (buffer) => new WordExtractor().extract(buffer).then((d) => d.getBody());
+async function extractDocx(buffer) {
+  const mammoth = (await import("mammoth")).default;
+  const result = await mammoth.extractRawText({ buffer });
+  return result.value;
+}
+
+async function extractDoc(buffer) {
+  const WordExtractor = (await import("word-extractor")).default;
+  const doc = await new WordExtractor().extract(buffer);
+  return doc.getBody();
+}
 
 router.post("/parse-file", upload.single("file"), async (req, res) => {
   if (!req.file) {
