@@ -4,21 +4,18 @@ import { useAuth } from "../lib/auth";
 import Logo from "../components/Logo";
 import ThemeToggle from "../components/ThemeToggle";
 
-const BENEFITS = [
-  { icon: "⚡", title: "几十秒出结果", desc: "贴完即评，实时流式输出，不用干等" },
-  { icon: "🎯", title: "对着 JD 挑刺", desc: "逐条对照岗位要求，指出具体哪句话不行" },
-  { icon: "🔒", title: "隐私可控", desc: "数据存在你自己的服务器，可随时删除" },
+const STATS = [
+  { num: "9", label: "大报告模块" },
+  { num: "4", label: "维客观评分" },
+  { num: "6", label: "大求职功能" },
+  { num: "2", label: "套专业模板" },
 ];
 
 const FEATURES = [
-  { icon: "🎯", title: "十分制评分", desc: "一句话说清为什么是这个分" },
-  { icon: "✅", title: "岗位匹配对照", desc: "逐条 ✅ / ⚠️ / ❌，一眼看清短板" },
-  { icon: "✏️", title: "逐条改法", desc: "「改之前 → 改之后」直接照抄" },
-  { icon: "🤖", title: "AI 修改建议", desc: "按优先级的动作 + 优化示范" },
-  { icon: "🚀", title: "可继续增强的方向", desc: "技能 / 经历 / 加分项补强" },
-  { icon: "📄", title: "多种导入", desc: "粘贴、上传 PDF/Word、链接抓取" },
-  { icon: "⬇️", title: "多格式导出", desc: "PDF / Word / TXT / Markdown" },
-  { icon: "🔀", title: "多模型可选", desc: "DeepSeek / 智谱 GLM 自由切换" },
+  { title: "岗位匹配对照", desc: "逐条 ✅ / ⚠️ / ❌ 标注岗位要求，一眼看清差在哪" },
+  { title: "逐条改法", desc: "每个问题配「改之前 → 改之后」，直接照抄" },
+  { title: "客观评分 + AI 报告", desc: "算法给出可复现的分数，AI 给出专业点评" },
+  { title: "求职全流程", desc: "评估 · 多岗对比 · 改简历 · 模拟面试 · 方向推荐" },
 ];
 
 function DemoPreview() {
@@ -66,7 +63,7 @@ function DemoPreview() {
       </div>
 
       <div className="demo-fix">
-        <div className="demo-fix-label">✏️ 逐条改法</div>
+        <div className="demo-fix-label">逐条改法</div>
         <div className="demo-fix-row">
           <span className="demo-before">负责写接口</span>
           <span className="demo-arrow">→</span>
@@ -136,35 +133,36 @@ export default function Login() {
 
       <section className="landing-showcase">
         <div className="brand landing-brand">
-          <Logo size={54} />
+          <Logo size={40} />
           <h1>简历参谋</h1>
         </div>
-        <p className="landing-tagline">贴简历 + 说岗位 → 得分 + 挑刺 + 改法</p>
+
+        <h2 className="landing-headline">用 HR 的视角，把简历改到能拿到面试</h2>
         <p className="landing-sub">
-          像一位挑剔又靠谱的资深 HR，几十秒帮你把简历改到能拿到面试。
+          贴上简历和目标岗位，几十秒得到评分、逐条对照与可照抄的改法。
         </p>
 
-        <div className="benefits">
-          {BENEFITS.map((b) => (
-            <div key={b.title} className="benefit">
-              <span className="benefit-ico">{b.icon}</span>
-              <b>{b.title}</b>
-              <span>{b.desc}</span>
+        <div className="landing-stats">
+          {STATS.map((s) => (
+            <div key={s.label} className="stat">
+              <span className="stat-num">{s.num}</span>
+              <span className="stat-label">{s.label}</span>
             </div>
           ))}
         </div>
 
-        <ul className="features">
+        <div className="landing-features">
           {FEATURES.map((f) => (
-            <li key={f.title} className="feature">
-              <span className="feature-ico">{f.icon}</span>
-              <div className="feature-text">
-                <b>{f.title}</b>
-                <span>{f.desc}</span>
-              </div>
-            </li>
+            <div key={f.title} className="feature-card">
+              <b>{f.title}</b>
+              <span>{f.desc}</span>
+            </div>
           ))}
-        </ul>
+        </div>
+
+        <p className="landing-trust">
+          隐私优先：数据保存在自有服务器，可随时删除记录或一键注销账号。
+        </p>
 
         <div className="demo-preview">
           <div className="demo-preview-title">效果预览</div>
@@ -252,7 +250,7 @@ export default function Login() {
               ) : mode === "login" ? (
                 "登录"
               ) : (
-                "注册并登录"
+                "免费注册"
               )}
             </button>
           </form>

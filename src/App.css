@@ -537,73 +537,69 @@ body {
 .demo-preview,
 .demo-card,
 .demo-score-col,
-.features,
-.benefits,
-.feature,
-.feature-text,
-.benefit {
+.landing-stats,
+.stat,
+.landing-features,
+.feature-card {
   min-width: 0;
 }
 
 .landing-brand {
   justify-content: flex-start;
-  margin-bottom: 14px;
+  margin-bottom: 6px;
 }
 
 .landing-brand h1 {
-  font-size: 2rem;
+  font-size: 1.35rem;
   font-weight: 800;
-  letter-spacing: -0.02em;
-  background: linear-gradient(120deg, var(--primary) 0%, var(--primary-2) 42%, var(--accent) 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
+  letter-spacing: -0.01em;
+  color: var(--text);
 }
 
-.landing-tagline {
-  font-size: 1.15rem;
-  font-weight: 700;
+.landing-headline {
+  font-size: 1.9rem;
+  line-height: 1.3;
+  font-weight: 800;
+  letter-spacing: -0.01em;
   color: var(--text);
-  margin-bottom: 6px;
+  margin: 8px 0 10px;
+  max-width: 24ch;
 }
 
 .landing-sub {
   color: var(--text-secondary);
   font-size: 0.95rem;
-  margin-bottom: 24px;
+  margin-bottom: 22px;
+  max-width: 46ch;
 }
 
-.benefits {
+.landing-stats {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
-  margin-bottom: 26px;
+  margin-bottom: 20px;
 }
 
-.benefit {
+.stat {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 14px;
+  gap: 2px;
+  padding: 12px 14px;
   border-radius: var(--radius-md);
   background: var(--card);
   border: 1px solid var(--border);
-  box-shadow: var(--shadow-sm);
 }
 
-.benefit-ico {
-  font-size: 1.25rem;
-}
-
-.benefit b {
-  font-size: 0.88rem;
+.stat-num {
+  font-size: 1.45rem;
+  font-weight: 800;
   color: var(--text);
+  line-height: 1.1;
 }
 
-.benefit > span:last-child {
+.stat-label {
   font-size: 0.78rem;
   color: var(--text-secondary);
-  line-height: 1.45;
 }
 
 .auth-consent {
@@ -622,39 +618,54 @@ body {
   text-decoration: underline;
 }
 
-.features {
-  list-style: none;
+.landing-features {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 12px 20px;
-  margin-bottom: 28px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
 }
 
-.feature {
-  display: flex;
-  gap: 10px;
-  align-items: flex-start;
-}
-
-.feature-ico {
-  font-size: 1.05rem;
-  line-height: 1.5;
-}
-
-.feature-text {
+.feature-card {
   display: flex;
   flex-direction: column;
-  line-height: 1.35;
+  gap: 4px;
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--primary);
 }
 
-.feature-text b {
+.feature-card b {
   font-size: 0.9rem;
   color: var(--text);
 }
 
-.feature-text span {
+.feature-card span {
   font-size: 0.78rem;
   color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.landing-trust {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  line-height: 1.55;
+  margin-bottom: 24px;
+  padding-left: 12px;
+  border-left: 2px solid var(--border-strong);
+}
+
+@media (max-width: 720px) {
+  .landing-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .landing-features {
+    grid-template-columns: 1fr;
+  }
+  .landing-headline {
+    font-size: 1.6rem;
+  }
 }
 
 .demo-preview-title {
@@ -2165,8 +2176,8 @@ body,
   .landing-sub,
   .demo-job,
   .demo-match-label,
-  .benefit > span:last-child,
-  .feature-text span,
+  .stat-label,
+  .feature-card span,
   .guide-step,
   .compare-conclusion {
     overflow-wrap: anywhere;

@@ -116,7 +116,7 @@ export default function Home() {
         <p>贴简历 + 说岗位 → 得分 + 挑刺 + 改法</p>
         <Nav>
           <button type="button" className="nav-btn" onClick={fillSample}>
-            ✨ 试用示例
+            试用示例
           </button>
         </Nav>
       </div>
@@ -146,7 +146,7 @@ export default function Home() {
       <form onSubmit={handleSubmit}>
         <div className="card">
           <div className="form-group">
-            <label>📄 简历全文 *</label>
+            <label>简历全文 *</label>
             <FileUpload onText={setResume} label="上传简历文件" />
             <textarea
               rows={12}
@@ -157,7 +157,7 @@ export default function Home() {
           </div>
 
           <div className="form-group">
-            <label>💼 想应聘的岗位 *</label>
+            <label>想应聘的岗位 *</label>
             <input
               type="text"
               placeholder="例如：新媒体运营、Java开发工程师"
@@ -167,7 +167,7 @@ export default function Home() {
           </div>
 
           <div className="form-group">
-            <label>📋 岗位要求（JD）（选填）</label>
+            <label>岗位要求（JD）（选填）</label>
             <UrlFetch
               value={jobUrl}
               onChange={setJobUrl}
