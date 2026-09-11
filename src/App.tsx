@@ -2,6 +2,8 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import type { ReactNode } from "react";
 import { AuthProvider, useAuth } from "./lib/auth";
 import { ToastProvider } from "./lib/toast";
+import { TaskProvider } from "./lib/tasks";
+import TaskDock from "./components/TaskDock";
 import Home from "./pages/Home";
 import Result from "./pages/Result";
 import History from "./pages/History";
@@ -12,6 +14,7 @@ import Builder from "./pages/Builder";
 import Compare from "./pages/Compare";
 import Interview from "./pages/Interview";
 import Directions from "./pages/Directions";
+import TaskRunner from "./pages/TaskRunner";
 
 function Protected({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
@@ -35,7 +38,9 @@ export default function App() {
   return (
     <AuthProvider>
       <ToastProvider>
+        <TaskProvider>
         <BrowserRouter>
+        <TaskDock />
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/privacy" element={<Privacy />} />
@@ -44,6 +49,14 @@ export default function App() {
             element={
               <Protected>
                 <Home />
+              </Protected>
+            }
+          />
+          <Route
+            path="/result/task/:taskId"
+            element={
+              <Protected>
+                <TaskRunner />
               </Protected>
             }
           />
@@ -106,6 +119,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         </BrowserRouter>
+        </TaskProvider>
       </ToastProvider>
     </AuthProvider>
   );

@@ -6,7 +6,7 @@ import UserBar from "../components/UserBar";
 import ModelSelect from "../components/ModelSelect";
 import Logo from "../components/Logo";
 import Nav from "../components/Nav";
-import { streamEvaluate } from "../lib/api";
+import { useTasks } from "../lib/tasks";
 import { useModels } from "../lib/models";
 import { SAMPLE_RESUME, SAMPLE_JOB_TITLE, SAMPLE_JD } from "../lib/sample";
 import { useToast } from "../lib/toast";
@@ -17,10 +17,6 @@ export default function Home() {
   const [jobDescription, setJobDescription] = useState("");
   const [jobUrl, setJobUrl] = useState("");
   const [isStudent, setIsStudent] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [streaming, setStreaming] = useState(false);
-  const [streamText, setStreamText] = useState("");
-  const [queuePos, setQueuePos] = useState(0);
   const [showGuide, setShowGuide] = useState(() => {
     try {
       return localStorage.getItem("hide_guide") !== "1";
@@ -32,6 +28,7 @@ export default function Home() {
   const location = useLocation();
   const { groups, selection, setSelection } = useModels();
   const toast = useToast();
+  const { startEvaluate } = useTasks();
 
   const dismissGuide = () => {
     setShowGuide(false);
@@ -57,52 +54,24 @@ export default function Home() {
     setJobDescription(SAMPLE_JD);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!resume.trim() || !jobTitle.trim()) return;
 
-    setLoading(true);
-    setStreaming(true);
-    setStreamText("");
-    setQueuePos(0);
-
-    try {
-      await streamEvaluate(
-        {
-          resume,
-          jobTitle,
-          jobDescription,
-          jobUrl,
-          provider: selection?.provider,
-          model: selection?.model,
-          candidateType: isStudent ? "student" : "general",
-        },
-        (text) => {
-          setQueuePos(0);
-          setStreamText(text);
-        },
-        (result) => {
-          navigate(`/result/${result.id || "latest"}`, {
-            state: {
-              score: result.score,
-              report: result.report,
-              resume,
-              jobTitle,
-              jobDescription,
-              jobUrl,
-              candidateType: isStudent ? "student" : "general",
-            },
-          });
-        },
-        (msg) => toast("评估失败：" + msg, "error"),
-        (position) => setQueuePos(position)
-      );
-    } catch (err: any) {
-      toast("请求失败：" + err.message, "error");
-    } finally {
-      setLoading(false);
-      setStreaming(false);
-    }
+    // 交给后台任务管理器：切换页面也不中断
+    const taskId = startEvaluate(
+      {
+        resume,
+        jobTitle,
+        jobDescription,
+        jobUrl,
+        provider: selection?.provider,
+        model: selection?.model,
+        candidateType: isStudent ? "student" : "general",
+      },
+      jobTitle.trim()
+    );
+    navigate(`/result/task/${taskId}`);
   };
 
   return (
@@ -203,49 +172,12 @@ export default function Home() {
             type="submit"
             className="btn btn-primary"
             style={{ width: "100%", padding: "14px 24px", fontSize: "1rem" }}
-            disabled={loading || !resume.trim() || !jobTitle.trim()}
+            disabled={!resume.trim() || !jobTitle.trim()}
           >
-            {loading ? (
-              <>
-                <span className="spinner" /> 评估中...
-              </>
-            ) : (
-              "开始评估"
-            )}
+            开始评估
           </button>
         </div>
       </form>
-
-      {streaming && (
-        <div className="card">
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              marginBottom: 16,
-              color: "var(--primary)",
-              fontWeight: 600,
-              fontSize: "0.9rem",
-            }}
-          >
-            <span className="spinner" style={{ color: "var(--primary)" }} />
-            {queuePos > 0
-              ? `排队中，前面还有 ${queuePos} 位，请稍候...`
-              : "AI 正在逐条对照 JD 分析，请稍候..."}
-          </div>
-          {streamText ? (
-            <div className="report streaming-cursor">{streamText}</div>
-          ) : (
-            <div className="skeleton-lines">
-              <div className="skeleton-line" />
-              <div className="skeleton-line" />
-              <div className="skeleton-line" />
-              <div className="skeleton-line" />
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }

@@ -5,48 +5,35 @@ import Nav from "../components/Nav";
 import ModelSelect from "../components/ModelSelect";
 import { useModels } from "../lib/models";
 import { useToast } from "../lib/toast";
-import { directionsStream } from "../lib/api";
+import { useTasks } from "../lib/tasks";
 import { downloadText, type DownloadFormat } from "../lib/download";
 
 export default function Directions() {
   const { groups, selection, setSelection } = useModels();
   const toast = useToast();
+  const { startDirections, latestOf } = useTasks();
   const [resume, setResume] = useState("");
   const [isStudent, setIsStudent] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [queuePos, setQueuePos] = useState(0);
-  const [text, setText] = useState("");
   const [format, setFormat] = useState<DownloadFormat>("pdf");
 
-  const handleGenerate = async () => {
+  const task = latestOf("directions");
+  const running = task?.status === "running";
+  const text = task?.text || "";
+
+  const handleGenerate = () => {
     if (!resume.trim()) {
       toast("请先粘贴简历全文", "error");
       return;
     }
-    setLoading(true);
-    setText("");
-    setQueuePos(0);
-    try {
-      await directionsStream(
-        {
-          resume,
-          provider: selection?.provider,
-          model: selection?.model,
-          candidateType: isStudent ? "student" : "general",
-        },
-        (t) => {
-          setQueuePos(0);
-          setText(t);
-        },
-        () => toast("岗位方向推荐已生成", "success"),
-        (m) => toast("生成失败：" + m, "error"),
-        (pos) => setQueuePos(pos)
-      );
-    } catch (e: any) {
-      toast("请求失败：" + e.message, "error");
-    } finally {
-      setLoading(false);
-    }
+    startDirections(
+      {
+        resume,
+        provider: selection?.provider,
+        model: selection?.model,
+        candidateType: isStudent ? "student" : "general",
+      },
+      "岗位方向推荐"
+    );
   };
 
   const handleDownload = async () => {
@@ -97,12 +84,12 @@ export default function Directions() {
           type="button"
           className="btn btn-primary"
           style={{ width: "100%", padding: "14px 24px", fontSize: "1rem" }}
-          disabled={loading}
+          disabled={running}
           onClick={handleGenerate}
         >
-          {loading ? (
+          {running ? (
             <>
-              <span className="spinner" /> {queuePos > 0 ? `排队中，前面还有 ${queuePos} 位` : "正在分析..."}
+              <span className="spinner" /> 正在分析...
             </>
           ) : (
             "推荐岗位方向"
@@ -110,7 +97,7 @@ export default function Directions() {
         </button>
       </div>
 
-      {(text || loading) && (
+      {(text || running) && (
         <div className="card">
           <h2 className="section-title">
             <span className="section-icon">🎯</span>
@@ -127,7 +114,7 @@ export default function Directions() {
             </div>
           )}
 
-          {text && !loading && (
+          {text && !running && (
             <div className="builder-download" style={{ marginTop: 16 }}>
               <select
                 className="format-select"

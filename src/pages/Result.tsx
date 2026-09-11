@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
-import { useParams, useLocation, Link } from "react-router-dom";
+import { useParams, useLocation, useNavigate, Link } from "react-router-dom";
 import UrlFetch from "../components/UrlFetch";
 import UserBar from "../components/UserBar";
 import ModelSelect from "../components/ModelSelect";
 import Logo from "../components/Logo";
 import Nav from "../components/Nav";
-import { streamEvaluate, followUpStream, recordDownload } from "../lib/api";
+import { followUpStream, recordDownload } from "../lib/api";
 import { downloadReport, type DownloadFormat } from "../lib/download";
 import { useToast } from "../lib/toast";
+import { useTasks } from "../lib/tasks";
 import { useModels } from "../lib/models";
 import {
   parseReport,
@@ -235,6 +236,7 @@ function ObjectiveCard({ objective }: { objective?: ObjectiveScore | null }) {
 export default function Result() {
   const { id } = useParams();
   const location = useLocation();
+  const navigate = useNavigate();
   const stateData = location.state as any;
 
   const [data, setData] = useState<EvalData | null>(null);
@@ -247,10 +249,6 @@ export default function Result() {
   const [isStudent, setIsStudent] = useState(false);
   const [showEditor, setShowEditor] = useState(false);
 
-  const [reLoading, setReLoading] = useState(false);
-  const [reText, setReText] = useState("");
-  const [queuePos, setQueuePos] = useState(0);
-
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState("");
   const [downloadFormat, setDownloadFormat] = useState<DownloadFormat>("pdf");
@@ -260,6 +258,7 @@ export default function Result() {
   const [followupLoading, setFollowupLoading] = useState(false);
   const { groups, selection, setSelection } = useModels();
   const toast = useToast();
+  const { startEvaluate } = useTasks();
 
   const applyFull = (d: EvalData) => {
     setData(d);
@@ -316,48 +315,21 @@ export default function Result() {
     }
   }, [id]);
 
-  const handleReevaluate = async () => {
+  const handleReevaluate = () => {
     if (!resume.trim() || !jobTitle.trim()) return;
-    setReLoading(true);
-    setReText("");
-    setQueuePos(0);
-    try {
-      await streamEvaluate(
-        {
-          resume,
-          jobTitle,
-          jobDescription,
-          jobUrl,
-          provider: selection?.provider,
-          model: selection?.model,
-          candidateType: isStudent ? "student" : "general",
-        },
-        (text) => {
-          setQueuePos(0);
-          setReText(text);
-        },
-        (result) => {
-          setData({
-            id: result.id ?? data?.id ?? 0,
-            resume,
-            job_title: jobTitle,
-            job_description: jobDescription,
-            job_url: jobUrl,
-            score: result.score,
-            report: result.report,
-            candidate_type: isStudent ? "student" : "general",
-            created_at: new Date().toISOString(),
-          });
-        },
-        (msg) => toast("再次评估失败：" + msg, "error"),
-        (position) => setQueuePos(position)
-      );
-    } catch (err: any) {
-      toast("请求失败：" + err.message, "error");
-    } finally {
-      setReLoading(false);
-      setReText("");
-    }
+    const taskId = startEvaluate(
+      {
+        resume,
+        jobTitle,
+        jobDescription,
+        jobUrl,
+        provider: selection?.provider,
+        model: selection?.model,
+        candidateType: isStudent ? "student" : "general",
+      },
+      `${jobTitle.trim()}（重评）`
+    );
+    navigate(`/result/task/${taskId}`);
   };
 
   const saveResume = async () => {
@@ -506,7 +478,7 @@ export default function Result() {
               {new Date(data.created_at).toLocaleString("zh-CN")}
             </div>
           </div>
-          <ScoreBadge score={reLoading ? null : data.score} />
+          <ScoreBadge score={data.score} />
         </div>
 
         <div className="action-bar">
@@ -628,16 +600,10 @@ export default function Result() {
             </button>
             <button
               className="btn btn-secondary"
-              disabled={reLoading || !resume.trim() || !jobTitle.trim()}
+              disabled={!resume.trim() || !jobTitle.trim()}
               onClick={handleReevaluate}
             >
-              {reLoading ? (
-                <>
-                  <span className="spinner" /> 评估中...
-                </>
-              ) : (
-                "🔄 再次评估"
-              )}
+              再次评估
             </button>
           </div>
           <p className="hint" style={{ marginTop: 10 }}>
@@ -651,31 +617,9 @@ export default function Result() {
         </div>
       )}
 
-      {reLoading ? (
-        <div className="card">
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              marginBottom: 16,
-              color: "var(--primary)",
-              fontWeight: 600,
-              fontSize: "0.9rem",
-            }}
-          >
-            <span className="spinner" style={{ color: "var(--primary)" }} />
-            {queuePos > 0
-              ? `排队中，前面还有 ${queuePos} 位，请稍候...`
-              : "AI 正在再次评估，请稍候..."}
-          </div>
-          <div className="report streaming-cursor">{reText}</div>
-        </div>
-      ) : (
-        <ReportView report={data.report} />
-      )}
+      <ReportView report={data.report} />
 
-      {!reLoading && (
+      {(
         <div className="card">
           <h2 className="section-title">
             <span className="section-icon">💬</span>
@@ -735,7 +679,7 @@ export default function Result() {
         </div>
       )}
 
-      {!reLoading && (data.job_description || data.job_url) && (
+      {(data.job_description || data.job_url) && (
         <div className="card">
           <h3 style={{ marginBottom: 10, fontSize: "0.95rem", color: "var(--text-secondary)" }}>
             原始 JD

@@ -6,7 +6,8 @@ import Nav from "../components/Nav";
 import ModelSelect from "../components/ModelSelect";
 import { useModels } from "../lib/models";
 import { useToast } from "../lib/toast";
-import { compareStream, type CompareResult } from "../lib/api";
+import { useTasks } from "../lib/tasks";
+import type { CompareResult } from "../lib/api";
 
 interface JobRow {
   title: string;
@@ -20,16 +21,19 @@ function scoreColor(s: number | null) {
 export default function Compare() {
   const { groups, selection, setSelection } = useModels();
   const toast = useToast();
+  const { startCompare, latestOf } = useTasks();
   const [resume, setResume] = useState("");
   const [jobs, setJobs] = useState<JobRow[]>([
     { title: "", jd: "" },
     { title: "", jd: "" },
   ]);
   const [isStudent, setIsStudent] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [progress, setProgress] = useState("");
-  const [queuePos, setQueuePos] = useState(0);
-  const [results, setResults] = useState<CompareResult[]>([]);
+
+  // 后台任务：切换页面后回到本页仍能看到进度/结果
+  const task = latestOf("compare");
+  const running = task?.status === "running";
+  const results: CompareResult[] =
+    task?.status === "done" && Array.isArray(task.result) ? task.result : [];
 
   const setJob = (i: number, key: keyof JobRow, value: string) =>
     setJobs((prev) => prev.map((j, idx) => (idx === i ? { ...j, [key]: value } : j)));
@@ -41,7 +45,7 @@ export default function Compare() {
     if (jobs.length > 2) setJobs((p) => p.filter((_, idx) => idx !== i));
   };
 
-  const handleCompare = async () => {
+  const handleCompare = () => {
     if (!resume.trim()) {
       toast("请先粘贴简历全文", "error");
       return;
@@ -52,38 +56,16 @@ export default function Compare() {
       return;
     }
 
-    setLoading(true);
-    setResults([]);
-    setProgress("");
-    setQueuePos(0);
-    try {
-      await compareStream(
-        {
-          resume,
-          jobs: valid.map((j) => ({ title: j.title.trim(), jd: j.jd.trim() })),
-          provider: selection?.provider,
-          model: selection?.model,
-          candidateType: isStudent ? "student" : "general",
-        },
-        {
-          onProgress: (p) => {
-            setQueuePos(0);
-            setProgress(`正在评估 ${p.index + 1}/${p.total}：${p.title}`);
-          },
-          onDone: (r) => {
-            setResults(r);
-            setProgress("");
-            toast(`对比完成，共 ${r.length} 个岗位`, "success");
-          },
-          onError: (m) => toast("对比失败：" + m, "error"),
-          onQueued: (pos) => setQueuePos(pos),
-        }
-      );
-    } catch (e: any) {
-      toast("请求失败：" + e.message, "error");
-    } finally {
-      setLoading(false);
-    }
+    startCompare(
+      {
+        resume,
+        jobs: valid.map((j) => ({ title: j.title.trim(), jd: j.jd.trim() })),
+        provider: selection?.provider,
+        model: selection?.model,
+        candidateType: isStudent ? "student" : "general",
+      },
+      `${valid.length} 个岗位对比`
+    );
   };
 
   return (
@@ -155,17 +137,19 @@ export default function Compare() {
           type="button"
           className="btn btn-primary"
           style={{ width: "100%", padding: "14px 24px", fontSize: "1rem", marginTop: 8 }}
-          disabled={loading}
+          disabled={running}
           onClick={handleCompare}
         >
-          {loading ? (
+          {running ? (
             <>
-              <span className="spinner" /> {queuePos > 0 ? `排队中，前面还有 ${queuePos} 位` : progress || "对比中..."}
+              <span className="spinner" /> {task?.text || "对比中..."}
             </>
           ) : (
             "开始对比"
           )}
         </button>
+
+        {running && <p className="hint">任务在后台运行，切换页面不会中断。</p>}
       </div>
 
       {results.length > 0 && (
