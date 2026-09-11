@@ -111,7 +111,7 @@ export default function Home() {
         <UserBar />
         <div className="brand">
           <Logo size={46} />
-          <h1>简历评估助手</h1>
+          <h1>简历参谋</h1>
         </div>
         <p>贴简历 + 说岗位 → 得分 + 挑刺 + 改法</p>
         <Nav>

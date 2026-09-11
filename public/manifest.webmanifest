@@ -1,6 +1,6 @@
 {
-  "name": "简历评估助手",
-  "short_name": "简历评估",
+  "name": "简历参谋",
+  "short_name": "简历参谋",
   "description": "贴简历 + 说岗位 → AI 评分、挑刺、改法",
   "start_url": "/",
   "scope": "/",

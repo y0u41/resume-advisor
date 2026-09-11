@@ -1,6 +1,6 @@
 # 实现与迭代（Build）
 
-> 项目：简历评估助手（resume-evaluator）
+> 项目：简历参谋（resume-evaluator）
 > 实现日期：2026-09-10 ｜ 整理日期：2026-09-11
 > 仓库：`E:\git\resume-evaluator`（git 根目录 `E:\git`，远程 `github.com/y0u41/git`，分支 `master`）
 

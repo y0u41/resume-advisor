@@ -4,7 +4,7 @@ interface Props {
 
 export default function Logo({ size = 40 }: Props) {
   return (
-    <svg className="logo" width={size} height={size} viewBox="0 0 64 64" aria-label="简历评估助手" role="img">
+    <svg className="logo" width={size} height={size} viewBox="0 0 64 64" aria-label="简历参谋" role="img">
       <defs>
         <linearGradient id="yuLogoGrad" x1="0" y1="0" x2="1" y2="1">
           <stop offset="0" stopColor="#6d6bf0" />

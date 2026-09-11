@@ -1,6 +1,6 @@
 # 技术设计文档（Tech Design）
 
-> 项目：简历评估助手（resume-evaluator）
+> 项目：简历参谋（resume-evaluator）
 > 版本：v1.0 ｜ 整理日期：2026-09-11
 
 ## 1. 总体架构

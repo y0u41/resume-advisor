@@ -1,7 +1,7 @@
 # AGENTS.md — AI 代理工作指令
 
 > 本文件面向在本仓库工作的 AI 编码代理（opencode / Cursor / Cline 等）。
-> 项目：简历评估助手（resume-evaluator）
+> 项目：简历参谋（resume-evaluator）
 
 ## 1. 项目速览
 

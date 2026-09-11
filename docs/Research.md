@@ -1,6 +1,6 @@
 # 需求研究（Research）
 
-> 项目：简历评估助手（resume-evaluator）
+> 项目：简历参谋（resume-evaluator）
 > 整理日期：2026-09-11 ｜ 对应实现：2026-09-10
 
 ## 1. 项目背景
