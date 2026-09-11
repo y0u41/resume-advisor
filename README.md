@@ -196,6 +196,7 @@ src/              前端
 public/           PWA（manifest / sw.js / 图标）
 shared/           结构化简历 Schema（前后端共用）
 docs/             文档（需求 / 产品 / 技术 / 实现 / 错误码 / ADR）
+docs/features/    按功能分类的模块文档（评估 / 模板 / 对比 / 面试 / 推荐 / 历史）
 deploy/           Caddyfile
 ecosystem.config.cjs  pm2 配置
 DEPLOY.md         部署指南
