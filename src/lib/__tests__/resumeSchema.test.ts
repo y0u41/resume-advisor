@@ -1,11 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { resumeDataToContent, validateResumeData } from "../resumeSchema";
+import { resumeDataToContent, validateResumeData } from "../resume/resumeSchema";
 import {
   safeParseResumeContent,
   contentToText,
   emptyResumeContent,
 } from "../../../shared/resumeSchema.js";
-import { SAMPLE_RESUME } from "../resumeTemplate";
+import { SAMPLE_RESUME } from "../resume/resumeTemplate";
 
 describe("结构化简历 Schema", () => {
   it("合法数据通过校验并保留关键字段", () => {

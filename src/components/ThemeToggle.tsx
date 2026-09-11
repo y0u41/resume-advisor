@@ -1,4 +1,4 @@
-import { useTheme } from "../lib/theme";
+import { useTheme } from "../lib/ui/theme";
 
 export default function ThemeToggle() {
   const { theme, toggle } = useTheme();

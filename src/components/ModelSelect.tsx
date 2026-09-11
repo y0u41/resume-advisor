@@ -1,4 +1,4 @@
-import type { ModelSelection, ProviderGroup } from "../lib/models";
+import type { ModelSelection, ProviderGroup } from "../lib/ui/models";
 
 interface Props {
   groups: ProviderGroup[];

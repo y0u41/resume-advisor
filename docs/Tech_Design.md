@@ -129,7 +129,7 @@ ecosystem.config.cjs          pm2 配置
 | POST | `/api/fetch-url` | 链接抓取 + 岗位信息抽取 |
 | GET | `/api/admin/users` | 用户管理（管理员） |
 
-## 6. LLM 调用层（`server/llm.js`）
+## 6. LLM 调用层（`server/llm/llm.js`）
 
 - **多提供商**：`getConfig(override)` 按 `<PROVIDER>_API_KEY / _BASE_URL / _MODEL` 读取；支持请求级 `override` 临时切换模型。
 - **调用形态**：非流式 `callLLM`、流式 `callLLMStream`、追问 `followUpStream`、面试 `interviewStream`、方向 `directionsStream`、OCR `ocrImage`、岗位抽取 `extractJobInfo`。
@@ -138,7 +138,7 @@ ecosystem.config.cjs          pm2 配置
 - **温度适配**：智谱 `temperature` 区间为 (0,1)，不支持 0，已做适配。
 - **OCR**：`ocrImage(dataUrl, signal, override)` 以 `image_url` 内容发起视觉模型请求，`temperature: 0`，专用 OCR 系统提示词，只回文字。
 
-## 7. 提示词设计（`server/prompt.js`）
+## 7. 提示词设计（`server/llm/prompt.js`）
 
 - `SYSTEM_PROMPT`：资深招聘官人设 + 工作流程 + 评分规则 + **固定 9 节输出格式** + 追问规则 + "永远中文 / 禁止编造"。
 - `buildEvaluatePrompt`：拼接岗位、JD、应届生说明、简历全文。

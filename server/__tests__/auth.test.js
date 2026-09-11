@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { hashPassword, verifyPassword } from "../auth.js";
+import { hashPassword, verifyPassword } from "../core/auth.js";
 
 describe("密码加密", () => {
   it("同一密码每次哈希结果不同（含随机盐）", () => {

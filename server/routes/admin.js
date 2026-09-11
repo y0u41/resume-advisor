@@ -1,7 +1,7 @@
 import { Router } from "express";
-import db from "../db.js";
-import { requireAuth, requireAdmin } from "../auth.js";
-import { getUsage, DAILY_LIMIT } from "../quota.js";
+import db from "../core/db.js";
+import { requireAuth, requireAdmin } from "../core/auth.js";
+import { getUsage, DAILY_LIMIT } from "../core/quota.js";
 
 const router = Router();
 

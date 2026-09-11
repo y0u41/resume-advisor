@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { acquire, queueStats } from "../queue.js";
+import { acquire, queueStats } from "../core/queue.js";
 
 const tick = () => new Promise((r) => setTimeout(r, 5));
 

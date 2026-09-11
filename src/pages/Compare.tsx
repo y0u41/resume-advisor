@@ -4,8 +4,8 @@ import UserBar from "../components/UserBar";
 import Logo from "../components/Logo";
 import Nav from "../components/Nav";
 import ModelSelect from "../components/ModelSelect";
-import { useModels } from "../lib/models";
-import { useToast } from "../lib/toast";
+import { useModels } from "../lib/ui/models";
+import { useToast } from "../lib/ui/toast";
 import { useTasks } from "../lib/tasks";
 import type { CompareResult } from "../lib/api";
 

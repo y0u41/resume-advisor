@@ -138,7 +138,7 @@ import fetchRoutes from "./routes/fetch.js";
 import adminRoutes from "./routes/admin.js";
 import accountRoutes from "./routes/account.js";
 import downloadsRoutes from "./routes/downloads.js";
-import { getProviderInfo } from "./llm.js";
+import { getProviderInfo } from "./llm/llm.js";
 import { startPurgeJob } from "./jobs/purge.js";
 app.use("/api", authRoutes);
 app.use("/api", evaluateRoutes);

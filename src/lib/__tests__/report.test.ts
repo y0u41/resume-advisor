@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseReport, parseMatchItems, matchRate, sectionIcon } from "../report";
+import { parseReport, parseMatchItems, matchRate, sectionIcon } from "../report/report";
 
 describe("parseReport", () => {
   it("只识别已知章节，忽略正文中的占位符【】", () => {

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "../lib/auth";
-import { useToast } from "../lib/toast";
+import { useToast } from "../lib/ui/toast";
 
 // 账号注销（7 天冷静期，期间可撤销）
 export default function AccountDangerZone() {

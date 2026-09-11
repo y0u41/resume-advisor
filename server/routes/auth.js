@@ -1,5 +1,5 @@
 import { Router } from "express";
-import db from "../db.js";
+import db from "../core/db.js";
 import {
   hashPassword,
   verifyPassword,
@@ -8,7 +8,7 @@ import {
   clearAuthCookie,
   requireAuth,
   findUserByAccount,
-} from "../auth.js";
+} from "../core/auth.js";
 
 const router = Router();
 

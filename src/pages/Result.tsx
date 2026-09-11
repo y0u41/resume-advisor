@@ -6,10 +6,10 @@ import ModelSelect from "../components/ModelSelect";
 import Logo from "../components/Logo";
 import Nav from "../components/Nav";
 import { followUpStream, recordDownload } from "../lib/api";
-import { downloadReport, type DownloadFormat } from "../lib/download";
-import { useToast } from "../lib/toast";
+import { downloadReport, type DownloadFormat } from "../lib/report/download";
+import { useToast } from "../lib/ui/toast";
 import { useTasks } from "../lib/tasks";
-import { useModels } from "../lib/models";
+import { useModels } from "../lib/ui/models";
 import {
   parseReport,
   parseMatchItems,
@@ -17,7 +17,7 @@ import {
   matchRate,
   type MatchStatus,
   type ObjectiveScore,
-} from "../lib/report";
+} from "../lib/report/report";
 
 const FOLLOWUP_CHIPS = [
   "帮我把自我评价重写一版",

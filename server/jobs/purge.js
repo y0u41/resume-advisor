@@ -1,4 +1,4 @@
-import db from "../db.js";
+import db from "../core/db.js";
 
 // 物理删除冷静期已到期的账号及其全部数据（评估、额度记录）。
 export function runPurge() {

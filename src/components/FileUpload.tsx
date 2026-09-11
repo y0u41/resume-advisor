@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { useToast } from "../lib/toast";
+import { useToast } from "../lib/ui/toast";
 
 interface Props {
   onText: (text: string) => void;

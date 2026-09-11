@@ -4,8 +4,8 @@ let consumeQuota, getUsage, db;
 
 beforeAll(async () => {
   process.env.DB_PATH = ":memory:";
-  ({ consumeQuota, getUsage } = await import("../quota.js"));
-  db = (await import("../db.js")).default;
+  ({ consumeQuota, getUsage } = await import("../core/quota.js"));
+  db = (await import("../core/db.js")).default;
 });
 
 beforeEach(() => {

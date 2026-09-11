@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import type { ReactNode } from "react";
 import { AuthProvider, useAuth } from "./lib/auth";
-import { ToastProvider } from "./lib/toast";
+import { ToastProvider } from "./lib/ui/toast";
 import { TaskProvider } from "./lib/tasks";
 import TaskDock from "./components/TaskDock";
 import Home from "./pages/Home";

@@ -4,8 +4,8 @@ let saveEvaluation, MAX_PER_PERSON, db;
 
 beforeAll(async () => {
   process.env.DB_PATH = ":memory:";
-  ({ saveEvaluation, MAX_PER_PERSON } = await import("../store.js"));
-  db = (await import("../db.js")).default;
+  ({ saveEvaluation, MAX_PER_PERSON } = await import("../core/store.js"));
+  db = (await import("../core/db.js")).default;
 });
 
 beforeEach(() => {

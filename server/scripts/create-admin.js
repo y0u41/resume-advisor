@@ -1,6 +1,6 @@
 import "dotenv/config";
-import db from "../db.js";
-import { hashPassword } from "../auth.js";
+import db from "../core/db.js";
+import { hashPassword } from "../core/auth.js";
 
 const username = (process.argv[2] || process.env.ADMIN_USERNAME || "").trim().toLowerCase();
 const password = process.argv[3] || process.env.ADMIN_PASSWORD || "";

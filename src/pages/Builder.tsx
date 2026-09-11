@@ -13,11 +13,11 @@ import {
   type ResumeData,
   type ResumeStyle,
   type ResumeLayout,
-} from "../lib/resumeTemplate";
-import { downloadResume, type DownloadFormat } from "../lib/download";
-import { validateResumeData } from "../lib/resumeSchema";
+} from "../lib/resume/resumeTemplate";
+import { downloadResume, type DownloadFormat } from "../lib/report/download";
+import { validateResumeData } from "../lib/resume/resumeSchema";
 import { recordDownload } from "../lib/api";
-import { useToast } from "../lib/toast";
+import { useToast } from "../lib/ui/toast";
 
 const SHORT_FIELDS: { key: keyof ResumeData; label: string; placeholder: string }[] = [
   { key: "name", label: "姓名", placeholder: "刘星宇" },

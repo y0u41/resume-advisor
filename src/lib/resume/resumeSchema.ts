@@ -1,17 +1,17 @@
 // 结构化简历 Schema 的前端桥接：
 // - 复用 shared/resumeSchema.js（单一事实来源）
 // - 提供 Builder 扁平表单（ResumeData）↔ 结构化（ResumeContent）的转换与校验
-import { ResumeContentSchema, RESUME_LIMITS } from "../../shared/resumeSchema.js";
-import type { ResumeContent } from "../../shared/resumeSchema.js";
+import { ResumeContentSchema, RESUME_LIMITS } from "../../../shared/resumeSchema.js";
+import type { ResumeContent } from "../../../shared/resumeSchema.js";
 import type { ResumeData } from "./resumeTemplate";
 
-export type { ResumeContent } from "../../shared/resumeSchema.js";
+export type { ResumeContent } from "../../../shared/resumeSchema.js";
 export {
   safeParseResumeContent,
   emptyResumeContent,
   contentToText,
   RESUME_LIMITS,
-} from "../../shared/resumeSchema.js";
+} from "../../../shared/resumeSchema.js";
 
 function splitLines(s: string): string[] {
   return String(s || "")

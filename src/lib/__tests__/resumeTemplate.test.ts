@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildResume, EMPTY_RESUME, SAMPLE_RESUME } from "../resumeTemplate";
+import { buildResume, EMPTY_RESUME, SAMPLE_RESUME } from "../resume/resumeTemplate";
 
 describe("buildResume", () => {
   it("包含姓名、联系方式与求职意向", () => {

@@ -18,4 +18,4 @@
 - **统一响应信封**：所有 JSON 响应为 `{ code, message, requestId, ... }`，错误码见 [`docs/error-codes.md`](../error-codes.md)。
 - **确定性客观分**：`server/scoring/`（词典驱动），与 LLM 报告并存。
 - **结构化简历 Schema**：`shared/resumeSchema.js`（前后端共用）。
-- **并发/缓存/额度**：`server/queue.js`、`server/store.js`、`server/quota.js`。
+- **并发/缓存/额度**：`server/core/queue.js`、`server/core/store.js`、`server/core/quota.js`。

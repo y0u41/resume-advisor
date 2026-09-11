@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { getPersonName, getPersonKey } from "../person.js";
+import { getPersonName, getPersonKey } from "../core/person.js";
 
 describe("getPersonName", () => {
   it("取首个非空行作为姓名", () => {

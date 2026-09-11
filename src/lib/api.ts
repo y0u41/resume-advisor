@@ -12,7 +12,7 @@ export interface EvalResult {
   id?: number;
   score: number | null;
   report: string;
-  objective?: import("./report").ObjectiveScore | null;
+  objective?: import("./report/report").ObjectiveScore | null;
   revision?: number;
 }
 

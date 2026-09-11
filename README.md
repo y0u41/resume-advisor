@@ -172,29 +172,28 @@ npm run create-admin -- yu yourpassword
 ```
 server/           后端
   index.js        服务入口（安全中间件、限流、请求日志、静态服务）
-  db.js           SQLite 初始化与迁移（users / evaluations / usage_log）
-  auth.js         密码加密、JWT、登录/管理员中间件
-  quota.js        每人每日额度
-  queue.js        评估并发队列
-  models.js       模型目录（提供商与可选模型）
-  store.js        评估保存 + 每人保留 12 条 + 缓存查询
-  person.js       人物标识提取
-  llm.js          LLM 调用（多提供商、超时、重试、校验）
-  prompt.js       人设与提示词（评估 / 追问 / 面试 / 方向推荐）
-  routes/         auth / evaluate / parse / fetch / admin 路由
+  core/           领域与基础服务
+    db.js         SQLite 初始化与迁移（users / evaluations / downloads / usage_log）
+    auth.js       密码加密、JWT、登录/管理员中间件
+    quota.js      每人每日额度    queue.js  评估并发队列
+    store.js      评估保存 + 每人保留 12 条 + 缓存查询    person.js  人物标识提取
+    models.js     模型目录（提供商与可选模型）
+  llm/            llm.js（LLM 调用）/ prompt.js（人设与提示词）
+  routes/         auth / evaluate / parse / fetch / admin / account / downloads 路由
                   （evaluate 内含 evaluate / compare / followup / interview / directions）
-  scripts/        create-admin
   scoring/        确定性评分引擎（词典驱动）
-  http/           响应信封 + 错误码
-  jobs/           定时任务（注销清理）
+  http/           响应信封 + 错误码    jobs/  定时任务（注销清理）    scripts/  create-admin
 src/              前端
-  pages/          Login / Home / Result / History / Admin
-                  Builder(简历模板) / Compare(多岗位对比) / Interview(模拟面试)
-                  Directions(岗位推荐) / Privacy(隐私政策)
+  pages/          Login / Home / Result / History / Admin / Builder / Compare
+                  Interview / Directions / Privacy / TaskRunner
   components/     FileUpload / UrlFetch / UserBar / ModelSelect / Logo / ThemeToggle
-  lib/            auth / api / models / download / report / resumeTemplate / sample / toast / theme
-public/           PWA（manifest / sw.js / 图标）
+                  Nav / AccountDangerZone / TaskDock
+  lib/            api / auth / tasks
+    ui/           toast / theme / models
+    resume/       resumeTemplate / resumeSchema / sample
+    report/       report / download
 shared/           结构化简历 Schema（前后端共用）
+public/           PWA（manifest / sw.js / 图标）
 docs/             文档（需求 / 产品 / 技术 / 实现 / 错误码 / ADR）
 docs/features/    按功能分类的模块文档（评估 / 模板 / 对比 / 面试 / 推荐 / 历史）
 deploy/           Caddyfile

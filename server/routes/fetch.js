@@ -2,8 +2,8 @@ import { Router } from "express";
 import * as cheerio from "cheerio";
 import dns from "dns/promises";
 import net from "net";
-import { extractJobInfo } from "../llm.js";
-import { requireAuth } from "../auth.js";
+import { extractJobInfo } from "../llm/llm.js";
+import { requireAuth } from "../core/auth.js";
 
 const router = Router();
 router.use(requireAuth);

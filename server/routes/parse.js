@@ -1,8 +1,8 @@
 import { Router } from "express";
 import multer from "multer";
-import { requireAuth } from "../auth.js";
-import { ocrImage } from "../llm.js";
-import { getVisionOverride } from "../models.js";
+import { requireAuth } from "../core/auth.js";
+import { ocrImage } from "../llm/llm.js";
+import { getVisionOverride } from "../core/models.js";
 
 const router = Router();
 router.use(requireAuth);

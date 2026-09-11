@@ -7,9 +7,9 @@ import ModelSelect from "../components/ModelSelect";
 import Logo from "../components/Logo";
 import Nav from "../components/Nav";
 import { useTasks } from "../lib/tasks";
-import { useModels } from "../lib/models";
-import { SAMPLE_RESUME, SAMPLE_JOB_TITLE, SAMPLE_JD } from "../lib/sample";
-import { useToast } from "../lib/toast";
+import { useModels } from "../lib/ui/models";
+import { SAMPLE_RESUME, SAMPLE_JOB_TITLE, SAMPLE_JD } from "../lib/resume/sample";
+import { useToast } from "../lib/ui/toast";
 
 export default function Home() {
   const [resume, setResume] = useState("");

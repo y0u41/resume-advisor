@@ -15,7 +15,7 @@ import {
   type CompareResult,
   type CompareJob,
 } from "./api";
-import { useToast } from "./toast";
+import { useToast } from "./ui/toast";
 
 // 应用级后台任务：任务在 Provider（位于路由之上）中运行，
 // 因此切换页面 / 功能不会中断；支持多个任务并行。
