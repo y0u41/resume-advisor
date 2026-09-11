@@ -6,6 +6,7 @@ export interface User {
   username?: string | null;
   role?: string;
   created_at?: string;
+  pendingDeletion?: { purgeAfter: string } | null;
 }
 
 interface AuthContextValue {
@@ -14,6 +15,7 @@ interface AuthContextValue {
   login: (account: string, password: string) => Promise<void>;
   register: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  refresh: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -33,12 +35,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const refresh = async () => {
+    try {
+      const r = await fetch("/api/auth/me");
+      if (!r.ok) {
+        setUser(null);
+        return;
+      }
+      const d = await r.json();
+      setUser(d.user ?? null);
+    } catch {
+      setUser(null);
+    }
+  };
+
   useEffect(() => {
-    fetch("/api/auth/me")
-      .then((r) => (r.ok ? r.json() : { user: null }))
-      .then((d) => setUser(d.user ?? null))
-      .catch(() => setUser(null))
-      .finally(() => setLoading(false));
+    refresh().finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const login = async (account: string, password: string) => {
@@ -60,7 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, refresh }}>
       {children}
     </AuthContext.Provider>
   );

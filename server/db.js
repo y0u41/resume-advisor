@@ -20,6 +20,8 @@ db.exec(`
     username TEXT,
     role TEXT NOT NULL DEFAULT 'user',
     password_hash TEXT NOT NULL,
+    deleted_at DATETIME,
+    purge_after DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )
 `);
@@ -38,6 +40,8 @@ db.exec(`
     person_name TEXT,
     cache_key TEXT,
     candidate_type TEXT DEFAULT 'general',
+    objective_json TEXT,
+    revision INTEGER NOT NULL DEFAULT 1,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )
 `);
@@ -51,6 +55,18 @@ db.exec(`
   )
 `);
 
+db.exec(`
+  CREATE TABLE IF NOT EXISTS downloads (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    kind TEXT NOT NULL,
+    title TEXT DEFAULT '',
+    format TEXT DEFAULT '',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )
+`);
+db.exec("CREATE INDEX IF NOT EXISTS idx_downloads_user ON downloads(user_id)");
+
 // 兼容旧库：补上新增字段
 const columns = db.prepare("PRAGMA table_info(evaluations)").all().map((c) => c.name);
 if (!columns.includes("person_key")) db.exec("ALTER TABLE evaluations ADD COLUMN person_key TEXT");
@@ -60,6 +76,12 @@ if (!columns.includes("user_id")) db.exec("ALTER TABLE evaluations ADD COLUMN us
 if (!columns.includes("cache_key")) db.exec("ALTER TABLE evaluations ADD COLUMN cache_key TEXT");
 if (!columns.includes("candidate_type")) {
   db.exec("ALTER TABLE evaluations ADD COLUMN candidate_type TEXT DEFAULT 'general'");
+}
+if (!columns.includes("objective_json")) {
+  db.exec("ALTER TABLE evaluations ADD COLUMN objective_json TEXT");
+}
+if (!columns.includes("revision")) {
+  db.exec("ALTER TABLE evaluations ADD COLUMN revision INTEGER NOT NULL DEFAULT 1");
 }
 
 db.exec("CREATE INDEX IF NOT EXISTS idx_eval_person ON evaluations(person_key)");
@@ -71,6 +93,12 @@ const userColumns = db.prepare("PRAGMA table_info(users)").all().map((c) => c.na
 if (!userColumns.includes("username")) db.exec("ALTER TABLE users ADD COLUMN username TEXT");
 if (!userColumns.includes("role")) {
   db.exec("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user'");
+}
+if (!userColumns.includes("deleted_at")) {
+  db.exec("ALTER TABLE users ADD COLUMN deleted_at DATETIME");
+}
+if (!userColumns.includes("purge_after")) {
+  db.exec("ALTER TABLE users ADD COLUMN purge_after DATETIME");
 }
 db.exec(
   "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username) WHERE username IS NOT NULL"

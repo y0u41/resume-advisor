@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import UserBar from "../components/UserBar";
 import Logo from "../components/Logo";
 import Nav from "../components/Nav";
+import AccountDangerZone from "../components/AccountDangerZone";
 
 interface EvalRecord {
   id: number;
@@ -13,10 +14,19 @@ interface EvalRecord {
   created_at: string;
 }
 
+interface DownloadRecord {
+  id: number;
+  kind: string;
+  title: string;
+  format: string;
+  created_at: string;
+}
+
 const MAX_PER_PERSON = 12;
 
 export default function History() {
   const [records, setRecords] = useState<EvalRecord[]>([]);
+  const [downloads, setDownloads] = useState<DownloadRecord[]>([]);
   const [usage, setUsage] = useState<{ used: number; limit: number } | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -29,6 +39,10 @@ export default function History() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
+    fetch("/api/downloads")
+      .then((r) => r.json())
+      .then((d) => setDownloads(d.downloads || []))
+      .catch(() => {});
   }, []);
 
   const groups = useMemo(() => {
@@ -118,6 +132,31 @@ export default function History() {
           </div>
         ))
       )}
+
+      {downloads.length > 0 && (
+        <div className="card">
+          <h2 className="section-title">
+            <span className="section-icon">⬇️</span>
+            下载记录
+          </h2>
+          <div className="person-records">
+            {downloads.map((d) => (
+              <div key={d.id} className="history-item">
+                <div>
+                  <span>{d.title || (d.kind === "resume" ? "简历" : "评估报告")}</span>
+                  <div className="meta">
+                    <span className="record-index">{d.kind === "resume" ? "简历" : "报告"}</span>
+                    {String(d.format || "").toUpperCase()}
+                    {new Date(d.created_at).toLocaleString("zh-CN")}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <AccountDangerZone />
     </div>
   );
 }

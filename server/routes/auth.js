@@ -17,7 +17,7 @@ const MIN_PASSWORD = 6;
 
 router.post("/auth/register", (req, res) => {
   if (process.env.REGISTRATION_OPEN === "false") {
-    return res.status(403).json({ error: "当前未开放注册" });
+    return res.status(403).json({ code: 2003, error: "当前未开放注册" });
   }
 
   const { email, password } = req.body || {};
@@ -29,7 +29,7 @@ router.post("/auth/register", (req, res) => {
 
   const normalized = email.trim().toLowerCase();
   const exists = db.prepare("SELECT id FROM users WHERE email = ?").get(normalized);
-  if (exists) return res.status(409).json({ error: "该邮箱已注册" });
+  if (exists) return res.status(409).json({ code: 2002, error: "该邮箱已注册" });
 
   const info = db
     .prepare("INSERT INTO users (email, password_hash) VALUES (?, ?)")
@@ -55,7 +55,17 @@ router.post("/auth/login", (req, res) => {
 
   const row = findUserByAccount(account);
   if (!row || !verifyPassword(String(password), row.password_hash)) {
-    return res.status(401).json({ error: "账号或密码错误" });
+    return res.status(401).json({ code: 2001, error: "账号或密码错误" });
+  }
+
+  // 冷静期已过但清理任务尚未执行：视为已注销
+  const purged = db
+    .prepare(
+      "SELECT (purge_after IS NOT NULL AND purge_after <= datetime('now')) AS p FROM users WHERE id = ?"
+    )
+    .get(row.id)?.p;
+  if (purged) {
+    return res.status(401).json({ code: 2001, error: "账号已注销" });
   }
 
   setAuthCookie(res, signToken(row));

@@ -15,6 +15,8 @@ import {
   type ResumeLayout,
 } from "../lib/resumeTemplate";
 import { downloadResume, type DownloadFormat } from "../lib/download";
+import { validateResumeData } from "../lib/resumeSchema";
+import { recordDownload } from "../lib/api";
 import { useToast } from "../lib/toast";
 
 const SHORT_FIELDS: { key: keyof ResumeData; label: string; placeholder: string }[] = [
@@ -182,6 +184,7 @@ export default function Builder() {
     setDownloading(true);
     try {
       await downloadResume(text, html, data.name.trim(), format);
+      recordDownload("resume", data.name.trim() || "简历", format);
       toast("已开始下载", "success");
     } catch (err: any) {
       toast("下载失败：" + err.message, "error");
@@ -191,6 +194,12 @@ export default function Builder() {
   };
 
   const goEvaluate = () => {
+    // 结构化校验（写严）：缺少姓名等必填项时先提示
+    const { ok } = validateResumeData(data);
+    if (!ok) {
+      toast("请先填写姓名等必填信息，再进行评估", "error");
+      return;
+    }
     navigate("/", { state: { resume: text, jobTitle: data.intention.trim() } });
   };
 

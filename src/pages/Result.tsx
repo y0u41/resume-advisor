@@ -5,7 +5,7 @@ import UserBar from "../components/UserBar";
 import ModelSelect from "../components/ModelSelect";
 import Logo from "../components/Logo";
 import Nav from "../components/Nav";
-import { streamEvaluate, followUpStream } from "../lib/api";
+import { streamEvaluate, followUpStream, recordDownload } from "../lib/api";
 import { downloadReport, type DownloadFormat } from "../lib/download";
 import { useToast } from "../lib/toast";
 import { useModels } from "../lib/models";
@@ -15,6 +15,7 @@ import {
   sectionIcon,
   matchRate,
   type MatchStatus,
+  type ObjectiveScore,
 } from "../lib/report";
 
 const FOLLOWUP_CHIPS = [
@@ -35,6 +36,8 @@ interface EvalData {
   report: string;
   candidate_type: string;
   created_at: string;
+  objective?: ObjectiveScore | null;
+  revision?: number;
 }
 
 const ICONS: Record<MatchStatus, string> = {
@@ -157,6 +160,78 @@ function ReportView({ report }: { report: string }) {
   );
 }
 
+function ObjectiveCard({ objective }: { objective?: ObjectiveScore | null }) {
+  if (!objective) return null;
+  const rate =
+    typeof objective.matchRate === "number" ? Math.round(objective.matchRate * 100) : null;
+  const missing = objective.missing || [];
+
+  return (
+    <div className="card">
+      <h2 className="section-title">
+        <span className="section-icon">📐</span>
+        客观评分（算法）
+      </h2>
+
+      <div className="objective-summary">
+        <div
+          className={`score-badge ${
+            objective.score >= 80 ? "score-high" : objective.score >= 60 ? "score-mid" : "score-low"
+          }`}
+        >
+          {objective.score}
+          <small>/ 100</small>
+        </div>
+        {rate !== null && (
+          <div className="objective-rate">
+            <div className="match-rate-label">
+              <span>关键词匹配度</span>
+              <span>{rate}%</span>
+            </div>
+            <div className="progress-track">
+              <div className="progress-fill" style={{ ["--target-width" as string]: `${rate}%` }} />
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="objective-dims">
+        {objective.dimensions.map((d) => (
+          <div className="objective-dim" key={d.name}>
+            <div className="objective-dim-head">
+              <span>{d.label}</span>
+              <span>
+                {d.score} 分 · 权重 {Math.round(d.weight * 100)}%
+              </span>
+            </div>
+            <div className="progress-track">
+              <div className="progress-fill" style={{ ["--target-width" as string]: `${d.score}%` }} />
+            </div>
+            <div className="objective-dim-reason">{d.reason}</div>
+          </div>
+        ))}
+      </div>
+
+      {missing.length > 0 && (
+        <div className="objective-missing">
+          <div className="objective-missing-title">缺失关键词（{missing.length}）</div>
+          <div className="chips">
+            {missing.slice(0, 20).map((k) => (
+              <span key={k.canonical} className="chip chip-miss">
+                {k.canonical}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <p className="hint">
+        该分数由内置算法（词典匹配 + 四维评分）确定性计算，与上方 AI 报告相互印证、可复现。
+      </p>
+    </div>
+  );
+}
+
 export default function Result() {
   const { id } = useParams();
   const location = useLocation();
@@ -208,6 +283,8 @@ export default function Result() {
         report: stateData.report,
         candidate_type: stateData.candidateType ?? "general",
         created_at: new Date().toISOString(),
+        objective: stateData.objective ?? null,
+        revision: stateData.revision ?? 1,
       };
       setData(d);
       setResume(d.resume);
@@ -300,10 +377,19 @@ export default function Result() {
           job_title: jobTitle,
           job_description: jobDescription,
           job_url: jobUrl,
+          revision: data.revision,
         }),
       });
       if (!res.ok) {
         const e = await res.json().catch(() => ({}));
+        if (res.status === 409) {
+          setSaveMsg("记录已在别处更新，已为你加载最新版本，请确认后重新编辑");
+          const latest = await fetch(`/api/evaluations/${data.id}`)
+            .then((r) => r.json())
+            .catch(() => null);
+          if (latest) applyFull(latest);
+          return;
+        }
         setSaveMsg(e.error || "保存失败");
         return;
       }
@@ -322,6 +408,7 @@ export default function Result() {
     setDownloading(true);
     try {
       await downloadReport(data, downloadFormat);
+      recordDownload("report", data.job_title || "评估报告", downloadFormat);
       toast("已开始下载", "success");
     } catch (err: any) {
       toast("下载失败：" + err.message, "error");
@@ -463,6 +550,8 @@ export default function Result() {
           {saveMsg && !showEditor && <span className="save-msg">{saveMsg}</span>}
         </div>
       </div>
+
+      <ObjectiveCard objective={data.objective} />
 
       {showEditor && (
         <div className="card">

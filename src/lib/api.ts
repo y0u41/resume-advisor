@@ -12,6 +12,8 @@ export interface EvalResult {
   id?: number;
   score: number | null;
   report: string;
+  objective?: import("./report").ObjectiveScore | null;
+  revision?: number;
 }
 
 export interface FollowupPayload {
@@ -146,7 +148,13 @@ export function streamEvaluate(
       onQueued,
       onError,
       onDone: (data, fullText) =>
-        onDone({ id: data.id, score: data.score ?? null, report: data.report ?? fullText }),
+        onDone({
+          id: data.id,
+          score: data.score ?? null,
+          report: data.report ?? fullText,
+          objective: data.objective ?? null,
+          revision: data.revision ?? 1,
+        }),
     },
     signal
   );
@@ -250,4 +258,21 @@ export function directionsStream(
     onError,
     onDone: (data, fullText) => onDone(data.text ?? fullText),
   });
+}
+
+// 记录一次下载/导出（失败不影响下载本身）
+export async function recordDownload(
+  kind: string,
+  title: string,
+  format: string
+): Promise<void> {
+  try {
+    await fetch("/api/downloads", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ kind, title, format }),
+    });
+  } catch {
+    // 忽略
+  }
 }

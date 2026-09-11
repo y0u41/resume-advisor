@@ -115,6 +115,7 @@ router.post("/parse-file", upload.single("file"), async (req, res) => {
       usedOcr = true;
     } else {
       return res.status(400).json({
+        code: 5002,
         error: `不支持的文件格式：.${ext}（支持 PDF / DOCX / DOC / 图片 / TXT / MD）`,
       });
     }
@@ -122,7 +123,7 @@ router.post("/parse-file", upload.single("file"), async (req, res) => {
     text = text.replace(/\r\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
 
     if (!text) {
-      return res.status(400).json({ error: "无法提取文字，请确认文件内容或手动粘贴" });
+      return res.status(400).json({ code: 5004, error: "无法提取文字，请确认文件内容或手动粘贴" });
     }
 
     res.json({ filename: originalname, text, length: text.length, ocr: usedOcr });

@@ -12,6 +12,7 @@
     "start": "node server/index.js",
     "test": "vitest run",
     "test:watch": "vitest",
+    "acceptance": "node scripts/acceptance.mjs",
     "typecheck": "tsc --noEmit",
     "create-admin": "node server/scripts/create-admin.js"
   },
@@ -34,7 +35,8 @@
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-router-dom": "^7.18.3",
-    "word-extractor": "^1.0.4"
+    "word-extractor": "^1.0.4",
+    "zod": "^4.6.2"
   },
   "devDependencies": {
     "@types/react": "^19.2.18",

@@ -51,10 +51,20 @@ export function clearAuthCookie(res) {
 export function getUserFromToken(token) {
   try {
     const payload = jwt.verify(token, AUTH_SECRET);
-    const user = db
-      .prepare("SELECT id, email, username, role, created_at FROM users WHERE id = ?")
+    const row = db
+      .prepare(
+        "SELECT id, email, username, role, created_at, deleted_at, purge_after FROM users WHERE id = ?"
+      )
       .get(payload.uid);
-    return user || null;
+    if (!row) return null;
+    return {
+      id: row.id,
+      email: row.email,
+      username: row.username,
+      role: row.role,
+      created_at: row.created_at,
+      pendingDeletion: row.deleted_at ? { purgeAfter: row.purge_after } : null,
+    };
   } catch {
     return null;
   }

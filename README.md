@@ -5,6 +5,7 @@
 ## 功能
 
 - **简历评估**：十分制评分、一句话结论、岗位匹配对照、三大优点、问题清单、逐条改法、AI 修改建议、关键词补齐、可继续增强的方向
+- **客观评分（算法）**：内置词典驱动引擎，输出可复现的关键词匹配度与四维评分（完整性 / 关键词覆盖 / 格式规范 / 量化成果），与 AI 报告相互印证
 - **岗位匹配对照**：逐条对照 JD，用 ✅ / ⚠️ / ❌ 标注，并计算匹配度进度条
 - **ATS 关键词覆盖**：报告「关键词补齐」以红色关键词标签展示，一眼看清该补哪些词
 - **应届生模式**：按应届生标准评估，不因缺经验扣分，重点看项目 / 实习 / 竞赛 / 潜力
@@ -18,6 +19,8 @@
 - **修改与重评**：评估后可直接编辑简历 / 岗位 / JD 并重新评估
 - **多格式下载**：报告、简历、面试准备、方向推荐均支持 PDF / Word / TXT / Markdown
 - **历史记录**：按人分组，同一人最多保留 12 次提交
+- **下载历史**：回看导出记录（报告 / 简历）
+- **账号注销**：7 天冷静期、可撤销、到期物理删除（含全部数据）
 - **多用户**：邮箱注册 / 登录，数据按用户隔离，每人每日额度限制
 - **管理员**：可用用户名登录，拥有用户管理页（查看用户、用量）
 - **多模型**：内置 DeepSeek 与智谱 GLM，界面按提供商分组选择具体模型
@@ -28,7 +31,7 @@
 
 ## 技术栈
 
-React 19 + TypeScript + Vite ｜ Express 5 ｜ better-sqlite3 ｜ DeepSeek（OpenAI 兼容接口）
+React 19 + TypeScript + Vite ｜ Express 5 ｜ better-sqlite3 ｜ Zod（结构化简历）｜ 词典驱动确定性评分 ｜ DeepSeek / 智谱（OpenAI 兼容接口）
 
 ## 快速开始
 
@@ -128,6 +131,7 @@ npm run dev        # 开发（前后端一起）
 npm run build      # 构建前端
 npm start          # 生产运行
 npm test           # 运行单元测试
+npm run acceptance # 黑盒端到端验收（真实 HTTP + 临时库，无需 LLM Key）
 npm run typecheck  # TypeScript 类型检查
 npm run create-admin -- <用户名> <密码>   # 创建/重置管理员账号
 ```
@@ -180,6 +184,9 @@ server/           后端
   routes/         auth / evaluate / parse / fetch / admin 路由
                   （evaluate 内含 evaluate / compare / followup / interview / directions）
   scripts/        create-admin
+  scoring/        确定性评分引擎（词典驱动）
+  http/           响应信封 + 错误码
+  jobs/           定时任务（注销清理）
 src/              前端
   pages/          Login / Home / Result / History / Admin
                   Builder(简历模板) / Compare(多岗位对比) / Interview(模拟面试)
@@ -187,6 +194,8 @@ src/              前端
   components/     FileUpload / UrlFetch / UserBar / ModelSelect / Logo / ThemeToggle
   lib/            auth / api / models / download / report / resumeTemplate / sample / toast / theme
 public/           PWA（manifest / sw.js / 图标）
+shared/           结构化简历 Schema（前后端共用）
+docs/             文档（需求 / 产品 / 技术 / 实现 / 错误码 / ADR）
 deploy/           Caddyfile
 ecosystem.config.cjs  pm2 配置
 DEPLOY.md         部署指南

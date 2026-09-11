@@ -2,6 +2,8 @@ import { Router } from "express";
 import crypto from "crypto";
 import db from "../db.js";
 import { callLLM, callLLMStream, followUpStream, interviewStream, directionsStream } from "../llm.js";
+import { evaluateResume } from "../scoring/index.js";
+import { parseResumeContent, contentToText, ResumeContentSchema } from "../../shared/resumeSchema.js";
 import { listProviders, defaultModel } from "../models.js";
 import { saveEvaluation, findCachedEvaluation } from "../store.js";
 import { getPersonKey, getPersonName } from "../person.js";
@@ -43,6 +45,18 @@ router.get("/models", (req, res) => {
     ? { provider: pref.provider, model: defaultModel(pref.provider) || pref.models[0].id }
     : null;
   res.json({ providers, default: def });
+});
+
+// 校验结构化简历（结构化 Schema：写严读宽）
+router.post("/resume/validate", (req, res) => {
+  const result = ResumeContentSchema.safeParse(req.body?.resumeContent);
+  if (result.success) {
+    return res.json({ ok: true, content: result.data, errors: [] });
+  }
+  res.json({
+    ok: false,
+    errors: (result.error?.issues || []).map((i) => ({ path: i.path, message: i.message })),
+  });
 });
 
 // 解析请求中的 provider/model 与候选人类型，非法则回退默认
@@ -94,7 +108,16 @@ function validateInput({ resume, jobTitle, jobDescription, jobUrl }) {
 }
 
 router.post("/evaluate", async (req, res) => {
-  const { resume, jobTitle, jobDescription, jobUrl } = req.body || {};
+  let { resume, jobTitle, jobDescription, jobUrl, resumeContent } = req.body || {};
+
+  // 可选：接受结构化简历（结构化 Schema），校验后转为纯文本参与评估
+  if (resumeContent) {
+    try {
+      resume = contentToText(parseResumeContent(resumeContent));
+    } catch (error) {
+      return res.status(400).json({ error: "结构化简历格式错误：" + error.message });
+    }
+  }
 
   const invalid = validateInput({ resume, jobTitle, jobDescription, jobUrl });
   if (invalid) {
@@ -105,6 +128,10 @@ router.post("/evaluate", async (req, res) => {
   const stream = req.query.stream === "true";
   const cacheKey = computeCacheKey(resume, jobTitle, jobDescription || "", override);
 
+  // 确定性「客观分」：词典驱动、可解释、可复现，与 LLM 报告并存
+  const objective = evaluateResume(resume, { jdText: jobDescription || "" });
+  const objectiveJson = JSON.stringify(objective);
+
   // 缓存命中：直接返回，不消耗额度、不占用并发
   if (CACHE_ENABLED) {
     const cached = findCachedEvaluation(req.user.id, cacheKey, CACHE_TTL_HOURS);
@@ -114,11 +141,18 @@ router.post("/evaluate", async (req, res) => {
         res.setHeader("Cache-Control", "no-cache");
         res.write(`data: ${JSON.stringify({ chunk: cached.report, done: false })}\n\n`);
         res.write(
-          `data: ${JSON.stringify({ chunk: "", done: true, id: cached.id, score: cached.score, report: cached.report, cached: true })}\n\n`
+          `data: ${JSON.stringify({ chunk: "", done: true, id: cached.id, score: cached.score, report: cached.report, objective: cached.objective_json ? JSON.parse(cached.objective_json) : null, revision: cached.revision, cached: true })}\n\n`
         );
         res.end();
       } else {
-        res.json({ id: cached.id, score: cached.score, report: cached.report, cached: true });
+        res.json({
+          id: cached.id,
+          score: cached.score,
+          report: cached.report,
+          objective: cached.objective_json ? JSON.parse(cached.objective_json) : null,
+          revision: cached.revision,
+          cached: true,
+        });
       }
       return;
     }
@@ -160,7 +194,7 @@ router.post("/evaluate", async (req, res) => {
         res.write(`data: ${JSON.stringify({ error: msg, done: true })}\n\n`);
         res.end();
       } else {
-        res.status(429).json({ error: msg });
+        res.status(429).json({ code: 3001, error: msg });
       }
       return;
     }
@@ -232,11 +266,12 @@ router.post("/evaluate", async (req, res) => {
         fullText,
         jobUrl || "",
         cacheKey,
-        override.isStudent ? "student" : "general"
+        override.isStudent ? "student" : "general",
+        objectiveJson
       );
 
       res.write(
-        `data: ${JSON.stringify({ chunk: "", done: true, id, score, report: fullText })}\n\n`
+        `data: ${JSON.stringify({ chunk: "", done: true, id, score, report: fullText, objective, revision: 1 })}\n\n`
       );
       res.end();
     } else {
@@ -257,10 +292,11 @@ router.post("/evaluate", async (req, res) => {
         report,
         jobUrl || "",
         cacheKey,
-        override.isStudent ? "student" : "general"
+        override.isStudent ? "student" : "general",
+        objectiveJson
       );
 
-      res.json({ id, score, report });
+      res.json({ id, score, report, objective, revision: 1 });
     }
   } catch (error) {
     if (controller.signal.aborted) {
@@ -634,6 +670,13 @@ router.get("/evaluations/:id", (req, res) => {
     .prepare("SELECT * FROM evaluations WHERE id = ? AND user_id = ?")
     .get(req.params.id, req.user.id);
   if (!row) return res.status(404).json({ error: "记录不存在" });
+  if (row.objective_json) {
+    try {
+      row.objective = JSON.parse(row.objective_json);
+    } catch {
+      row.objective = null;
+    }
+  }
   res.json(row);
 });
 
@@ -642,6 +685,16 @@ router.put("/evaluations/:id", (req, res) => {
     .prepare("SELECT * FROM evaluations WHERE id = ? AND user_id = ?")
     .get(req.params.id, req.user.id);
   if (!row) return res.status(404).json({ error: "记录不存在" });
+
+  // 乐观并发：客户端带 revision 时校验，不匹配则返回 409
+  const clientRevision = Number(req.body?.revision);
+  if (Number.isInteger(clientRevision) && clientRevision !== row.revision) {
+    return res.status(409).json({
+      code: 1005,
+      error: "记录已被修改，请刷新后重试",
+      details: { currentRevision: row.revision },
+    });
+  }
 
   const { report, score, resume, job_title, job_description, job_url } = req.body || {};
 
@@ -669,8 +722,8 @@ router.put("/evaluations/:id", (req, res) => {
   db.prepare(
     `UPDATE evaluations
      SET report = ?, score = ?, resume = ?, job_title = ?, job_description = ?,
-         job_url = ?, person_key = ?, person_name = ?
-     WHERE id = ? AND user_id = ?`
+         job_url = ?, person_key = ?, person_name = ?, revision = revision + 1
+     WHERE id = ? AND user_id = ? AND revision = ?`
   ).run(
     next.report,
     next.score,
@@ -681,7 +734,8 @@ router.put("/evaluations/:id", (req, res) => {
     personKey,
     personName,
     req.params.id,
-    req.user.id
+    req.user.id,
+    row.revision
   );
 
   const updated = db

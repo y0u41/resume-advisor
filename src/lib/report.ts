@@ -148,3 +148,38 @@ export function reportToHtml(data: ReportDocData): string {
     ${body}
   </div>`;
 }
+
+// ===== 确定性「客观分」（词典驱动、可解释、可复现）=====
+export interface ObjectiveDimension {
+  name: string;
+  label: string;
+  score: number;
+  weight: number;
+  weighted: number;
+  reason: string;
+}
+
+export interface ObjectiveKeyword {
+  canonical: string;
+  category: string;
+  weight: number;
+  matched: boolean;
+  evidence: string[];
+}
+
+export interface ObjectiveSuggestion {
+  dimension: string;
+  level: "high" | "medium" | "low" | string;
+  message: string;
+  relatedTerms?: string[];
+}
+
+export interface ObjectiveScore {
+  score: number;
+  matchRate?: number;
+  dimensions: ObjectiveDimension[];
+  suggestions: ObjectiveSuggestion[];
+  keywords?: ObjectiveKeyword[];
+  matched?: ObjectiveKeyword[];
+  missing?: ObjectiveKeyword[];
+}

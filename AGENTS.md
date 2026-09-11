@@ -1,0 +1,86 @@
+# AGENTS.md — AI 代理工作指令
+
+> 本文件面向在本仓库工作的 AI 编码代理（opencode / Cursor / Cline 等）。
+> 项目：简历评估助手（resume-evaluator）
+
+## 1. 项目速览
+
+- **是什么**：面向求职者（尤其应届生）的简历评估工具。贴简历 + 岗位 → 结构化评分报告 + 改法 + 岗位匹配，并覆盖「评估 → 多岗对比 → 改简历 → 面试准备」闭环。
+- **形态**：单仓库。前端 React 19 + TS + Vite；后端 Express 5 + better-sqlite3；LLM 走 OpenAI 兼容接口（DeepSeek / 智谱 GLM）。
+- **语言**：代码注释与产品文案用中文；提交信息用中文。
+
+## 2. 常用命令
+
+```bash
+npm run dev         # 开发：前端 5173 + 后端 3001（concurrently）
+npm run build       # 构建前端到 dist/
+npm start           # 生产运行（Express 托管 dist/）
+npm test            # 单元测试（vitest run）
+npm run acceptance  # 黑盒端到端验收（真实 HTTP + 临时库，无需 LLM Key）
+npm run typecheck   # TypeScript 类型检查
+npm run create-admin -- <用户名> <密码>   # 创建/重置管理员
+```
+
+**完成任何改动后必须运行**：`npm run typecheck` + `npm test`（如改动前端构建相关，再跑 `npm run build`）。
+
+## 3. 目录与职责
+
+```
+server/index.js       入口：helmet/CORS/限流/日志/路由挂载/静态托管/错误处理
+server/db.js          SQLite 建表 + 旧库字段迁移
+server/auth.js        密码哈希 / JWT / Cookie / requireAuth / requireAdmin
+server/llm.js         LLM 调用层（非流式 / 流式 / 追问 / 面试 / 方向 / OCR / 岗位抽取）
+server/prompt.js      人设与提示词（改这里=改产品输出格式）
+server/models.js      模型目录 + 视觉模型选择
+server/store.js       评估保存 + 每人保留 12 条 + 缓存
+server/scoring/       确定性评分引擎（词典驱动，客观分）
+server/http/          响应信封 + 错误码目录
+server/jobs/purge.js  注销账号到期清理
+server/queue.js       并发队列    server/quota.js  每日额度    server/person.js  人物识别
+server/routes/        auth / evaluate / parse / fetch / admin / account / downloads
+shared/               结构化简历 Schema（前后端共用，单一事实来源）
+src/pages/            页面    src/components/  组件    src/lib/  纯逻辑（api/report/…）
+public/               PWA 资源（manifest / sw.js / theme-init.js）
+docs/                 文档 + docs/adr（架构决策记录）
+```
+
+## 4. 关键约定与陷阱（重要）
+
+1. **不要提交 `.env`**：密钥只放 `.env`（已在 `.gitignore`）。`data/` 含用户隐私，同样不要提交。
+2. **报告格式即产品契约**：`server/prompt.js` 里的 `【】` 小节与 `|` 对照行格式，必须与 `src/lib/report.ts` 的解析逻辑保持一致。改一处要同步另一处。
+3. **CSP 限制**：`server/index.js` 的 CSP 为 `script-src 'self'`，**禁止内联 `<script>`**。需要首屏脚本时用 `public/theme-init.js` 这类外置文件。
+4. **不要给构建产物加 `crossorigin`**：生产白屏曾因此发生。`vite.config.ts` 中有 `remove-crossorigin` 插件，勿删。
+5. **原生 / 重型依赖延迟加载**：`pdf-parse`、`mammoth`、`word-extractor` 用动态 `import()`，否则服务器启动可能段错误。新增同类库请遵循。
+6. **Node 版本用 20 LTS**：`better-sqlite3` 在更高版本可能编译失败。
+7. **服务端 `.env` 中 `COOKIE_SECURE` 与协议匹配**：HTTP 部署用 `false`，启用 HTTPS 后改 `true`。
+8. **OCR 依赖视觉模型**：`server/models.js` 的 `VISION_MODELS` / `getVisionOverride()`；未配置视觉模型时应返回明确错误而非静默失败。
+9. **统一响应信封**：所有 JSON 响应经 `server/http/envelope.js` 自动包裹（`code/message/requestId`），错误保留 `error` 字段兼容；新增业务错误请用 `docs/error-codes.md` 中的码。
+10. **未知 `/api` 路径 404**：`server/index.js` 的 `API_PREFIXES` 网关会拦截未知前缀——**新增 API 前缀时必须同步补充该列表**。
+11. **结构化简历契约**：`shared/resumeSchema.js` 是单一事实来源，改字段要同步 `resumeSchema.d.ts` 与 `src/lib/resumeSchema.ts`；写严读宽、未知字段丢弃。
+12. **乐观并发**：更新评估记录用 `revision`，冲突返回 409 + `details.currentRevision`；不要绕过该检查直接 UPDATE。
+
+## 5. 数据与接口约定
+
+- 除注册/登录外**所有 `/api/*` 需登录**（`requireAuth`）；管理员接口加 `requireAdmin`。
+- 数据按 `user_id` 隔离；新增表/字段时在 `db.js` 用 `PRAGMA table_info` 做兼容迁移。
+- 评估类接口为 SSE 流式；失败要回退非流式且**不保存空报告**。
+- 链接抓取（`routes/fetch.js`）**必须保留 SSRF 防护**（拒绝内网/回环/链路本地，校验重定向）。
+
+## 6. 部署
+
+- 服务器：腾讯云轻量，Ubuntu 24.04，Node 20，pm2，代码在 `/opt/git/resume-evaluator`，进程名 `resume-evaluator`。
+- 线上地址：`http://119.27.181.86:3001`。
+- 升级流程：`git pull && npm ci && npm run build && pm2 restart resume-evaluator`。
+- 详细步骤见 `DEPLOY.md`；文档见 `docs/`。
+
+## 7. 安全红线
+
+- 绝不硬编码 / 提交 API Key 或密码。
+- 不改动 `AUTH_SECRET`、限流、SSRF 防护等安全逻辑，除非任务明确要求。
+- 未获明确指示，**不要执行 `git commit` / `git push`**。
+
+## 8. 测试
+
+- 现有：`server/__tests__/`（auth / person / queue / quota / store）、`src/lib/__tests__/`（report / resumeTemplate）。
+- 新增业务逻辑时补对应单元测试；测试可用 `DB_PATH=:memory:` 隔离。
+- 真实文件解析（尤其**图片型 PDF / 图片**）改动后，建议用真实样本手工验证一次。

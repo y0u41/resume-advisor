@@ -5,8 +5,8 @@ import { getUsage, DAILY_LIMIT } from "../quota.js";
 
 const router = Router();
 
-// 所有管理接口都需要登录且为管理员
-router.use(requireAuth, requireAdmin);
+// 仅 /admin/* 需要登录且为管理员（路径限定，避免拦截其它 /api 路由）
+router.use("/admin", requireAuth, requireAdmin);
 
 router.get("/admin/users", (req, res) => {
   const users = db
