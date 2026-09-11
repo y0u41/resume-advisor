@@ -69,7 +69,7 @@ docs/                 文档 + docs/adr（架构决策记录）
 ## 6. 部署
 
 - 服务器：腾讯云轻量，Ubuntu 24.04，Node 20，pm2，代码在 `/opt/git/resume-evaluator`，进程名 `resume-evaluator`。
-- 线上地址：`http://119.27.181.86:3001`。
+- 线上地址：`http://<服务器公网IP>:3001`（以实际部署为准）。
 - 升级流程：`git pull && npm ci && npm run build && pm2 restart resume-evaluator`。
 - 详细步骤见 `DEPLOY.md`；文档见 `docs/`。
 

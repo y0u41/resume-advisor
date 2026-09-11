@@ -200,3 +200,10 @@ deploy/           Caddyfile
 ecosystem.config.cjs  pm2 配置
 DEPLOY.md         部署指南
 ```
+
+## 许可
+
+本项目采用 **MIT License**，见 [LICENSE](./LICENSE)。文档、模板与代码可自由使用、修改与分发（保留版权声明）。
+
+> 开源提示：`.env`、`data/`、`node_modules/`、`dist/` 均已在 `.gitignore` 中，请勿提交密钥或真实简历数据。
+

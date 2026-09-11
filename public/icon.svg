@@ -1,10 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
   <defs>
     <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#6d6bf0"/>
-      <stop offset="0.5" stop-color="#9a7cf5"/>
-      <stop offset="0.78" stop-color="#f0a6c0"/>
-      <stop offset="1" stop-color="#f9c09a"/>
+      <stop offset="0" stop-color="#3f3f46"/>
+      <stop offset="0.55" stop-color="#27272a"/>
+      <stop offset="1" stop-color="#0a0a0b"/>
     </linearGradient>
   </defs>
   <rect width="64" height="64" rx="15" fill="url(#g)"/>

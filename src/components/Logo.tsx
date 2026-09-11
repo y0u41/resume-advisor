@@ -7,10 +7,9 @@ export default function Logo({ size = 40 }: Props) {
     <svg className="logo" width={size} height={size} viewBox="0 0 64 64" aria-label="简历参谋" role="img">
       <defs>
         <linearGradient id="yuLogoGrad" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#6d6bf0" />
-          <stop offset="0.5" stopColor="#9a7cf5" />
-          <stop offset="0.78" stopColor="#f0a6c0" />
-          <stop offset="1" stopColor="#f9c09a" />
+          <stop offset="0" stopColor="#3f3f46" />
+          <stop offset="0.55" stopColor="#27272a" />
+          <stop offset="1" stopColor="#0a0a0b" />
         </linearGradient>
       </defs>
       <rect width="64" height="64" rx="15" fill="url(#yuLogoGrad)" />

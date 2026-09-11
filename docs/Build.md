@@ -93,11 +93,11 @@
 
 ## 3. 部署与上线
 
-- **服务器**：腾讯云轻量应用服务器，Ubuntu 24.04，2 核（IP `119.27.181.86`，四川成都，mainland）。
+- **服务器**：腾讯云轻量应用服务器，Ubuntu 24.04，2 核（IP `<服务器公网IP>`，四川成都，mainland）。
 - **运行时**：Node 20 LTS + npm + pm2，代码置于 `/opt/git/resume-evaluator`，进程 `resume-evaluator`。
-- **访问**：`http://119.27.181.86:3001`（未备案域名，80/443 暂不可用，走 3001 端口）。
+- **访问**：`http://<服务器公网IP>:3001`（未备案域名，80/443 暂不可用，走 3001 端口）。
 - **环境变量**：配置 DeepSeek + 智谱 双 Key；`HOST=0.0.0.0`、`PORT=3001`、`CORS_ORIGINS`、`AUTH_SECRET`、`COOKIE_SECURE=false`、`DAILY_LIMIT=30`。
-- **管理员**：`yu / tmy200411`。
+- **管理员**：通过 `npm run create-admin -- <用户名> <密码>` 创建（凭据不入库文档）。
 
 ### 部署中遇到的问题与修复
 

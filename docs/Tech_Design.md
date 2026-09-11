@@ -178,7 +178,7 @@ ecosystem.config.cjs          pm2 配置
 ```
 
 - `npm run build` → `pm2 start ecosystem.config.cjs` → `pm2 save && pm2 startup`。
-- 国内服务器：域名需 **ICP 备案**，未备案时用 `IP:端口`（本项目当前部署于 `http://119.27.181.86:3001`）。
+- 国内服务器：域名需 **ICP 备案**，未备案时用 `IP:端口`（部署示例：`http://<服务器公网IP>:3001`）。
 - 香港服务器：免备案，可当天上 HTTPS。
 
 ## 12. 关键技术决策与权衡
