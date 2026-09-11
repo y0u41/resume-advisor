@@ -102,6 +102,8 @@ pm2 logs resume-evaluator   # 查看日志，确认「服务器运行在 http://
 
 此时服务已在本机 `3001` 端口运行，但外部还访问不到。
 
+> ⚠️ **pm2 是按用户隔离的**：如果用 `sudo` / `sudo -i` 启动过，进程属于 **root 的 pm2**（`/root/.pm2`）；之后用普通用户执行 `pm2 restart` 会报 `Process or Namespace ... not found`。请用**启动它的同一用户**重启，例如 `sudo -i pm2 restart resume-evaluator`。可用 `pm2 list` 与 `ps -ef | grep pm2` 确认进程归属。
+
 ---
 
 ## 6. 反向代理 + HTTPS（Caddy）
@@ -155,6 +157,19 @@ npm run build
 pm2 restart resume-evaluator
 ```
 
+> **`git pull` 卡住怎么办？** 部分国内网络到 GitHub 的 **git 传输**不稳定（但 HTTPS 正常）。可改用 GitHub 压缩包覆盖（用仓库实际的 owner/repo 替换）：
+>
+> ```bash
+> cd /tmp && rm -rf repo.tar.gz repo-master && \
+> curl -fL --max-time 120 "https://codeload.github.com/<owner>/<repo>/tar.gz/refs/heads/master" -o repo.tar.gz && \
+> tar xzf repo.tar.gz && \
+> cp -rf /tmp/repo-master/<子目录>/. /opt/resume-evaluator/ && \
+> rm -rf /tmp/repo-master repo.tar.gz
+> ```
+>
+> 压缩包**不含** `.env` / `data/` / `node_modules`，不会覆盖你的配置与数据库。
+> 完成后同样执行 `npm ci && npm run build && pm2 restart resume-evaluator`。
+
 **数据库备份**（SQLite 单文件）：
 ```bash
 cp data/app.db ~/backup-$(date +%F).db
@@ -168,6 +183,8 @@ cp data/app.db ~/backup-$(date +%F).db
 | 问题 | 处理 |
 |------|------|
 | 国内服务器域名打不开 | 域名需完成 **ICP 备案**；未备案只能用 `IP:端口` 访问 |
+| `git pull` 长时间卡住 | 到 GitHub 的 git 传输不稳，改用 `codeload.github.com` 压缩包覆盖（见第 9 节） |
+| `pm2 restart` 报 `Process or Namespace ... not found` | pm2 按用户隔离，用启动它的同一用户重启：`sudo -i pm2 restart resume-evaluator`（见第 5 节） |
 | 评估很久没响应 | 大模型较慢，可调大 `LLM_TIMEOUT_MS`；或用 `*-flash` 快速模型 |
 | 偶发 429 | 免费模型过载，稍等重试；或改用付费模型 |
 | 页面能开但接口 401 | 检查 `COOKIE_SECURE=true` 是否与 HTTPS 匹配 |
