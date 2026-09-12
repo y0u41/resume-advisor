@@ -171,6 +171,19 @@ db.exec(`
 db.exec("CREATE INDEX IF NOT EXISTS idx_usage_feature ON llm_usage(feature, created_at)");
 db.exec("CREATE INDEX IF NOT EXISTS idx_usage_user ON llm_usage(user_id)");
 
+// PRO 开通申请（支付接入前的人工流程：用户申请 → 管理员批准即开通）
+db.exec(`
+  CREATE TABLE IF NOT EXISTS pro_requests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    note TEXT DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'pending',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    handled_at DATETIME
+  )
+`);
+db.exec("CREATE INDEX IF NOT EXISTS idx_pro_requests_status ON pro_requests(status, id)");
+
 // 兼容旧库：补上新增字段
 const columns = db.prepare("PRAGMA table_info(evaluations)").all().map((c) => c.name);
 if (!columns.includes("person_key")) db.exec("ALTER TABLE evaluations ADD COLUMN person_key TEXT");

@@ -10,6 +10,7 @@ const USER_TABLES = [
   "events",
   "llm_usage",
   "feedback",
+  "pro_requests",
 ];
 
 beforeAll(async () => {
@@ -52,6 +53,7 @@ describe("注销清理（自动发现含 user_id 的表）", () => {
     db.prepare("INSERT INTO llm_usage (user_id, feature) VALUES (?, 'evaluate')").run(uid);
     db.prepare("INSERT INTO feedback (user_id, kind) VALUES (?, 'vote')").run(uid);
     db.prepare("INSERT INTO usage_log (user_id, day, count) VALUES (?, date('now'), 1)").run(uid);
+    db.prepare("INSERT INTO pro_requests (user_id, note) VALUES (?, 'x')").run(uid);
 
     const r = runPurge();
     expect(r.purged).toBe(1);

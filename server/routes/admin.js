@@ -55,6 +55,44 @@ router.get("/admin/parse-health", (req, res) => {
   res.json(parseHealth(Number(req.query.days)));
 });
 
+// PRO 开通申请（管理员）：待处理优先
+router.get("/admin/pro-requests", (req, res) => {
+  const rows = db
+    .prepare(
+      `SELECT r.id, r.user_id, r.note, r.status, r.created_at, r.handled_at,
+              u.email, u.username, u.plan
+       FROM pro_requests r LEFT JOIN users u ON u.id = r.user_id
+       ORDER BY CASE r.status WHEN 'pending' THEN 0 ELSE 1 END, r.id DESC LIMIT 200`
+    )
+    .all();
+  res.json({ requests: rows });
+});
+
+// 批准（并开通 PRO）或驳回
+router.post("/admin/pro-requests/:id", (req, res) => {
+  const action = req.body?.action;
+  if (!["approve", "reject"].includes(action)) {
+    return res.status(400).json({ error: "action 只能是 approve 或 reject" });
+  }
+  const row = db.prepare("SELECT id, user_id FROM pro_requests WHERE id = ?").get(req.params.id);
+  if (!row) return res.status(404).json({ error: "申请不存在" });
+
+  const tx = db.transaction(() => {
+    if (action === "approve") {
+      db.prepare("UPDATE users SET plan = 'pro' WHERE id = ?").run(row.user_id);
+    }
+    db.prepare(
+      "UPDATE pro_requests SET status = ?, handled_at = datetime('now') WHERE id = ?"
+    ).run(action === "approve" ? "approved" : "rejected", row.id);
+  });
+  tx();
+  res.json({
+    ok: true,
+    id: Number(row.id),
+    status: action === "approve" ? "approved" : "rejected",
+  });
+});
+
 // 反馈与投票（管理员）
 router.get("/admin/feedback", (req, res) => {
   const recent = db

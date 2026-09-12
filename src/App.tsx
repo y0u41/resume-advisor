@@ -16,6 +16,7 @@ import Interview from "./pages/Interview";
 import Directions from "./pages/Directions";
 import TaskRunner from "./pages/TaskRunner";
 import ShareView from "./pages/ShareView";
+import Pro from "./pages/Pro";
 
 function Protected({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
@@ -115,6 +116,14 @@ export default function App() {
             element={
               <Protected>
                 <Admin />
+              </Protected>
+            }
+          />
+          <Route
+            path="/pro"
+            element={
+              <Protected>
+                <Pro />
               </Protected>
             }
           />

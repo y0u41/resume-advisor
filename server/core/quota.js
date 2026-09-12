@@ -5,6 +5,7 @@ import {
   premiumDailyFor,
   ocrDailyFor,
   isUnlimited,
+  PRO_PRICE,
 } from "./plans.js";
 
 function today() {
@@ -77,13 +78,14 @@ export function consumeQuota(user, { isPremium = false, isOcr = false } = {}) {
   };
 }
 
-// 额度用尽时的用户提示
+// 额度用尽时的用户提示（指向可兑现的升级入口）
 export function quotaMessage(quota) {
+  const upsell = `可在「升级 PRO」页申请开通（¥${PRO_PRICE}/月）`;
   if (quota.reason === "premium") {
-    return `今日高级模型额度已用完（${quota.premiumUsed}/${quota.premiumLimit}），可改用标准模型或升级 PRO`;
+    return `今日高级模型额度已用完（${quota.premiumUsed}/${quota.premiumLimit}），可改用标准模型，或${upsell}`;
   }
   if (quota.reason === "ocr") {
-    return `今日图片/扫描简历识别额度已用完（${quota.ocrUsed}/${quota.ocrLimit}），可粘贴文字或升级 PRO`;
+    return `今日图片/扫描简历识别额度已用完（${quota.ocrUsed}/${quota.ocrLimit}），可粘贴文字，或${upsell}`;
   }
-  return `今日评估次数已用完（${quota.used}/${quota.limit}），请明天再试或升级 PRO`;
+  return `今日评估次数已用完（${quota.used}/${quota.limit}），可改用标准模型，或${upsell}`;
 }

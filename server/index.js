@@ -149,6 +149,7 @@ const API_PREFIXES = [
   "/events",
   "/feedback",
   "/keywords",
+  "/pro",
   "/health",
 ];
 app.use("/api", (req, res, next) => {
@@ -169,6 +170,7 @@ import shareRoutes from "./routes/share.js";
 import eventsRoutes from "./routes/events.js";
 import feedbackRoutes from "./routes/feedback.js";
 import keywordsRoutes from "./routes/keywords.js";
+import proRoutes from "./routes/pro.js";
 import { getProviderInfo } from "./llm/llm.js";
 import { startPurgeJob } from "./jobs/purge.js";
 app.use("/api", authRoutes);
@@ -176,6 +178,7 @@ app.use("/api", authRoutes);
 app.use("/api", guestRoutes);
 app.use("/api", shareRoutes);
 app.use("/api", keywordsRoutes);
+app.use("/api", proRoutes);
 app.use("/api", evaluateRoutes);
 app.use("/api", parseRoutes);
 app.use("/api", fetchRoutes);

@@ -56,6 +56,18 @@ interface ParseHealth {
   shouldEnableMachineBlock: boolean;
 }
 
+interface ProRequest {
+  id: number;
+  user_id: number;
+  note: string;
+  status: string;
+  created_at: string;
+  handled_at: string | null;
+  email: string | null;
+  username: string | null;
+  plan: string | null;
+}
+
 export default function Admin() {
   const { user } = useAuth();
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -64,6 +76,7 @@ export default function Admin() {
   const [usageDays, setUsageDays] = useState(0);
   const [events, setEvents] = useState<{ name: string; count: number }[]>([]);
   const [parseHealth, setParseHealth] = useState<ParseHealth | null>(null);
+  const [proRequests, setProRequests] = useState<ProRequest[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -90,6 +103,28 @@ export default function Admin() {
     }
   };
 
+  const loadProRequests = () =>
+    fetch("/api/admin/pro-requests")
+      .then((r) => r.json())
+      .then((d) => setProRequests(d.requests || []))
+      .catch(() => {});
+
+  const handleProRequest = async (id: number, action: "approve" | "reject") => {
+    try {
+      const r = await fetch(`/api/admin/pro-requests/${id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || "操作失败");
+      await loadUsers();
+      await loadProRequests();
+    } catch (e: any) {
+      setError(e.message);
+    }
+  };
+
   useEffect(() => {
     if (user?.role !== "admin") {
       setLoading(false);
@@ -106,6 +141,7 @@ export default function Admin() {
       .then((r) => r.json())
       .then(setParseHealth)
       .catch(() => {});
+    loadProRequests();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
@@ -204,6 +240,66 @@ export default function Admin() {
           次/天；PRO：500 次/天、高级模型 30 次/天。管理员账号不受额度限制。
         </p>
       </div>
+
+      {proRequests.length > 0 && (
+        <div className="card">
+          <h2 className="section-title">
+            <span className="section-icon">⭐</span>
+            PRO 开通申请
+          </h2>
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>用户</th>
+                <th>备注</th>
+                <th>状态</th>
+                <th>申请时间</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {proRequests.map((r) => (
+                <tr key={r.id}>
+                  <td>{r.id}</td>
+                  <td>{r.username || r.email || r.user_id}</td>
+                  <td>{r.note || "—"}</td>
+                  <td>
+                    {r.status === "pending"
+                      ? "待处理"
+                      : r.status === "approved"
+                        ? "已开通"
+                        : "已驳回"}
+                  </td>
+                  <td>{new Date(r.created_at).toLocaleString("zh-CN")}</td>
+                  <td>
+                    {r.status === "pending" ? (
+                      <>
+                        <button
+                          type="button"
+                          className="btn btn-primary btn-sm"
+                          onClick={() => handleProRequest(r.id, "approve")}
+                        >
+                          开通
+                        </button>{" "}
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => handleProRequest(r.id, "reject")}
+                        >
+                          驳回
+                        </button>
+                      </>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {events.length > 0 && (
         <div className="card">

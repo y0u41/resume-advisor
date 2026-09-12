@@ -20,6 +20,11 @@ export default function UserBar() {
           用户管理
         </Link>
       )}
+      {user.role !== "admin" && user.plan !== "pro" && (
+        <Link to="/pro" className="btn-link">
+          升级 PRO
+        </Link>
+      )}
       <span className="user-email" title={user.email}>
         {user.username || user.email}
         {user.role === "admin" ? (

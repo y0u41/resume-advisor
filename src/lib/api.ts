@@ -380,3 +380,35 @@ export function guestEvaluateStream(
     signal
   );
 }
+
+// ===== PRO 套餐 =====
+export interface ProPlan {
+  plan: string;
+  role: string;
+  price: number;
+  free: { daily: number; premiumDaily: number };
+  pro: { daily: number; premiumDaily: number };
+}
+
+export async function fetchProPlan(): Promise<ProPlan> {
+  const r = await fetch("/api/pro/plan");
+  return r.json();
+}
+
+export async function fetchProRequest(): Promise<{ request: any }> {
+  const r = await fetch("/api/pro/request");
+  return r.json();
+}
+
+export async function requestPro(
+  note: string
+): Promise<{ ok: boolean; id: number; status: string; already?: boolean }> {
+  const r = await fetch("/api/pro/request", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ note }),
+  });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error || "申请失败");
+  return d;
+}
