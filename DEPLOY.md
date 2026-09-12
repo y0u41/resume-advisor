@@ -49,8 +49,8 @@ node -v && npm -v
 ```bash
 sudo mkdir -p /opt && cd /opt
 sudo git clone <你的仓库地址> resume-evaluator
-sudo chown -R $USER:$USER /opt/resume-evaluator
-cd /opt/resume-evaluator
+sudo chown -R $USER:$USER /opt/git/resume-evaluator
+cd /opt/git/resume-evaluator
 ```
 
 ---
@@ -174,21 +174,35 @@ sudo ufw enable
 
 ## 8.2 配置 PRO 收款码（让付费闭环能转）
 
-1. 把微信/支付宝收款码保存为 `resume-evaluator/public/pay-qr.png`（该文件已被 `.gitignore` 排除，不会进公开仓库）。
-2. `.env` 加：
+> 收款码是**个人支付图片**，已被 `.gitignore` 排除（`public/pay-qr*`）——**不会进公开仓库，也不会随 `git pull` 到服务器**，必须手动上传一次。
+
+1. 把微信/支付宝收款码保存为本地 `resume-evaluator/public/pay-qr.png`。
+2. 上传到服务器（在**本地**执行；把 `<user>` 换成你的登录用户，如 `root` / `ubuntu`）：
+   ```bash
+   scp "E:\git\resume-evaluator\public\pay-qr.png" <user>@119.27.181.86:/opt/git/resume-evaluator/public/pay-qr.png
+   ```
+3. 服务器 `.env` 加：
    ```
    PRO_PAY_QR=/pay-qr.png
    PRO_PAY_NOTE=付款后请填写你付款的账号邮箱，管理员核对后开通
    ```
-3. `npm run build && pm2 restart resume-evaluator`。
-4. 登录后打开 `/pro`，确认出现收款码。完整闭环见 `docs/features/升级PRO.md`。
+   > 不想放图也可用外部支付链接：`PRO_PAY_URL=https://afdian.net/@yourname`。
+4. 构建 + 重启（`build` 会把 `public/` 拷进 `dist/`）：
+   ```bash
+   cd /opt/git/resume-evaluator && npm run build && pm2 restart resume-evaluator
+   ```
+5. 验证：手机浏览器打开 `http://119.27.181.86:3001/pro` → 「第 1 步 · 支付 ¥9.9」下方出现收款码，扫码能打开收款页。
+   图片 404 时会退回"提交申请、管理员联系收款"的兜底文案。
+
+> **不要在生产目录跑 `git clean -fdx`**——会删掉未跟踪文件，包括这张收款码。
+> 完整闭环见 `docs/features/升级PRO.md`。
 
 ---
 
 ## 9. 升级与维护
 
 ```bash
-cd /opt/resume-evaluator
+cd /opt/git/resume-evaluator
 git pull
 npm ci
 npm run build
@@ -201,7 +215,7 @@ pm2 restart resume-evaluator
 > cd /tmp && rm -rf repo.tar.gz repo-master && \
 > curl -fL --max-time 120 "https://codeload.github.com/<owner>/<repo>/tar.gz/refs/heads/master" -o repo.tar.gz && \
 > tar xzf repo.tar.gz && \
-> cp -rf /tmp/repo-master/<子目录>/. /opt/resume-evaluator/ && \
+> cp -rf /tmp/repo-master/<子目录>/. /opt/git/resume-evaluator/ && \
 > rm -rf /tmp/repo-master repo.tar.gz
 > ```
 >
