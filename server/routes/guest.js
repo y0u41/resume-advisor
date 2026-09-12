@@ -42,6 +42,17 @@ function consumeGuestQuota(ip) {
   return { allowed: true, used: used + 1, limit: GUEST_LIMIT };
 }
 
+// 未产出任何内容即断开（如移动端刷新）时，退还本次额度，避免白白消耗唯一一次试用
+function refundGuestQuota(ip) {
+  try {
+    db.prepare(
+      "UPDATE guest_trials SET count = MAX(count - 1, 0) WHERE ip = ? AND day = ?"
+    ).run(ip, today());
+  } catch {
+    // 忽略
+  }
+}
+
 // 剩余试用次数（前端展示）
 router.get("/guest/quota", (req, res) => {
   const used = getGuestUsed(req.ip);
@@ -79,7 +90,11 @@ router.post("/guest/evaluate", async (req, res) => {
   res.setHeader("Connection", "keep-alive");
 
   const controller = new AbortController();
+  let completed = false;
+  let anyOutput = false;
   res.on("close", () => {
+    // 未完成且未产出任何内容 → 退还额度（移动端刷新很常见）
+    if (!completed && !anyOutput) refundGuestQuota(req.ip);
     if (!res.writableEnded) controller.abort(new Error("客户端已断开"));
   });
 
@@ -92,6 +107,7 @@ router.post("/guest/evaluate", async (req, res) => {
         jobDescription || "",
         (chunk) => {
           fullText += chunk;
+          anyOutput = true;
           res.write(`data: ${JSON.stringify({ chunk, done: false })}\n\n`);
         },
         controller.signal,
@@ -125,6 +141,7 @@ router.post("/guest/evaluate", async (req, res) => {
       : [];
     const objective = evaluateResume(resume, { jdText: jobDescription || "", jdKeywords });
     const preview = fullText.slice(0, GUEST_PREVIEW_CHARS);
+    completed = true;
 
     res.write(
       `data: ${JSON.stringify({
