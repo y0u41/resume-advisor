@@ -18,6 +18,9 @@ data/
 *.db-shm
 *.db-wal
 
+# 备份目录（含用户简历，敏感，切勿提交；服务器上权限应 700）
+backups/
+
 # 收款码等个人支付图片（含个人信息，切勿提交到公开仓库）
 public/pay-qr*
 public/pay-*.png

@@ -111,6 +111,8 @@ pm2 logs resume-evaluator   # 查看日志，确认「服务器运行在 http://
 
 此时服务已在本机 `3001` 端口运行，但外部还访问不到。
 
+> **优雅停机**：`ecosystem.config.cjs` 已设 `kill_timeout: 40000`。`pm2 reload` / `restart` 时服务会**停止接收新请求**、等待进行中的评估跑完落库（最多 35s）再退出；无进行中任务时约 1 秒内退出。若手动改过 pm2 配置，请确保 `kill_timeout` 不小于 40s，否则 pm2 会提前 SIGKILL。
+
 > ⚠️ **pm2 是按用户隔离的**：如果用 `sudo` / `sudo -i` 启动过，进程属于 **root 的 pm2**（`/root/.pm2`）；之后用普通用户执行 `pm2 restart` 会报 `Process or Namespace ... not found`。请用**启动它的同一用户**重启，例如 `sudo -i pm2 restart resume-evaluator`。可用 `pm2 list` 与 `ps -ef | grep pm2` 确认进程归属。
 
 ---
@@ -223,14 +225,29 @@ pm2 restart resume-evaluator
 > 完成后同样执行 `npm ci && npm run build && pm2 restart resume-evaluator`。
 
 **数据库备份**（SQLite 单文件）：
+
+服务**内置每日自动备份**：启动时 + 每 24 小时，用 better-sqlite3 在线备份到 `backups/app-YYYY-MM-DD.db`（保留最近 7 份，可用 `BACKUP_DIR` / `BACKUP_KEEP` 调整），**无需停服**。
+
 ```bash
 # 实时库在 server/data/app.db（db.js: path.join(__dirname,"..","data","app.db")，__dirname = server/core）
+# 手动补一份（可选；内置备份已覆盖）
 cp server/data/app.db ~/backup-$(date +%F).db
 # 若还残留旧路径 data/app.db，一并备份（存在才备，不存在不报错）
 [ -f data/app.db ] && cp data/app.db ~/backup-legacy-$(date +%F).db || true
-# 或定时备份（crontab）
+# 备份目录权限收紧（含用户简历，敏感）
+chmod 700 backups
 ```
-> 两个文件可以共存（独立的 SQLite 文件），但**只有 `server/data/app.db` 是服务实际读写的库**；`data/app.db` 仅作历史兜底。
+
+**恢复**：停服 → 用备份覆盖实时库 → 清 WAL → 重启。
+```bash
+pm2 stop resume-evaluator
+cp backups/app-2026-09-12.db server/data/app.db
+rm -f server/data/app.db-wal server/data/app.db-shm
+pm2 start resume-evaluator
+```
+
+> 两个库文件可以共存（独立的 SQLite 文件），但**只有 `server/data/app.db` 是服务实际读写的库**；`data/app.db` 仅作历史兜底。
+> `backups/` 已在 `.gitignore`，切勿提交。
 
 ---
 

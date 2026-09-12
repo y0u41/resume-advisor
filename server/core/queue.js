@@ -4,6 +4,12 @@ const MAX_QUEUE = Number(process.env.MAX_QUEUE || 50);
 
 let active = 0;
 const waiting = [];
+let shuttingDown = false;
+
+// 优雅停机：置位后新的 acquire 直接拒绝（不再接活），已在进行中的任务继续跑完
+export function beginShutdown() {
+  shuttingDown = true;
+}
 
 export function queueStats() {
   return { active, waiting: waiting.length, maxConcurrency: MAX_CONCURRENCY };
@@ -13,6 +19,10 @@ export function queueStats() {
 // onWait(position) 在需要排队时回调一次（给出排队位置）
 export function acquire(onWait) {
   return new Promise((resolve, reject) => {
+    if (shuttingDown) {
+      reject(new Error("服务正在重启，请稍后再试"));
+      return;
+    }
     const makeRelease = () => {
       let released = false;
       return () => {

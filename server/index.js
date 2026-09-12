@@ -8,6 +8,9 @@ import { fileURLToPath } from "url";
 import path from "path";
 import fs from "fs";
 import { requestId, envelope } from "./http/envelope.js";
+import db from "./core/db.js";
+import { beginShutdown, queueStats } from "./core/queue.js";
+import { startBackupJob } from "./jobs/backup.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -128,6 +131,8 @@ app.use("/api/evaluate", heavyLimiter);
 app.use("/api/fetch-url", heavyLimiter);
 app.use("/api/parse-file", heavyLimiter);
 app.use("/api/guest", guestLimiter);
+// 追问同样是"携带全文简历+完整报告"的重调用，单独限流（与评估对齐）
+app.use("/api/followup", heavyLimiter);
 
 // 健康检查（供冒烟/验收与探活使用）
 app.get("/api/health", (req, res) => {
@@ -279,14 +284,18 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: "服务器内部错误，请稍后重试" });
 });
 
-app.listen(PORT, HOST, () => {
+let purgeTimer;
+let backupTimer;
+
+const server = app.listen(PORT, HOST, () => {
   console.log(`服务器运行在 http://${HOST}:${PORT}`);
   if (process.env.NODE_ENV === "production" && process.env.COOKIE_SECURE !== "true") {
     console.warn(
       "[安全] 生产环境建议启用 HTTPS 并设置 COOKIE_SECURE=true（简历属敏感个人信息，明文 HTTP 存在泄露风险）"
     );
   }
-  startPurgeJob();
+  purgeTimer = startPurgeJob();
+  backupTimer = startBackupJob();
   try {
     const { provider, baseUrl, model } = getProviderInfo();
     console.log(`LLM 提供商 = ${provider}`);
@@ -296,3 +305,30 @@ app.listen(PORT, HOST, () => {
     console.error("LLM 配置错误:", err.message);
   }
 });
+
+// ===== 优雅停机 =====
+// 停止接收新请求 → 等待进行中的评估跑完落库 → WAL checkpoint → 退出。
+// 35s 上限需小于 pm2 的 kill_timeout（见 DEPLOY.md：kill_timeout: 40000）。
+let shuttingDown = false;
+async function shutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  beginShutdown(); // 新的 acquire 直接拒绝，不再接新活
+  console.log(`[shutdown] 收到 ${signal}，停止接收新请求，等待进行中的任务完成...`);
+  server.close(() => console.log("[shutdown] HTTP 已关闭"));
+  if (purgeTimer) clearInterval(purgeTimer);
+  if (backupTimer) clearInterval(backupTimer);
+  const deadline = Date.now() + 35_000;
+  while (queueStats().active > 0 && Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  try {
+    db.pragma("wal_checkpoint(TRUNCATE)");
+  } catch (error) {
+    console.warn("[shutdown] WAL checkpoint 失败:", error.message);
+  }
+  console.log("[shutdown] 退出");
+  process.exit(0);
+}
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));
