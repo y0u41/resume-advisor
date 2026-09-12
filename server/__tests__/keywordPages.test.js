@@ -46,6 +46,8 @@ describe("岗位关键词库 SEO（冷启动保护）", () => {
     expect(html).toContain('href="/keywords/frontend"');
     expect(html).not.toContain('href="/keywords/backend"');
     expect(html).toContain("另有 1 个方向");
+    // 社会证明：基于 N 份真实 JD
+    expect(html).toContain("基于 30 份真实 JD 提炼");
   });
 
   it("未达门槛的分类页：noindex + 积累中", () => {
@@ -55,10 +57,11 @@ describe("岗位关键词库 SEO（冷启动保护）", () => {
     expect(html).not.toContain('class="tags"');
   });
 
-  it("达门槛的分类页：index + 关键词标签", () => {
+  it("达门槛的分类页：index + 关键词标签 + 社会证明", () => {
     const html = renderCategoryPage(pub, makeLib({ totalJds: 30, categories: [pub, thin] }));
     expect(html).toContain('content="index,follow"');
     expect(html).toContain("React");
+    expect(html).toContain("基于 12 份真实 JD 提炼");
   });
 
   it("sitemap：数据不足不含 /keywords；足够时只含可发布分类", () => {

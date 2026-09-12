@@ -159,6 +159,19 @@ sudo ufw enable
 
 ---
 
+## 8.1 SEO：岗位关键词库（配好域名后再做）
+
+1. `.env` 设 `SITE_URL=https://your-domain.com`（canonical / sitemap 用绝对地址），重启。
+2. 确认 `https://your-domain.com/robots.txt` 允许 `/keywords`、`/sitemap.xml` 可访问。
+3. 到搜索资源平台提交 sitemap：
+   - **Google Search Console** → 站点 → Sitemaps → 提交 `https://your-domain.com/sitemap.xml`
+   - **Bing Webmaster Tools** → 同上
+   - **百度搜索资源平台** → 普通收录 → sitemap → 提交
+4. **冷启动提示**：关键词库设了发布门槛（分类 ≥ `KEYWORDS_MIN_JD`(5) 份 JD、全站 ≥ `KEYWORDS_MIN_TOTAL_JD`(20) 份 JD）。
+   未达标的页面是 `noindex` 且**不进 sitemap**——数据够之前**不必急着提交**，等页面自动"解锁"（`/keywords` 与分类页变 `index`）后再提交。
+
+---
+
 ## 9. 升级与维护
 
 ```bash

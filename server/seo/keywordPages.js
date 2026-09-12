@@ -30,6 +30,7 @@ header.site{display:flex;align-items:center;justify-content:space-between;gap:12
 h1{font-size:26px;line-height:1.3;margin:22px 0 8px}
 h2{font-size:17px;margin:26px 0 10px}
 .lead{color:#52525b;margin:0 0 6px}
+.proof{display:inline-block;background:#eef2ff;color:#4338ca;border-radius:999px;padding:4px 12px;font-size:13px;font-weight:700;margin:4px 0 10px}
 .meta{color:#a1a1aa;font-size:13px;margin-top:6px}
 .cats{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin:18px 0}
 .cat{border:1px solid #e4e4e7;border-radius:14px;padding:14px 16px;background:#fff;text-decoration:none;display:block}
@@ -109,7 +110,7 @@ export function renderKeywordsIndex(lib) {
   }
 
   const title = `岗位关键词库 · 各行业 JD 高频技能关键词 | ${SITE_NAME}`;
-  const description = `汇总真实招聘 JD 的高频技能与要求关键词，覆盖${published
+  const description = `基于 ${lib.totalJds} 份真实招聘 JD 提炼的高频技能与要求关键词，覆盖${published
     .map((c) => c.label)
     .slice(0, 6)
     .join("、")}等 ${published.length} 个方向，共 ${lib.totalKeywords} 个关键词。`;
@@ -118,15 +119,16 @@ export function renderKeywordsIndex(lib) {
       (c) =>
         `<a class="cat" href="${esc(abs(`/keywords/${c.slug}`))}"><b>${esc(
           c.label
-        )}</b><span>${c.jdCount} 份 JD · ${c.keywords.length} 个关键词</span></a>`
+        )}</b><span>基于 ${c.jdCount} 份 JD · ${c.keywords.length} 个关键词</span></a>`
     )
     .join("");
   const accumulating = lib.categories.length - published.length;
 
   const body = `
 <h1>岗位关键词库</h1>
+<p class="proof">📊 基于 ${lib.totalJds} 份真实 JD 提炼</p>
 <p class="lead">各行业真实 JD 里最常出现的关键词——写简历、改简历、准备面试时对照查漏补缺。</p>
-<p class="meta">共 ${lib.totalJds} 份 JD · ${lib.totalKeywords} 个关键词${
+<p class="meta">共 ${lib.totalKeywords} 个关键词${
     lib.updatedAt ? ` · 更新于 ${esc(String(lib.updatedAt).slice(0, 10))}` : ""
   }</p>
 
@@ -178,7 +180,7 @@ export function renderCategoryPage(cat, lib) {
   }
 
   const title = `${cat.label} 岗位高频关键词（${cat.jdCount} 份 JD 汇总）| ${SITE_NAME}`;
-  const description = `${cat.label}方向真实 JD 里最常出现的关键词，共 ${cat.keywords.length} 个：${cat.keywords
+  const description = `基于 ${cat.jdCount} 份真实招聘 JD 提炼的${cat.label}高频关键词，共 ${cat.keywords.length} 个：${cat.keywords
     .slice(0, 10)
     .map((k) => k.word)
     .join("、")}。写简历时对照补齐。`;
@@ -192,7 +194,8 @@ export function renderCategoryPage(cat, lib) {
   const body = `
 <p class="crumb"><a href="${esc(abs("/keywords"))}">岗位关键词库</a> › ${esc(cat.label)}</p>
 <h1>${esc(cat.label)} 岗位高频关键词</h1>
-<p class="lead">来自 ${cat.jdCount} 份真实 JD 的聚合统计（括号内为出现该词的 JD 数）。</p>
+<p class="proof">📊 基于 ${cat.jdCount} 份真实 JD 提炼</p>
+<p class="lead">括号内为出现该词的 JD 数——数字越大，说明越多公司在要它。</p>
 
 <div class="tags">${tags(cat.keywords, cat.slug)}</div>
 
