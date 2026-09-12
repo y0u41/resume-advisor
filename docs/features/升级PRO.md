@@ -32,11 +32,23 @@
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | `/api/pro/plan` | 当前套餐 + 价格 + 各档额度 |
+| GET | `/api/pro/plan` | 当前套餐 + 价格 + 各档额度 + `planExpiresAt` / `daysLeft` |
 | GET | `/api/pro/request` | 我的最近一条申请状态 |
 | POST | `/api/pro/request` | 提交申请（同用户仅一条 `pending`，重复返回 `already`） |
 | GET | `/api/admin/pro-requests` | 管理员：申请列表（待处理优先） |
-| POST | `/api/admin/pro-requests/:id` | 管理员：`action=approve\|reject`；**approve 即把用户 `plan` 设为 `pro`** |
+| POST | `/api/admin/pro-requests/:id` | 管理员：`action=approve\|reject`；**approve 即写入 `plan='pro'` + 到期时间（未过期则顺延一个月）** |
+
+## 有效期与自动降级（防止"一次性置位"漏钱）
+
+定价是 **¥9.9/月**，所以 PRO 必须是**按月**的，而不是一置位就永久有效。
+
+- 字段：`users.plan_expires_at`（`NULL` = 永久，仅管理员手动授予用）。
+- 判定：`server/core/plans.js` 的 `normalizePlan(user)` 发现 `plan='pro'` 且已过期 → **返回 `free`**。
+  额度、默认模型、`/pro` 展示全部走 `normalizePlan`，因此**过期即时生效，不需要定时任务**。
+- 懒落库：`getUserFromToken`（`server/core/auth.js`）遇到过期 PRO 会顺手把 `plan` 改回 `free`、清空到期时间（每账号只写一次）。
+- 写入：管理员批准申请、或后台「套餐」点 PRO，都按 `PRO_PERIOD_MONTHS`（默认 1）写入；**未过期的 PRO 再次开通 = 顺延**。
+- 展示：顶栏 PRO 徽章 tooltip、`/pro` 页「有效期至 …（剩 N 天）」、后台用户表到期日 + 「N 人 7 天内到期」提醒、PRO 申请列表「已开通 · 至 …」。
+- 续费：`/pro` 页对已 PRO 用户也展示支付 + 申请表单，提交后管理员批准即顺延。
 
 ## 数据
 

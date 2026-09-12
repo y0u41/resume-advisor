@@ -2,7 +2,7 @@ import { Router } from "express";
 import db from "../core/db.js";
 import { requireAuth, requireAdmin } from "../core/auth.js";
 import { getUsage } from "../core/quota.js";
-import { normalizePlan, dailyLimitFor, PRO_PRICE } from "../core/plans.js";
+import { normalizePlan, dailyLimitFor, PRO_PRICE, isPlanExpired, planDaysLeft, proPeriodModifier } from "../core/plans.js";
 import { eventCounts, recentEvents } from "../core/events.js";
 import { parseHealth } from "../core/parseHealth.js";
 import { guestExperimentStats } from "../core/experiments.js";
@@ -15,15 +15,19 @@ router.use("/admin", requireAuth, requireAdmin);
 
 router.get("/admin/users", (req, res) => {
   const users = db
-    .prepare("SELECT id, email, username, role, plan, created_at FROM users ORDER BY id")
+    .prepare("SELECT id, email, username, role, plan, plan_expires_at, created_at FROM users ORDER BY id")
     .all();
 
   const enriched = users.map((u) => {
     const plan = normalizePlan(u);
     const limit = dailyLimitFor(plan);
+    const expired = u.role !== "admin" && u.plan === "pro" && isPlanExpired(u);
     return {
       ...u,
       plan,
+      planExpiresAt: u.plan_expires_at || null,
+      expired,
+      daysLeft: plan === "pro" && !expired ? planDaysLeft(u) : null,
       todayUsage: getUsage(u.id),
       dailyLimit: Number.isFinite(limit) ? limit : -1,
       evaluations: db
@@ -41,9 +45,30 @@ router.post("/admin/users/:id/plan", (req, res) => {
   if (!["free", "pro"].includes(plan)) {
     return res.status(400).json({ error: "plan 只能是 free 或 pro" });
   }
-  const info = db.prepare("UPDATE users SET plan = ? WHERE id = ?").run(plan, req.params.id);
-  if (!info.changes) return res.status(404).json({ error: "用户不存在" });
-  res.json({ ok: true, id: Number(req.params.id), plan });
+  const cur = db
+    .prepare("SELECT id, plan, plan_expires_at FROM users WHERE id = ?")
+    .get(req.params.id);
+  if (!cur) return res.status(404).json({ error: "用户不存在" });
+
+  if (plan === "pro") {
+    // 未过期的 PRO 再开通 = 续费，从原到期日顺延；否则从现在起算
+    const base =
+      cur.plan === "pro" && cur.plan_expires_at && !isPlanExpired(cur) ? cur.plan_expires_at : "now";
+    db.prepare("UPDATE users SET plan = 'pro', plan_expires_at = datetime(?, ?) WHERE id = ?").run(
+      base,
+      proPeriodModifier(),
+      cur.id
+    );
+  } else {
+    db.prepare("UPDATE users SET plan = 'free', plan_expires_at = NULL WHERE id = ?").run(cur.id);
+  }
+  const after = db.prepare("SELECT plan, plan_expires_at FROM users WHERE id = ?").get(cur.id);
+  res.json({
+    ok: true,
+    id: cur.id,
+    plan: normalizePlan(after),
+    planExpiresAt: after.plan_expires_at || null,
+  });
 });
 
 // 埋点概览（管理员）：各事件计数 + 最近事件
@@ -67,7 +92,7 @@ router.get("/admin/pro-requests", (req, res) => {
   const rows = db
     .prepare(
       `SELECT r.id, r.user_id, r.note, r.pay_email, r.status, r.created_at, r.handled_at,
-              u.email, u.username, u.plan
+              u.email, u.username, u.plan, u.plan_expires_at
        FROM pro_requests r LEFT JOIN users u ON u.id = r.user_id
        ORDER BY CASE r.status WHEN 'pending' THEN 0 ELSE 1 END, r.id DESC LIMIT 200`
     )
@@ -86,7 +111,17 @@ router.post("/admin/pro-requests/:id", (req, res) => {
 
   const tx = db.transaction(() => {
     if (action === "approve") {
-      db.prepare("UPDATE users SET plan = 'pro' WHERE id = ?").run(row.user_id);
+      // 开通 = 写入到期时间（未过期则顺延一个月），到期后 normalizePlan 自动回落 free
+      const u = db
+        .prepare("SELECT plan, plan_expires_at FROM users WHERE id = ?")
+        .get(row.user_id);
+      const base =
+        u && u.plan === "pro" && u.plan_expires_at && !isPlanExpired(u) ? u.plan_expires_at : "now";
+      db.prepare("UPDATE users SET plan = 'pro', plan_expires_at = datetime(?, ?) WHERE id = ?").run(
+        base,
+        proPeriodModifier(),
+        row.user_id
+      );
     }
     db.prepare(
       "UPDATE pro_requests SET status = ?, handled_at = datetime('now') WHERE id = ?"

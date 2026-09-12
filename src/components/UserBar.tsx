@@ -30,7 +30,16 @@ export default function UserBar() {
         {user.role === "admin" ? (
           <span className="role-badge admin">管理员</span>
         ) : user.plan === "pro" ? (
-          <span className="role-badge pro">PRO</span>
+          <span
+            className="role-badge pro"
+            title={
+              user.planExpiresAt
+                ? `PRO 有效期至 ${String(user.planExpiresAt).slice(0, 10)}`
+                : "PRO 永久有效"
+            }
+          >
+            PRO
+          </span>
         ) : null}
       </span>
       <ThemeToggle />

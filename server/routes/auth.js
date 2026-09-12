@@ -11,6 +11,7 @@ import {
 } from "../core/auth.js";
 import { logEvent, hasEventToday } from "../core/events.js";
 import { guestVariant } from "../core/experiments.js";
+import { normalizePlan } from "../core/plans.js";
 
 const router = Router();
 
@@ -56,7 +57,7 @@ router.post("/auth/register", (req, res) => {
       preview: variant.preview,
     });
   }
-  res.json({ user: { ...user, username: null, role: "user", plan: "free" } });
+  res.json({ user: { ...user, username: null, role: "user", plan: "free", planExpiresAt: null } });
 });
 
 router.post("/auth/login", (req, res) => {
@@ -87,13 +88,15 @@ router.post("/auth/login", (req, res) => {
   if (ageDays != null && ageDays >= 7 && !hasEventToday(row.id, "return_7d")) {
     logEvent(row.id, "return_7d");
   }
+  const plan = normalizePlan(row);
   res.json({
     user: {
       id: row.id,
       email: row.email,
       username: row.username,
       role: row.role,
-      plan: row.role === "admin" ? "pro" : row.plan || "free",
+      plan,
+      planExpiresAt: plan === "pro" && row.role !== "admin" ? row.plan_expires_at || null : null,
     },
   });
 });

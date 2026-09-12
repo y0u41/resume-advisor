@@ -246,6 +246,10 @@ if (!userColumns.includes("purge_after")) {
 if (!userColumns.includes("plan")) {
   db.exec("ALTER TABLE users ADD COLUMN plan TEXT NOT NULL DEFAULT 'free'");
 }
+// PRO 有效期：NULL = 永久；过期由 normalizePlan 自动回落 free（见 core/plans.js）
+if (!userColumns.includes("plan_expires_at")) {
+  db.exec("ALTER TABLE users ADD COLUMN plan_expires_at DATETIME");
+}
 db.exec(
   "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username) WHERE username IS NOT NULL"
 );

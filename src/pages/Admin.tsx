@@ -11,6 +11,10 @@ interface AdminUser {
   username: string | null;
   role: string;
   plan: string;
+  plan_expires_at?: string | null;
+  planExpiresAt: string | null;
+  expired: boolean;
+  daysLeft: number | null;
   created_at: string;
   todayUsage: number;
   dailyLimit: number;
@@ -67,6 +71,7 @@ interface ProRequest {
   email: string | null;
   username: string | null;
   plan: string | null;
+  plan_expires_at: string | null;
 }
 
 interface ExperimentGroup {
@@ -178,6 +183,9 @@ export default function Admin() {
   const trials = countOf("guest_trial");
   const fromGuest = countOf("register_from_guest");
   const convRate = trials ? Math.round((fromGuest / trials) * 100) : 0;
+  const expiringSoon = users.filter(
+    (u) => u.plan === "pro" && !u.expired && typeof u.daysLeft === "number" && u.daysLeft <= 7
+  ).length;
 
   if (user && user.role !== "admin") {
     return <Navigate to="/" replace />;
@@ -236,14 +244,31 @@ export default function Admin() {
                     {u.role === "admin" ? (
                       <span className="role-badge admin">不限</span>
                     ) : (
-                      <button
-                        type="button"
-                        className={`chip ${u.plan === "pro" ? "chip-active" : ""}`}
-                        onClick={() => setPlan(u.id, u.plan === "pro" ? "free" : "pro")}
-                        title="点击切换 免费 / PRO"
-                      >
-                        {u.plan === "pro" ? "PRO" : "免费"}
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          className={`chip ${u.plan === "pro" ? "chip-active" : ""}`}
+                          onClick={() => setPlan(u.id, u.plan === "pro" ? "free" : "pro")}
+                          title={
+                            u.plan === "pro"
+                              ? "点击取消 PRO（立即回落免费）"
+                              : `点击开通 PRO（1 个月，¥${proPrice ?? 9.9}）`
+                          }
+                        >
+                          {u.plan === "pro" ? "PRO" : "免费"}
+                        </button>
+                        {u.plan === "pro" && (
+                          <div className="admin-sub" style={{ marginTop: 4 }}>
+                            {u.expired
+                              ? "已过期"
+                              : u.planExpiresAt
+                                ? `${String(u.planExpiresAt).slice(0, 10)} 到期${
+                                    typeof u.daysLeft === "number" ? `（剩 ${u.daysLeft} 天）` : ""
+                                  }`
+                                : "永久"}
+                          </div>
+                        )}
+                      </>
                     )}
                   </td>
                   <td>
@@ -257,8 +282,14 @@ export default function Admin() {
           </table>
         )}
         <p className="hint" style={{ marginTop: 10 }}>
-          点击「套餐」可切换 免费 / PRO（PRO ¥{proPrice ?? 9.9}/月）。免费：100 次/天、高级模型尝鲜 5
-          次/天；PRO：500 次/天、高级模型 30 次/天。管理员账号不受额度限制。
+          点击「套餐」切换 免费 / PRO（PRO ¥{proPrice ?? 9.9}/月，开通即写入 1 个月有效期，到期自动回落免费）。
+          免费：100 次/天、高级模型尝鲜 5 次/天；PRO：500 次/天、高级模型 30 次/天。管理员账号不受额度限制。
+          {expiringSoon > 0 && (
+            <>
+              {" "}
+              当前 <strong>{expiringSoon}</strong> 人 7 天内到期。
+            </>
+          )}
         </p>
       </div>
 
@@ -305,7 +336,7 @@ export default function Admin() {
                     {r.status === "pending"
                       ? "待处理"
                       : r.status === "approved"
-                        ? "已开通"
+                        ? `已开通${r.plan_expires_at ? ` · 至 ${String(r.plan_expires_at).slice(0, 10)}` : ""}`
                         : "已驳回"}
                   </td>
                   <td>{new Date(r.created_at).toLocaleString("zh-CN")}</td>

@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import db from "./db.js";
+import { normalizePlan, isPlanExpired } from "./plans.js";
 
 const AUTH_SECRET = process.env.AUTH_SECRET || crypto.randomBytes(32).toString("hex");
 if (!process.env.AUTH_SECRET) {
@@ -53,16 +54,30 @@ export function getUserFromToken(token) {
     const payload = jwt.verify(token, AUTH_SECRET);
     const row = db
       .prepare(
-        "SELECT id, email, username, role, plan, created_at, deleted_at, purge_after FROM users WHERE id = ?"
+        "SELECT id, email, username, role, plan, plan_expires_at, created_at, deleted_at, purge_after FROM users WHERE id = ?"
       )
       .get(payload.uid);
     if (!row) return null;
+    // 懒回收：PRO 已过期 → 落库回 free（每账号只写一次，之后 plan 已是 free）
+    if (row.role !== "admin" && isPlanExpired(row)) {
+      try {
+        db.prepare(
+          "UPDATE users SET plan = 'free', plan_expires_at = NULL WHERE id = ? AND plan = 'pro'"
+        ).run(row.id);
+        row.plan = "free";
+        row.plan_expires_at = null;
+      } catch {
+        // 回收失败不影响本次请求，normalizePlan 仍会按 free 处理
+      }
+    }
+    const plan = normalizePlan(row);
     return {
       id: row.id,
       email: row.email,
       username: row.username,
       role: row.role,
-      plan: row.role === "admin" ? "pro" : row.plan || "free",
+      plan,
+      planExpiresAt: plan === "pro" && row.role !== "admin" ? row.plan_expires_at || null : null,
       created_at: row.created_at,
       pendingDeletion: row.deleted_at ? { purgeAfter: row.purge_after } : null,
     };

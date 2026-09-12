@@ -14,6 +14,8 @@ export const FREE_OCR_DAILY = Number(process.env.FREE_OCR_DAILY || 3);
 export const PRO_OCR_DAILY = Number(process.env.PRO_OCR_DAILY || 0);
 // PRO 价格（元/月），仅用于展示
 export const PRO_PRICE = Number(process.env.PRO_PRICE || 9.9);
+// PRO 单次开通 / 续费的时长（月）；管理员批准或手动开通时写入 plan_expires_at
+export const PRO_PERIOD_MONTHS = Number(process.env.PRO_PERIOD_MONTHS || 1);
 
 // 支付方式（支付网关接入前的最简闭环）：
 //   PRO_PAY_QR  —— 收款码图片地址（站内路径如 /pay-qr.png，或 data:image/... ）
@@ -46,11 +48,48 @@ export function isPremiumModel(model) {
   return PREMIUM_MODELS.has(String(model || ""));
 }
 
-// 归一化套餐：admin（不限）> pro > free
+// 到期时间字段（兼容 DB 行 snake_case 与 req.user camelCase）
+function expiryOf(user) {
+  return user?.plan_expires_at ?? user?.planExpiresAt ?? null;
+}
+
+// 解析 SQLite datetime（UTC，形如 "2026-09-12 10:00:00"）为毫秒时间戳；无法解析返回 null
+function parseUtc(dt) {
+  if (!dt) return null;
+  const s = String(dt).trim().replace(" ", "T");
+  const t = Date.parse(/[zZ]|[+-]\d\d:?\d\d$/.test(s) ? s : `${s}Z`);
+  return Number.isFinite(t) ? t : null;
+}
+
+// 是否已过期；无 plan_expires_at（NULL）= 永久有效，不算过期
+export function isPlanExpired(user) {
+  if (!user || user.plan !== "pro") return false;
+  const exp = expiryOf(user);
+  if (!exp) return false;
+  const t = parseUtc(exp);
+  return t !== null && t <= Date.now();
+}
+
+// PRO 到期剩余天数（向上取整）；永久 / 非 PRO 返回 null
+export function planDaysLeft(user) {
+  if (!user || user.plan !== "pro") return null;
+  const exp = expiryOf(user);
+  const t = parseUtc(exp);
+  if (t === null) return null;
+  return Math.ceil((t - Date.now()) / 86400000);
+}
+
+// SQLite datetime 修饰符，如 '+1 month'（由数字拼出，无注入风险）
+export function proPeriodModifier() {
+  return `+${PRO_PERIOD_MONTHS} month`;
+}
+
+// 归一化套餐：admin（不限）> pro（未过期）> free；PRO 过期自动回落 free
 export function normalizePlan(user) {
   if (!user) return "free";
   if (user.role === "admin") return "admin";
-  return user.plan === "pro" ? "pro" : "free";
+  if (user.plan !== "pro") return "free";
+  return isPlanExpired(user) ? "free" : "pro";
 }
 
 export function isUnlimited(plan) {

@@ -54,6 +54,64 @@ export default function Pro() {
   const proDaily = plan?.pro.daily ?? 500;
   const freePremium = plan?.free.premiumDaily ?? 5;
   const proPremium = plan?.pro.premiumDaily ?? 30;
+  const daysLeft = plan?.daysLeft ?? null;
+
+  const payForm = (
+    <>
+      <div className="pro-pay-title">第 1 步 · 支付 ¥{price}</div>
+      {plan?.pay.qr ? (
+        <img className="pro-pay-qr" src={plan.pay.qr} alt="PRO 收款码" />
+      ) : (
+        <p className="hint">收款码暂未配置；也可先提交申请，管理员会与你联系收款。</p>
+      )}
+      {plan?.pay.url && (
+        <p style={{ marginTop: 10 }}>
+          <a
+            className="btn btn-secondary btn-sm"
+            href={plan.pay.url}
+            target="_blank"
+            rel="noreferrer"
+          >
+            前往支付（新窗口）→
+          </a>
+        </p>
+      )}
+      {plan?.pay.note && <p className="hint">{plan.pay.note}</p>}
+
+      <div className="pro-pay-title" style={{ marginTop: 18 }}>
+        第 2 步 · 付款后填写邮箱
+      </div>
+      <p className="hint" style={{ marginBottom: 10 }}>
+        用你付款的账号邮箱提交，管理员核对后为你开通 PRO（通常几分钟内）。
+      </p>
+      <div className="form-group">
+        <label>付款邮箱</label>
+        <input
+          type="email"
+          placeholder="you@example.com"
+          value={payEmail}
+          onChange={(e) => setPayEmail(e.target.value)}
+        />
+      </div>
+      <div className="form-group">
+        <label>备注（可选）</label>
+        <textarea
+          rows={3}
+          placeholder="如：希望用 DeepSeek 模型 / 转账单号 / 联系方式…"
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+        />
+      </div>
+      <button
+        type="button"
+        className="btn btn-primary"
+        disabled={submitting}
+        onClick={submit}
+      >
+        {submitting ? "提交中..." : "我已付款，提交开通申请"}
+      </button>
+    </>
+  );
 
   return (
     <div className="container">
@@ -121,66 +179,43 @@ export default function Pro() {
             后再申请开通。
           </p>
         ) : isPro ? (
-          <p className="hint">你已是不受限的 PRO 账号，所有功能均已解锁。</p>
+          <>
+            <p className="hint">
+              {user.role === "admin" ? (
+                "你是管理员，不受额度限制。"
+              ) : (
+                <>
+                  你已是 PRO
+                  {plan?.planExpiresAt
+                    ? `，有效期至 ${String(plan.planExpiresAt).slice(0, 10)}`
+                    : "（永久有效）"}
+                  {typeof daysLeft === "number" && daysLeft <= 7
+                    ? `——仅剩 ${daysLeft} 天，建议尽快续费`
+                    : ""}
+                  。到期后会自动回到免费档。
+                </>
+              )}
+            </p>
+            {user.role !== "admin" &&
+              (pending ? (
+                <p className="hint" style={{ marginTop: 8 }}>
+                  续费申请已提交（编号 #{req?.id}），管理员会尽快为你顺延。
+                </p>
+              ) : (
+                <>
+                  <p className="hint" style={{ marginTop: 8 }}>
+                    续费 / 延长：完成支付后在下方提交申请，管理员核对后会为你顺延一个月。
+                  </p>
+                  {payForm}
+                </>
+              ))}
+          </>
         ) : pending ? (
           <p className="hint">
             申请已提交（编号 #{req?.id}），管理员会尽快为你开通。开通后刷新即可看到 PRO 徽章。
           </p>
         ) : (
-          <>
-            <div className="pro-pay-title">第 1 步 · 支付 ¥{price}</div>
-            {plan?.pay.qr ? (
-              <img className="pro-pay-qr" src={plan.pay.qr} alt="PRO 收款码" />
-            ) : (
-              <p className="hint">收款码暂未配置；也可先提交申请，管理员会与你联系收款。</p>
-            )}
-            {plan?.pay.url && (
-              <p style={{ marginTop: 10 }}>
-                <a
-                  className="btn btn-secondary btn-sm"
-                  href={plan.pay.url}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  前往支付（新窗口）→
-                </a>
-              </p>
-            )}
-            {plan?.pay.note && <p className="hint">{plan.pay.note}</p>}
-
-            <div className="pro-pay-title" style={{ marginTop: 18 }}>
-              第 2 步 · 付款后填写邮箱
-            </div>
-            <p className="hint" style={{ marginBottom: 10 }}>
-              用你付款的账号邮箱提交，管理员核对后为你开通 PRO（通常几分钟内）。
-            </p>
-            <div className="form-group">
-              <label>付款邮箱</label>
-              <input
-                type="email"
-                placeholder="you@example.com"
-                value={payEmail}
-                onChange={(e) => setPayEmail(e.target.value)}
-              />
-            </div>
-            <div className="form-group">
-              <label>备注（可选）</label>
-              <textarea
-                rows={3}
-                placeholder="如：希望用 DeepSeek 模型 / 转账单号 / 联系方式…"
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-              />
-            </div>
-            <button
-              type="button"
-              className="btn btn-primary"
-              disabled={submitting}
-              onClick={submit}
-            >
-              {submitting ? "提交中..." : "我已付款，提交开通申请"}
-            </button>
-          </>
+          payForm
         )}
       </div>
     </div>

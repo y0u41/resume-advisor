@@ -6,6 +6,7 @@ export interface User {
   username?: string | null;
   role?: string;
   plan?: string;
+  planExpiresAt?: string | null;
   created_at?: string;
   pendingDeletion?: { purgeAfter: string } | null;
 }

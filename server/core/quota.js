@@ -5,6 +5,7 @@ import {
   premiumDailyFor,
   ocrDailyFor,
   isUnlimited,
+  planDaysLeft,
   PRO_PRICE,
   PRO_DAILY_LIMIT,
 } from "./plans.js";
@@ -92,6 +93,8 @@ export function getQuota(user) {
     limit: Number.isFinite(limit) ? limit : -1,
     premiumUsed: unlimited ? 0 : getPremiumUsage(user.id),
     premiumLimit: Number.isFinite(premiumLimit) ? premiumLimit : -1,
+    planExpiresAt: plan === "pro" && user.role !== "admin" ? user.planExpiresAt || null : null,
+    daysLeft: plan === "pro" ? planDaysLeft(user) : null,
     proDaily: PRO_DAILY_LIMIT,
     price: PRO_PRICE,
   };

@@ -2,7 +2,7 @@ import { Router } from "express";
 import db from "../core/db.js";
 import { requireAuth } from "../core/auth.js";
 import { getQuota } from "../core/quota.js";
-import { PRO_PRICE, FREE_DAILY_LIMIT, PRO_DAILY_LIMIT, FREE_PREMIUM_DAILY, PRO_PREMIUM_DAILY, PRO_PAY_QR, PRO_PAY_URL, PRO_PAY_NOTE } from "../core/plans.js";
+import { PRO_PRICE, FREE_DAILY_LIMIT, PRO_DAILY_LIMIT, FREE_PREMIUM_DAILY, PRO_PREMIUM_DAILY, PRO_PAY_QR, PRO_PAY_URL, PRO_PAY_NOTE, planDaysLeft } from "../core/plans.js";
 
 const router = Router();
 router.use(requireAuth);
@@ -20,6 +20,8 @@ router.get("/pro/plan", (req, res) => {
     plan: req.user.plan,
     role: req.user.role,
     email: req.user.email,
+    planExpiresAt: req.user.planExpiresAt || null,
+    daysLeft: req.user.plan === "pro" ? planDaysLeft(req.user) : null,
     price: PRO_PRICE,
     free: { daily: FREE_DAILY_LIMIT, premiumDaily: FREE_PREMIUM_DAILY },
     pro: { daily: PRO_DAILY_LIMIT, premiumDaily: PRO_PREMIUM_DAILY },

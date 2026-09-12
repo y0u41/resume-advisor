@@ -386,6 +386,8 @@ export interface ProPlan {
   plan: string;
   role: string;
   email: string;
+  planExpiresAt?: string | null;
+  daysLeft?: number | null;
   price: number;
   free: { daily: number; premiumDaily: number };
   pro: { daily: number; premiumDaily: number };
@@ -404,6 +406,8 @@ export interface QuotaSnapshot {
   limit: number;
   premiumUsed: number;
   premiumLimit: number;
+  planExpiresAt?: string | null;
+  daysLeft?: number | null;
   proDaily: number;
   price: number;
 }
