@@ -69,6 +69,21 @@ interface ProRequest {
   plan: string | null;
 }
 
+interface ExperimentGroup {
+  value: number;
+  trials: number;
+  registers: number;
+  rate: number;
+}
+
+interface GuestExperiment {
+  days: number;
+  active: boolean;
+  config: { limits: number[] | null; preview: number[] | null };
+  byLimit: ExperimentGroup[];
+  byPreview: ExperimentGroup[];
+}
+
 export default function Admin() {
   const { user } = useAuth();
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -78,6 +93,7 @@ export default function Admin() {
   const [events, setEvents] = useState<{ name: string; count: number }[]>([]);
   const [parseHealth, setParseHealth] = useState<ParseHealth | null>(null);
   const [proRequests, setProRequests] = useState<ProRequest[]>([]);
+  const [experiment, setExperiment] = useState<GuestExperiment | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -143,6 +159,10 @@ export default function Admin() {
       .then(setParseHealth)
       .catch(() => {});
     loadProRequests();
+    fetch("/api/admin/guest-experiment")
+      .then((r) => r.json())
+      .then(setExperiment)
+      .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
@@ -369,6 +389,65 @@ export default function Admin() {
                 —— 未达标，继续纯文本（{parseHealth.enoughSamples ? "样本已足" : "样本不足"}）
               </span>
             )}
+          </p>
+        </div>
+      )}
+
+      {experiment && experiment.byLimit.length + experiment.byPreview.length > 0 && (
+        <div className="card">
+          <h2 className="section-title">
+            <span className="section-icon">🧪</span>
+            游客转化实验
+          </h2>
+          {!experiment.active && (
+            <p className="hint">
+              实验未开启（当前为单组）。设置 `GUEST_AB_LIMITS` / `GUEST_AB_PREVIEW` 后可跑对照。
+            </p>
+          )}
+          <h3 style={{ fontSize: "0.9rem", margin: "8px 0 6px" }}>按试用次数</h3>
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th>组（次/天）</th>
+                <th>试用</th>
+                <th>注册</th>
+                <th>转化率</th>
+              </tr>
+            </thead>
+            <tbody>
+              {experiment.byLimit.map((g) => (
+                <tr key={g.value}>
+                  <td>{g.value}</td>
+                  <td>{g.trials}</td>
+                  <td>{g.registers}</td>
+                  <td>{g.rate}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <h3 style={{ fontSize: "0.9rem", margin: "12px 0 6px" }}>按预览长度</h3>
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th>组（字）</th>
+                <th>试用</th>
+                <th>注册</th>
+                <th>转化率</th>
+              </tr>
+            </thead>
+            <tbody>
+              {experiment.byPreview.map((g) => (
+                <tr key={g.value}>
+                  <td>{g.value}</td>
+                  <td>{g.trials}</td>
+                  <td>{g.registers}</td>
+                  <td>{g.rate}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="hint" style={{ marginTop: 8 }}>
+            转化率 = 试用后注册 / 游客试用。样本少时波动大，建议每组 ≥ 100 试用再下结论。
           </p>
         </div>
       )}

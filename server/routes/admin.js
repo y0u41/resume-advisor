@@ -5,6 +5,7 @@ import { getUsage } from "../core/quota.js";
 import { normalizePlan, dailyLimitFor, PRO_PRICE } from "../core/plans.js";
 import { eventCounts, recentEvents } from "../core/events.js";
 import { parseHealth } from "../core/parseHealth.js";
+import { guestExperimentStats } from "../core/experiments.js";
 import { usageSummary } from "../core/usage.js";
 
 const router = Router();
@@ -53,6 +54,12 @@ router.get("/admin/events", (req, res) => {
 // 报告解析健康度（ADR-0007 量化触发器）：解析降级率 + 是否达到启用机器可读块的条件
 router.get("/admin/parse-health", (req, res) => {
   res.json(parseHealth(Number(req.query.days)));
+});
+
+// 游客转化实验：按试用次数 / 预览长度分组的 试用→注册 转化率；?days=1/7/0
+router.get("/admin/guest-experiment", (req, res) => {
+  const days = [1, 7].includes(Number(req.query.days)) ? Number(req.query.days) : 0;
+  res.json(guestExperimentStats(days));
 });
 
 // PRO 开通申请（管理员）：待处理优先

@@ -10,6 +10,7 @@ import {
   findUserByAccount,
 } from "../core/auth.js";
 import { logEvent, hasEventToday } from "../core/events.js";
+import { guestVariant } from "../core/experiments.js";
 
 const router = Router();
 
@@ -47,8 +48,14 @@ router.post("/auth/register", (req, res) => {
   const user = { id: info.lastInsertRowid, email: normalized };
   setAuthCookie(res, signToken(user));
   logEvent(user.id, "register");
-  // 漏斗关键事件：由游客试用转化而来
-  if (source === "guest") logEvent(user.id, "register_from_guest");
+  // 漏斗关键事件：由游客试用转化而来（带同一 IP 的实验变体，便于按组算转化率）
+  if (source === "guest") {
+    const variant = guestVariant(req.ip);
+    logEvent(user.id, "register_from_guest", {
+      limit: variant.limit,
+      preview: variant.preview,
+    });
+  }
   res.json({ user: { ...user, username: null, role: "user", plan: "free" } });
 });
 

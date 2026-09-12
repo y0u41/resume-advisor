@@ -4,6 +4,7 @@ import { callLLM, callLLMStream } from "../llm/llm.js";
 import { evaluateResume } from "../scoring/index.js";
 import { getJdKeywords } from "../core/jdKeywords.js";
 import { defaultModelFor } from "../core/plans.js";
+import { guestVariant } from "../core/experiments.js";
 import { withUsageContext } from "../core/usage.js";
 import { logEvent } from "../core/events.js";
 
@@ -14,10 +15,8 @@ router.use((req, res, next) =>
   withUsageContext({ userId: null, feature: "guest_evaluate" }, next)
 );
 
-// 游客每天可免注册试用的次数（默认 3 次）
-const GUEST_LIMIT = Number(process.env.GUEST_LIMIT || 3);
-// 游客可见的报告字符数（超出部分打码，注册后解锁）
-const GUEST_PREVIEW_CHARS = Number(process.env.GUEST_PREVIEW_CHARS || 800);
+// 试用次数与预览长度由 A/B 实验按 IP 分桶决定（见 core/experiments.js）：
+//   GUEST_LIMIT / GUEST_PREVIEW_CHARS 为单组默认值，GUEST_AB_LIMITS / GUEST_AB_PREVIEW 开启对照。
 
 const MAX_RESUME = 40000;
 const MAX_TITLE = 200;
@@ -34,14 +33,14 @@ function getGuestUsed(ip) {
   return row?.count || 0;
 }
 
-function consumeGuestQuota(ip) {
+function consumeGuestQuota(ip, limit) {
   const used = getGuestUsed(ip);
-  if (used >= GUEST_LIMIT) return { allowed: false, used, limit: GUEST_LIMIT };
+  if (used >= limit) return { allowed: false, used, limit };
   db.prepare(
     `INSERT INTO guest_trials (ip, day, count) VALUES (?, ?, 1)
      ON CONFLICT(ip, day) DO UPDATE SET count = count + 1`
   ).run(ip, today());
-  return { allowed: true, used: used + 1, limit: GUEST_LIMIT };
+  return { allowed: true, used: used + 1, limit };
 }
 
 // 未产出任何内容即断开（如移动端刷新）时，退还本次额度，避免白白消耗唯一一次试用
@@ -58,7 +57,8 @@ function refundGuestQuota(ip) {
 // 剩余试用次数（前端展示）
 router.get("/guest/quota", (req, res) => {
   const used = getGuestUsed(req.ip);
-  res.json({ used, limit: GUEST_LIMIT, remaining: Math.max(0, GUEST_LIMIT - used) });
+  const { limit } = guestVariant(req.ip);
+  res.json({ used, limit, remaining: Math.max(0, limit - used) });
 });
 
 function extractScore(report) {
@@ -81,7 +81,9 @@ router.post("/guest/evaluate", async (req, res) => {
   if (jobDescription && jobDescription.length > MAX_JD)
     return res.status(400).json({ code: 1006, error: "JD 过长" });
 
-  const quota = consumeGuestQuota(req.ip);
+  // A/B 实验：按 IP 稳定分到「试用次数 / 预览长度」组合
+  const variant = guestVariant(req.ip);
+  const quota = consumeGuestQuota(req.ip, variant.limit);
   if (!quota.allowed) {
     return res.status(429).json({
       code: 3001,
@@ -139,7 +141,11 @@ router.post("/guest/evaluate", async (req, res) => {
     // 漏斗关键事件：游客试用（user_id 为空，用于统计试用→注册转化）。
     // 必须在关键词抽取之前记录——抽取是额外 LLM 调用，若此处断开/失败会丢事件，
     // 导致转化率分母偏小、数据失真。
-    logEvent(null, "guest_trial", { student: isStudent ? 1 : 0 });
+    logEvent(null, "guest_trial", {
+      student: isStudent ? 1 : 0,
+      limit: variant.limit,
+      preview: variant.preview,
+    });
     // 与注册用户完全一致：关键词优先用 LLM 从 JD 抽取（按 JD 哈希缓存），
     // 并传入同一 override（含应届生模式）；否则非技术岗会回退到技术词典、
     // 给出误导性的低客观分（首因效应），使游客与注册后的结果不一致。
@@ -147,7 +153,7 @@ router.post("/guest/evaluate", async (req, res) => {
       ? await getJdKeywords(jobDescription, controller.signal, guestOverride, jobTitle)
       : [];
     const objective = evaluateResume(resume, { jdText: jobDescription || "", jdKeywords });
-    const preview = fullText.slice(0, GUEST_PREVIEW_CHARS);
+    const preview = fullText.slice(0, variant.preview);
     completed = true;
 
     res.write(
@@ -158,7 +164,7 @@ router.post("/guest/evaluate", async (req, res) => {
         score,
         objective,
         report: preview,
-        truncated: fullText.length > GUEST_PREVIEW_CHARS,
+        truncated: fullText.length > variant.preview,
         totalLength: fullText.length,
       })}\n\n`
     );
