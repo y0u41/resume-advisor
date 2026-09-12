@@ -469,6 +469,16 @@ export default function Result() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data?.id]);
 
+  // ADR-0007 量化触发器：报告解析降级率（解析失败 → 退化为纯文本）。
+  // 每次查看报告计一次 report_parse；解析不出任何小节时额外记 report_parse_fallback。
+  useEffect(() => {
+    if (!data?.id || !data?.report) return;
+    const ok = parseReport(data.report).length > 0;
+    logEvent("report_parse", { id: data.id, ok });
+    if (!ok) logEvent("report_parse_fallback", { id: data.id });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data?.id]);
+
   const handleReevaluate = () => {
     if (!resume.trim() || !jobTitle.trim()) return;
     const taskId = startEvaluate(

@@ -45,6 +45,17 @@ interface UsageSummary {
   byDay: UsageRow[];
 }
 
+interface ParseHealth {
+  windowDays: number;
+  parses: number;
+  fallbacks: number;
+  rate: number;
+  threshold: number;
+  minSamples: number;
+  enoughSamples: boolean;
+  shouldEnableMachineBlock: boolean;
+}
+
 export default function Admin() {
   const { user } = useAuth();
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -52,6 +63,7 @@ export default function Admin() {
   const [usage, setUsage] = useState<UsageSummary | null>(null);
   const [usageDays, setUsageDays] = useState(0);
   const [events, setEvents] = useState<{ name: string; count: number }[]>([]);
+  const [parseHealth, setParseHealth] = useState<ParseHealth | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -89,6 +101,10 @@ export default function Admin() {
     fetch("/api/admin/events")
       .then((r) => r.json())
       .then((d) => setEvents(d.counts || []))
+      .catch(() => {});
+    fetch("/api/admin/parse-health")
+      .then((r) => r.json())
+      .then(setParseHealth)
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
@@ -211,6 +227,35 @@ export default function Admin() {
           </p>
           <p className="hint" style={{ marginTop: 4 }}>
             注：「老用户回访」= 注册满 7 天的老用户当日登录，并非 cohort 留存。
+          </p>
+        </div>
+      )}
+
+      {parseHealth && (
+        <div className="card">
+          <h2 className="section-title">
+            <span className="section-icon">🧩</span>
+            报告解析健康度
+          </h2>
+          <p className="hint">
+            近 {parseHealth.windowDays} 天：解析 {parseHealth.parses} 次 · 降级（退化为纯文本）{" "}
+            {parseHealth.fallbacks} 次 · 降级率{" "}
+            <strong>{(parseHealth.rate * 100).toFixed(1)}%</strong>
+          </p>
+          <p className="hint" style={{ marginTop: 4 }}>
+            触发条件（ADR-0007）：样本 ≥ {parseHealth.minSamples} 且降级率 &gt;{" "}
+            {(parseHealth.threshold * 100).toFixed(0)}%
+            {parseHealth.shouldEnableMachineBlock ? (
+              <strong style={{ color: "var(--danger)" }}>
+                {" "}
+                —— 已达标，建议启用「尾部机器可读块」
+              </strong>
+            ) : (
+              <span>
+                {" "}
+                —— 未达标，继续纯文本（{parseHealth.enoughSamples ? "样本已足" : "样本不足"}）
+              </span>
+            )}
           </p>
         </div>
       )}

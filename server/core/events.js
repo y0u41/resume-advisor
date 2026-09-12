@@ -2,6 +2,7 @@ import db from "./db.js";
 
 // 最小埋点集：注册、首次评估、报告读完、追问、下载、7 日回访
 // 另含漏斗关键事件：guest_trial（游客试用）、register_from_guest（试用后注册）
+// 另含 ADR-0007 量化触发器：report_parse（每次查看报告解析一次）、report_parse_fallback（解析失败→退化为纯文本）
 export const EVENT_NAMES = [
   "register",
   "first_evaluate",
@@ -11,6 +12,8 @@ export const EVENT_NAMES = [
   "return_7d",
   "guest_trial",
   "register_from_guest",
+  "report_parse",
+  "report_parse_fallback",
 ];
 
 const insertStmt = db.prepare("INSERT INTO events (user_id, name, meta) VALUES (?, ?, ?)");

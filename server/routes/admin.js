@@ -4,6 +4,7 @@ import { requireAuth, requireAdmin } from "../core/auth.js";
 import { getUsage } from "../core/quota.js";
 import { normalizePlan, dailyLimitFor, PRO_PRICE } from "../core/plans.js";
 import { eventCounts, recentEvents } from "../core/events.js";
+import { parseHealth } from "../core/parseHealth.js";
 import { usageSummary } from "../core/usage.js";
 
 const router = Router();
@@ -47,6 +48,11 @@ router.post("/admin/users/:id/plan", (req, res) => {
 // 埋点概览（管理员）：各事件计数 + 最近事件
 router.get("/admin/events", (req, res) => {
   res.json({ counts: eventCounts(), recent: recentEvents(50) });
+});
+
+// 报告解析健康度（ADR-0007 量化触发器）：解析降级率 + 是否达到启用机器可读块的条件
+router.get("/admin/parse-health", (req, res) => {
+  res.json(parseHealth(Number(req.query.days)));
 });
 
 // 反馈与投票（管理员）
