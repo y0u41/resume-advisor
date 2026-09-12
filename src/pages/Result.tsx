@@ -380,6 +380,7 @@ export default function Result() {
   const [downloading, setDownloading] = useState(false);
   const [shareHideContact, setShareHideContact] = useState(false);
   const [shareIncludeResume, setShareIncludeResume] = useState(false);
+  const [shareHideName, setShareHideName] = useState(false);
   const [shareUrl, setShareUrl] = useState("");
   const [shareExpires, setShareExpires] = useState("");
   const [sharing, setSharing] = useState(false);
@@ -547,7 +548,7 @@ export default function Result() {
     if (!data?.id) return;
     setSharing(true);
     try {
-      const r = await shareEvaluation(data.id, shareHideContact, shareIncludeResume);
+      const r = await shareEvaluation(data.id, shareHideContact, shareIncludeResume, shareHideName);
       const url = `${window.location.origin}/share/${r.token}`;
       setShareUrl(url);
       setShareExpires(r.expiresAt || "");
@@ -736,6 +737,14 @@ export default function Result() {
                 onChange={(e) => setShareHideContact(e.target.checked)}
               />
               <span>隐藏联系方式（手机号 / 邮箱打码）</span>
+            </label>
+            <label className="switch-row" style={{ marginBottom: 8 }}>
+              <input
+                type="checkbox"
+                checked={shareHideName}
+                onChange={(e) => setShareHideName(e.target.checked)}
+              />
+              <span>隐藏姓名（保留首字，如「唐**」）</span>
             </label>
             <label className="switch-row" style={{ marginBottom: 8 }}>
               <input

@@ -59,7 +59,7 @@ docs/                 文档 + docs/adr + docs/features（按功能分类）
 15. **客观分的行业覆盖**：确定性评分的关键词**优先由 LLM 从 JD 抽取**（`extractJdKeywords` + `core/jdKeywords.js` 按 JD 哈希缓存），再走确定性匹配，以覆盖非技术岗；抽取失败回退内置词典。匹配算法本身不发起网络请求（见 ADR-0001 更新）。
 16. **游客试用**：`server/routes/guest.js` 提供免登录的 `/api/guest/evaluate`（按 IP 限流 `GUEST_LIMIT`、结果打码 `GUEST_PREVIEW_CHARS`、不落库）。**该路由必须在 `evaluateRoutes`（含全局 `requireAuth`）之前挂载**，否则会被拦成 401。
 17. **改进轨迹与保留策略**：同一人（`person_key`）最多保留 `MAX_PER_PERSON`（30）条；清理时**跳过 `favorite=1` 与最高分记录**。结果页趋势由 `GET /evaluations/:id` 返回的 `previousScore`/`scoreDelta` 计算；收藏切换用 `PUT /evaluations/:id/favorite`。
-18. **分享报告**：`server/routes/share.js` 提供免登录的 `GET /api/share/:token`（只读、带水印、可选联系方式打码）；生成 / 取消用 `POST`/`DELETE /api/evaluations/:id/share`。**简历原文默认不分享**（需显式 `includeResume`）；token 默认 **30 天过期**（`SHARE_TTL_DAYS`）；分享页与接口均带 **`X-Robots-Tag: noindex`**。分享路由同样必须在 `evaluateRoutes` 之前挂载。
+18. **分享报告**：`server/routes/share.js` 提供免登录的 `GET /api/share/:token`（只读、带水印、可选**隐藏联系方式**与**隐藏姓名**「首字+**」）；生成 / 取消用 `POST`/`DELETE /api/evaluations/:id/share`。**简历原文默认不分享**（需显式 `includeResume`）；token 默认 **30 天过期**（`SHARE_TTL_DAYS`）；分享页与接口均带 **`X-Robots-Tag: noindex`**。分享路由同样必须在 `evaluateRoutes` 之前挂载。
 19. **最小埋点**：`server/core/events.js`（`logEvent`/`hasEventToday`/`eventCounts`）+ `events` 表；白名单 6 事件 `register / first_evaluate / report_read / followup / download / return_7d`。服务端在注册 / 首次评估 / 7 日回访时记录，前端经 `POST /api/events` 上报（非白名单忽略），管理员 `GET /api/admin/events` 查看。
 20. **ATS 可解析性检测**：`server/scoring/ats.js` 的 `checkAts(resumeText)` 做确定性结构检查（姓名首行 / 联系方式 / 邮箱 / 板块标题 / 日期格式 / 要点符号），作为 `objective.ats` 返回并在结果页展示。改动需同步 `server/__tests__/scoring.test.js`。
 21. **反馈与投票**：`feedback` 表 + `POST /api/feedback`（登录、每天限流，`kind=vote|feedback`）；结果页底部「这份报告有帮助吗？」投票 + 反馈输入；管理员 `GET /api/admin/feedback` 查看。
