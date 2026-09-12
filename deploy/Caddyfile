@@ -14,6 +14,10 @@ your-domain.com {
 	reverse_proxy 127.0.0.1:3001 {
 		# 评估是 SSE 流式，必须立即刷新，否则前端会“卡住”直到结束
 		flush_interval -1
+		# 明确传递真实客户端 IP（覆盖客户端可能伪造的 X-Forwarded-For），
+		# 配合后端 TRUST_PROXY=1，游客限流与速率限制才能按真实 IP 生效
+		header_up X-Forwarded-For {client_ip}
+		header_up X-Forwarded-Proto {scheme}
 	}
 
 	# 隐藏 Server 头

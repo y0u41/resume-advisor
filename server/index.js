@@ -14,6 +14,11 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 const HOST = process.env.HOST || "127.0.0.1";
 
+// 反向代理（如 Caddy）后必须信任代理，否则 req.ip 全是代理地址，
+// 会导致游客限流/速率限制全局串味。默认信任一层（匹配 DEPLOY.md 的 Caddy 部署）；
+// 若为直连（无代理），请设 TRUST_PROXY=0，避免客户端伪造 X-Forwarded-For。
+app.set("trust proxy", Number(process.env.TRUST_PROXY ?? 1));
+
 // 统一请求 ID 与响应信封（渐进式，向后兼容）
 app.use(requestId);
 app.use(envelope);
