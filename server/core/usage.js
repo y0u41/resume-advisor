@@ -66,6 +66,18 @@ function round4(n) {
   return Math.round(n * 10000) / 10000;
 }
 
+// 昨日总成本（用于成本护栏告警；不做硬拦截，只告警）
+export function yesterdayCost() {
+  const rows = db
+    .prepare(
+      "SELECT model, prompt_tokens, completion_tokens FROM llm_usage WHERE date(created_at) = date('now', '-1 day')"
+    )
+    .all();
+  let cost = 0;
+  for (const r of rows) cost += costOf(r.model, r.prompt_tokens, r.completion_tokens);
+  return { calls: rows.length, cost: round4(cost) };
+}
+
 // days：0=全部，1=今日，7=近 7 天（含今日）
 export function usageSummary(days = 0) {
   const windowStart =

@@ -97,6 +97,8 @@ npm ci
 npm run build
 ```
 
+> **部署一律用 `npm ci`**（严格按 `package-lock.json` 安装，可复现、不升级依赖），不要用 `npm install`（会按 `^` 范围拉新版本，可能引入未测过的变更）。
+
 ---
 
 ## 5. 用 pm2 启动

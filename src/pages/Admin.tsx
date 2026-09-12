@@ -46,6 +46,7 @@ interface UsageSummary {
   byFeature: UsageRow[];
   byModel: UsageRow[];
   byUser: UsageRow[];
+  yesterday?: { calls: number; cost: number };
   byDay: UsageRow[];
 }
 
@@ -664,6 +665,12 @@ export default function Admin() {
             {usageDays === 0 ? "全部" : usageDays === 1 ? "今日" : "近 7 天"}：{usage.totals.calls}{" "}
             次调用 · 输入 {usage.totals.prompt_tokens} / 输出 {usage.totals.completion_tokens}{" "}
             tokens · 估算成本 ¥{usage.totals.cost}
+            {usage.yesterday && (
+              <>
+                {" "}
+                · 昨日总成本 <strong>¥{usage.yesterday.cost}</strong>（{usage.yesterday.calls} 次调用）
+              </>
+            )}
           </p>
 
           {usage.byDay.length > 0 && (

@@ -11,6 +11,7 @@ import { requestId, envelope } from "./http/envelope.js";
 import db from "./core/db.js";
 import { beginShutdown, queueStats } from "./core/queue.js";
 import { startBackupJob } from "./jobs/backup.js";
+import { yesterdayCost } from "./core/usage.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -303,6 +304,18 @@ const server = app.listen(PORT, HOST, () => {
     console.log(`LLM 模型 = ${model}`);
   } catch (err) {
     console.error("LLM 配置错误:", err.message);
+  }
+  // 成本护栏：只告警、不拦截（硬拦截会伤正常用户）
+  try {
+    const y = yesterdayCost();
+    const threshold = Number(process.env.DAILY_COST_ALERT_YUAN || 50);
+    if (threshold > 0 && y.cost > threshold) {
+      console.warn(
+        `[成本告警] 昨日 LLM 估算成本 ¥${y.cost}（${y.calls} 次调用）超过阈值 ¥${threshold}，请检查 /admin 成本看板。`
+      );
+    }
+  } catch (error) {
+    console.warn("[成本告警] 计算昨日成本失败:", error.message);
   }
 });
 
