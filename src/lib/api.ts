@@ -385,9 +385,11 @@ export function guestEvaluateStream(
 export interface ProPlan {
   plan: string;
   role: string;
+  email: string;
   price: number;
   free: { daily: number; premiumDaily: number };
   pro: { daily: number; premiumDaily: number };
+  pay: { qr: string; url: string; note: string };
 }
 
 export async function fetchProPlan(): Promise<ProPlan> {
@@ -417,12 +419,13 @@ export async function fetchProRequest(): Promise<{ request: any }> {
 }
 
 export async function requestPro(
-  note: string
+  note: string,
+  payEmail: string
 ): Promise<{ ok: boolean; id: number; status: string; already?: boolean }> {
   const r = await fetch("/api/pro/request", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ note }),
+    body: JSON.stringify({ note, payEmail }),
   });
   const d = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(d.error || "申请失败");

@@ -21,7 +21,12 @@
 
 - **套餐对比**：免费 vs PRO（默认模型 / 每日评估 / 高级模型 / 图片简历 OCR）。
 - **价格**：`PRO_PRICE`（默认 ¥9.9/月），由 `GET /api/pro/plan` 提供。
-- **申请**：备注 + 提交；已提交显示"等待开通"；已是 PRO / 管理员显示已解锁。
+- **支付（支付网关接入前的最简闭环）**：
+  - `PRO_PAY_QR`：收款码图片（微信/支付宝）——`<img>` 展示。
+  - `PRO_PAY_URL`：外部支付链接（有赞 / 爱发电等），新窗口打开。
+  - `PRO_PAY_NOTE`：补充说明。
+  - 三者均未配置时，页面提示"可先提交申请，管理员联系收款"。
+- **申请**：**付款后填写付款邮箱**（预填账号邮箱）+ 备注 → 提交；已提交显示"等待开通"；已是 PRO / 管理员显示已解锁。
 
 ## 接口
 
@@ -35,9 +40,9 @@
 
 ## 数据
 
-- `pro_requests(id, user_id, note, status, created_at, handled_at)`；`status = pending | approved | rejected`。
+- `pro_requests(id, user_id, pay_email, note, status, created_at, handled_at)`；`status = pending | approved | rejected`。
 - 含 `user_id` → 由 `server/jobs/purge.js` 的自动发现纳入注销清理（无需登记）。
-- 管理员后台有「PRO 开通申请」卡片，可直接「开通 / 驳回」。
+- 管理员后台有「PRO 开通申请」卡片（含**付款邮箱**列），可直接「开通 / 驳回」。
 
 ## 注意
 

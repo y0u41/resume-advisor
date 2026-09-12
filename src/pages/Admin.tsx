@@ -60,6 +60,7 @@ interface ProRequest {
   id: number;
   user_id: number;
   note: string;
+  pay_email: string | null;
   status: string;
   created_at: string;
   handled_at: string | null;
@@ -252,6 +253,7 @@ export default function Admin() {
               <tr>
                 <th>#</th>
                 <th>用户</th>
+                <th>付款邮箱</th>
                 <th>备注</th>
                 <th>状态</th>
                 <th>申请时间</th>
@@ -263,6 +265,7 @@ export default function Admin() {
                 <tr key={r.id}>
                   <td>{r.id}</td>
                   <td>{r.username || r.email || r.user_id}</td>
+                  <td>{r.pay_email || "—"}</td>
                   <td>{r.note || "—"}</td>
                   <td>
                     {r.status === "pending"

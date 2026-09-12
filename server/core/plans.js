@@ -15,6 +15,15 @@ export const PRO_OCR_DAILY = Number(process.env.PRO_OCR_DAILY || 0);
 // PRO 价格（元/月），仅用于展示
 export const PRO_PRICE = Number(process.env.PRO_PRICE || 9.9);
 
+// 支付方式（支付网关接入前的最简闭环）：
+//   PRO_PAY_QR  —— 收款码图片地址（站内路径如 /pay-qr.png，或 data:image/... ）
+//   PRO_PAY_URL —— 外部支付链接（有赞 / 爱发电等），点按新窗口打开
+//   PRO_PAY_NOTE—— 补充说明（如"转账后请填写邮箱"）
+// 均未配置时，/pro 页只展示"提交申请、管理员开通"的引导。
+export const PRO_PAY_QR = process.env.PRO_PAY_QR || "";
+export const PRO_PAY_URL = process.env.PRO_PAY_URL || "";
+export const PRO_PAY_NOTE = process.env.PRO_PAY_NOTE || "";
+
 // 高成本模型：计入 premium 额度，而非普通额度
 export const PREMIUM_MODELS = new Set(
   (process.env.PREMIUM_MODELS || "deepseek-v4-pro,glm-4.6,glm-5.3")

@@ -1995,6 +1995,24 @@ body,
   }
 }
 
+/* ---------- PRO 支付区 ---------- */
+.pro-pay-title {
+  font-weight: 700;
+  font-size: 0.9rem;
+  margin-bottom: 10px;
+}
+
+.pro-pay-qr {
+  display: block;
+  width: 180px;
+  height: 180px;
+  object-fit: contain;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: #fff;
+  padding: 6px;
+}
+
 /* ---------- 额度预警条 ---------- */
 .quota-banner {
   display: flex;

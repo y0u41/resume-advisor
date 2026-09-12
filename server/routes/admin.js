@@ -59,7 +59,7 @@ router.get("/admin/parse-health", (req, res) => {
 router.get("/admin/pro-requests", (req, res) => {
   const rows = db
     .prepare(
-      `SELECT r.id, r.user_id, r.note, r.status, r.created_at, r.handled_at,
+      `SELECT r.id, r.user_id, r.note, r.pay_email, r.status, r.created_at, r.handled_at,
               u.email, u.username, u.plan
        FROM pro_requests r LEFT JOIN users u ON u.id = r.user_id
        ORDER BY CASE r.status WHEN 'pending' THEN 0 ELSE 1 END, r.id DESC LIMIT 200`

@@ -183,6 +183,12 @@ db.exec(`
   )
 `);
 db.exec("CREATE INDEX IF NOT EXISTS idx_pro_requests_status ON pro_requests(status, id)");
+{
+  const prCols = db.prepare("PRAGMA table_info(pro_requests)").all().map((c) => c.name);
+  if (!prCols.includes("pay_email")) {
+    db.exec("ALTER TABLE pro_requests ADD COLUMN pay_email TEXT DEFAULT ''");
+  }
+}
 
 // 兼容旧库：补上新增字段
 const columns = db.prepare("PRAGMA table_info(evaluations)").all().map((c) => c.name);

@@ -14,12 +14,16 @@ export default function Pro() {
   const [plan, setPlan] = useState<ProPlan | null>(null);
   const [req, setReq] = useState<{ id: number; status: string } | null>(null);
   const [note, setNote] = useState("");
+  const [payEmail, setPayEmail] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (!user) return;
     fetchProPlan()
-      .then(setPlan)
+      .then((p) => {
+        setPlan(p);
+        setPayEmail((prev) => prev || p.email || "");
+      })
       .catch(() => {});
     fetchProRequest()
       .then((d) => setReq(d.request))
@@ -32,7 +36,7 @@ export default function Pro() {
   const submit = async () => {
     setSubmitting(true);
     try {
-      const d = await requestPro(note);
+      const d = await requestPro(note, payEmail);
       setReq({ id: d.id, status: "pending" });
       toast(
         d.already ? "你已提交过申请，正在等待开通" : "申请已提交，管理员会尽快为你开通",
@@ -124,14 +128,46 @@ export default function Pro() {
           </p>
         ) : (
           <>
+            <div className="pro-pay-title">第 1 步 · 支付 ¥{price}</div>
+            {plan?.pay.qr ? (
+              <img className="pro-pay-qr" src={plan.pay.qr} alt="PRO 收款码" />
+            ) : (
+              <p className="hint">收款码暂未配置；也可先提交申请，管理员会与你联系收款。</p>
+            )}
+            {plan?.pay.url && (
+              <p style={{ marginTop: 10 }}>
+                <a
+                  className="btn btn-secondary btn-sm"
+                  href={plan.pay.url}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  前往支付（新窗口）→
+                </a>
+              </p>
+            )}
+            {plan?.pay.note && <p className="hint">{plan.pay.note}</p>}
+
+            <div className="pro-pay-title" style={{ marginTop: 18 }}>
+              第 2 步 · 付款后填写邮箱
+            </div>
             <p className="hint" style={{ marginBottom: 10 }}>
-              支付通道还在接入中。现在可以留下备注提交申请，管理员确认后会为你开通 PRO（¥{price}/月）。
+              用你付款的账号邮箱提交，管理员核对后为你开通 PRO（通常几分钟内）。
             </p>
+            <div className="form-group">
+              <label>付款邮箱</label>
+              <input
+                type="email"
+                placeholder="you@example.com"
+                value={payEmail}
+                onChange={(e) => setPayEmail(e.target.value)}
+              />
+            </div>
             <div className="form-group">
               <label>备注（可选）</label>
               <textarea
                 rows={3}
-                placeholder="如：希望用 DeepSeek 模型 / 联系方式 / 使用场景…"
+                placeholder="如：希望用 DeepSeek 模型 / 转账单号 / 联系方式…"
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
               />
@@ -142,7 +178,7 @@ export default function Pro() {
               disabled={submitting}
               onClick={submit}
             >
-              {submitting ? "提交中..." : `申请开通 PRO（¥${price}/月）`}
+              {submitting ? "提交中..." : "我已付款，提交开通申请"}
             </button>
           </>
         )}
