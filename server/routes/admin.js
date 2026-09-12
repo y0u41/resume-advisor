@@ -1,7 +1,8 @@
 import { Router } from "express";
 import db from "../core/db.js";
 import { requireAuth, requireAdmin } from "../core/auth.js";
-import { getUsage, DAILY_LIMIT } from "../core/quota.js";
+import { getUsage } from "../core/quota.js";
+import { normalizePlan, dailyLimitFor, PRO_PRICE } from "../core/plans.js";
 import { eventCounts, recentEvents } from "../core/events.js";
 import { usageSummary } from "../core/usage.js";
 
@@ -12,18 +13,35 @@ router.use("/admin", requireAuth, requireAdmin);
 
 router.get("/admin/users", (req, res) => {
   const users = db
-    .prepare("SELECT id, email, username, role, created_at FROM users ORDER BY id")
+    .prepare("SELECT id, email, username, role, plan, created_at FROM users ORDER BY id")
     .all();
 
-  const enriched = users.map((u) => ({
-    ...u,
-    todayUsage: getUsage(u.id),
-    evaluations: db
-      .prepare("SELECT COUNT(*) c FROM evaluations WHERE user_id = ?")
-      .get(u.id).c,
-  }));
+  const enriched = users.map((u) => {
+    const plan = normalizePlan(u);
+    const limit = dailyLimitFor(plan);
+    return {
+      ...u,
+      plan,
+      todayUsage: getUsage(u.id),
+      dailyLimit: Number.isFinite(limit) ? limit : -1,
+      evaluations: db
+        .prepare("SELECT COUNT(*) c FROM evaluations WHERE user_id = ?")
+        .get(u.id).c,
+    };
+  });
 
-  res.json({ users: enriched, dailyLimit: DAILY_LIMIT });
+  res.json({ users: enriched, proPrice: PRO_PRICE });
+});
+
+// 设置套餐（支付接入前由管理员手动调整；admin 账号本身不受额度限制）
+router.post("/admin/users/:id/plan", (req, res) => {
+  const plan = req.body?.plan;
+  if (!["free", "pro"].includes(plan)) {
+    return res.status(400).json({ error: "plan 只能是 free 或 pro" });
+  }
+  const info = db.prepare("UPDATE users SET plan = ? WHERE id = ?").run(plan, req.params.id);
+  if (!info.changes) return res.status(404).json({ error: "用户不存在" });
+  res.json({ ok: true, id: Number(req.params.id), plan });
 });
 
 // 埋点概览（管理员）：各事件计数 + 最近事件

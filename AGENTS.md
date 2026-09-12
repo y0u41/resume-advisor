@@ -67,6 +67,7 @@ docs/                 文档 + docs/adr + docs/features（按功能分类）
 23. **后台任务持久化**：客户端把任务元数据落 `localStorage`（`src/lib/tasks.tsx`，刷新后恢复；运行中的标记为中断）。服务端所有流式任务在客户端断开后**不中止 LLM**（用 `safeWrite` 守卫写入）；**evaluate / compare / interview / directions 的结果都会落库**（`evaluations` 表），刷新后可在历史记录/结果页回看。
 24. **生产环境注意**：① `TRUST_PROXY`——**默认 0（直连，不信任 X-Forwarded-For）**，反代后必须显式设 1，否则要么游客限流按代理 IP 串味（=1 但无代理时客户端可伪造 `X-Forwarded-For` 刷试用、转化数据失真）；② **游客关键词与注册路径必须一致**：`guest.js` 用同一 `getJdKeywords(jd, signal, { isStudent })`（不得硬编码 `isStudent: false`），且 `guest_trial` 埋点须在关键词抽取**之前**记录，避免额外 LLM 调用中断导致漏斗分母偏小；③ **Caddy 不要对 SSE 压缩**（会缓冲，见 `deploy/Caddyfile`）；④ 静态资源 `/assets/` 长缓存、`index.html` 不缓存；⑤ 500 不向客户端泄露内部错误；⑥ `pdfjs-dist` 依赖 `Promise.withResolvers`，已在 `core/pdfText.js` 加 Node 20 兼容 polyfill。
 25. **注销彻底性**：新增任何带 `user_id` 的表时，**必须**同步 `server/jobs/purge.js` 的 `USER_TABLES`，否则账号注销后数据残留（隐私风险）；`startPurgeJob` 同时执行 `runCleanup`（清理过期 `guest_trials` 2 天、`jd_keywords` 90 天）。前端渲染用户内容走 `dangerouslySetInnerHTML` 时必须先转义（见 `resumeTemplate.ts` 的 `escapeHtml` / `safePhoto`）。
+26. **套餐与额度（免费/PRO）**：`users.plan`（`free`|`pro`）+ `role=admin` **不受限、不计数**。分层配置在 `server/core/plans.js`（`FREE_DAILY_LIMIT=100`、`PRO_DAILY_LIMIT=500`、`FREE/PRO_PREMIUM_DAILY`、`PREMIUM_MODELS`、`defaultModelFor`）；计数在 `server/core/quota.js` 的 `quota_counters(user_id, day, kind)`（`total`/`premium`/`ocr`），入口 `consumeQuota(user, { isPremium, isOcr })`。**免费档默认走免费的 GLM-Flash（成本≈0）、游客 `GUEST_LIMIT=3`**；高级模型单独走 premium 额度。管理员后台 `POST /api/admin/users/:id/plan` 手动切换（支付接入前过渡）。定价依据与成本测算见 `docs/定价与额度.md`。
 
 ## 5. 数据与接口约定
 

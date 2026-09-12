@@ -1,35 +1,67 @@
 import { describe, it, expect, beforeAll, beforeEach } from "vitest";
 
-let consumeQuota, getUsage, db;
+let consumeQuota, getUsage, getPremiumUsage, db;
 
 beforeAll(async () => {
   process.env.DB_PATH = ":memory:";
-  ({ consumeQuota, getUsage } = await import("../core/quota.js"));
+  process.env.FREE_DAILY_LIMIT = "3";
+  process.env.PRO_DAILY_LIMIT = "10";
+  process.env.FREE_PREMIUM_DAILY = "1";
+  process.env.PRO_PREMIUM_DAILY = "5";
+  ({ consumeQuota, getUsage, getPremiumUsage } = await import("../core/quota.js"));
   db = (await import("../core/db.js")).default;
 });
 
 beforeEach(() => {
-  db.prepare("DELETE FROM usage_log").run();
+  db.prepare("DELETE FROM quota_counters").run();
 });
 
-describe("每日额度", () => {
-  it("未超出限额时允许并累计", () => {
-    expect(consumeQuota(1, 3).allowed).toBe(true);
-    expect(consumeQuota(1, 3).allowed).toBe(true);
-    expect(getUsage(1)).toBe(2);
+const free = { id: 1, role: "user", plan: "free" };
+const pro = { id: 2, role: "user", plan: "pro" };
+const admin = { id: 3, role: "admin", plan: "free" };
+
+describe("每日额度（按套餐分层）", () => {
+  it("免费档达到 FREE_DAILY_LIMIT 后拒绝", () => {
+    expect(consumeQuota(free).allowed).toBe(true);
+    expect(consumeQuota(free).allowed).toBe(true);
+    expect(consumeQuota(free).allowed).toBe(true);
+    const r = consumeQuota(free);
+    expect(r.allowed).toBe(false);
+    expect(r.reason).toBe("daily");
+    expect(r.limit).toBe(3);
+    expect(getUsage(1)).toBe(3);
   });
 
-  it("达到限额后拒绝", () => {
-    consumeQuota(1, 2);
-    consumeQuota(1, 2);
-    const r = consumeQuota(1, 2);
+  it("PRO 档额度更高", () => {
+    for (let i = 0; i < 3; i++) consumeQuota(free);
+    expect(consumeQuota(free).allowed).toBe(false);
+    expect(consumeQuota(pro).allowed).toBe(true);
+    expect(consumeQuota(pro).limit).toBe(10);
+  });
+
+  it("高级模型单独计数：免费档尝鲜用尽后拒绝 premium，普通额度仍可用", () => {
+    expect(consumeQuota(free, { isPremium: true }).allowed).toBe(true);
+    const r = consumeQuota(free, { isPremium: true });
     expect(r.allowed).toBe(false);
-    expect(r.used).toBe(2);
+    expect(r.reason).toBe("premium");
+    expect(getPremiumUsage(1)).toBe(1);
+    expect(consumeQuota(free).allowed).toBe(true);
+  });
+
+  it("管理员不受限且不计数", () => {
+    for (let i = 0; i < 50; i++) {
+      expect(consumeQuota(admin).allowed).toBe(true);
+      expect(consumeQuota(admin, { isPremium: true }).allowed).toBe(true);
+    }
+    expect(getUsage(3)).toBe(0);
+    expect(getPremiumUsage(3)).toBe(0);
   });
 
   it("不同用户额度独立", () => {
-    consumeQuota(1, 1);
-    expect(consumeQuota(1, 1).allowed).toBe(false);
-    expect(consumeQuota(2, 1).allowed).toBe(true);
+    consumeQuota(free);
+    consumeQuota(free);
+    consumeQuota(free);
+    expect(consumeQuota(free).allowed).toBe(false);
+    expect(consumeQuota({ id: 9, role: "user", plan: "free" }).allowed).toBe(true);
   });
 });

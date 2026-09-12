@@ -3,6 +3,7 @@ import db from "../core/db.js";
 import { callLLM, callLLMStream } from "../llm/llm.js";
 import { evaluateResume } from "../scoring/index.js";
 import { getJdKeywords } from "../core/jdKeywords.js";
+import { defaultModelFor } from "../core/plans.js";
 import { withUsageContext } from "../core/usage.js";
 import { logEvent } from "../core/events.js";
 
@@ -13,8 +14,8 @@ router.use((req, res, next) =>
   withUsageContext({ userId: null, feature: "guest_evaluate" }, next)
 );
 
-// 游客每天可免注册试用的次数（默认 1 次）
-const GUEST_LIMIT = Number(process.env.GUEST_LIMIT || 1);
+// 游客每天可免注册试用的次数（默认 3 次）
+const GUEST_LIMIT = Number(process.env.GUEST_LIMIT || 3);
 // 游客可见的报告字符数（超出部分打码，注册后解锁）
 const GUEST_PREVIEW_CHARS = Number(process.env.GUEST_PREVIEW_CHARS || 800);
 
@@ -69,6 +70,8 @@ function extractScore(report) {
 router.post("/guest/evaluate", async (req, res) => {
   const { resume, jobTitle, jobDescription, candidateType } = req.body || {};
   const isStudent = candidateType === "student";
+  // 游客走免费档默认模型（成本≈0）
+  const guestOverride = { ...(defaultModelFor("free") || {}), isStudent };
 
   if (!resume || !jobTitle || typeof resume !== "string" || typeof jobTitle !== "string") {
     return res.status(400).json({ code: 1001, error: "请提供简历全文和应聘岗位" });
@@ -112,16 +115,14 @@ router.post("/guest/evaluate", async (req, res) => {
           res.write(`data: ${JSON.stringify({ chunk, done: false })}\n\n`);
         },
         controller.signal,
-        { isStudent }
+        guestOverride
       );
     } catch (error) {
       if (!controller.signal.aborted) console.warn("游客流式评估失败，回退非流式:", error.message);
     }
 
     if (!fullText.trim() && !controller.signal.aborted) {
-      fullText = await callLLM(resume, jobTitle, jobDescription || "", controller.signal, {
-        isStudent,
-      });
+      fullText = await callLLM(resume, jobTitle, jobDescription || "", controller.signal, guestOverride);
     }
 
     if (controller.signal.aborted) {
@@ -143,7 +144,7 @@ router.post("/guest/evaluate", async (req, res) => {
     // 并传入同一 override（含应届生模式）；否则非技术岗会回退到技术词典、
     // 给出误导性的低客观分（首因效应），使游客与注册后的结果不一致。
     const jdKeywords = jobDescription
-      ? await getJdKeywords(jobDescription, controller.signal, { isStudent })
+      ? await getJdKeywords(jobDescription, controller.signal, guestOverride)
       : [];
     const objective = evaluateResume(resume, { jdText: jobDescription || "", jdKeywords });
     const preview = fullText.slice(0, GUEST_PREVIEW_CHARS);

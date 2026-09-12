@@ -5,6 +5,7 @@ export interface User {
   email: string;
   username?: string | null;
   role?: string;
+  plan?: string;
   created_at?: string;
   pendingDeletion?: { purgeAfter: string } | null;
 }

@@ -968,6 +968,11 @@ body {
   color: #fff;
 }
 
+.role-badge.pro {
+  background: linear-gradient(120deg, #b45309, #f59e0b);
+  color: #fff;
+}
+
 .user-email .role-badge {
   margin-left: 8px;
 }

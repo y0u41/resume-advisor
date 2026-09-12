@@ -10,8 +10,10 @@ interface AdminUser {
   email: string;
   username: string | null;
   role: string;
+  plan: string;
   created_at: string;
   todayUsage: number;
+  dailyLimit: number;
   evaluations: number;
 }
 
@@ -46,34 +48,49 @@ interface UsageSummary {
 export default function Admin() {
   const { user } = useAuth();
   const [users, setUsers] = useState<AdminUser[]>([]);
-  const [dailyLimit, setDailyLimit] = useState<number | null>(null);
+  const [proPrice, setProPrice] = useState<number | null>(null);
   const [usage, setUsage] = useState<UsageSummary | null>(null);
   const [usageDays, setUsageDays] = useState(0);
   const [events, setEvents] = useState<{ name: string; count: number }[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
+  const loadUsers = async () => {
+    const r = await fetch("/api/admin/users");
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || "加载失败");
+    setUsers(d.users);
+    setProPrice(d.proPrice);
+  };
+
+  const setPlan = async (id: number, plan: string) => {
+    try {
+      const r = await fetch(`/api/admin/users/${id}/plan`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || "设置失败");
+      await loadUsers();
+    } catch (e: any) {
+      setError(e.message);
+    }
+  };
+
   useEffect(() => {
     if (user?.role !== "admin") {
       setLoading(false);
       return;
     }
-    fetch("/api/admin/users")
-      .then(async (r) => {
-        const d = await r.json();
-        if (!r.ok) throw new Error(d.error || "加载失败");
-        return d;
-      })
-      .then((d) => {
-        setUsers(d.users);
-        setDailyLimit(d.dailyLimit);
-      })
+    loadUsers()
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
     fetch("/api/admin/events")
       .then((r) => r.json())
       .then((d) => setEvents(d.counts || []))
       .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   useEffect(() => {
@@ -123,6 +140,7 @@ export default function Admin() {
                 <th>ID</th>
                 <th>账号</th>
                 <th>角色</th>
+                <th>套餐</th>
                 <th>今日用量</th>
                 <th>累计评估</th>
                 <th>注册时间</th>
@@ -142,7 +160,21 @@ export default function Admin() {
                     </span>
                   </td>
                   <td>
-                    {u.todayUsage} / {dailyLimit ?? "-"}
+                    {u.role === "admin" ? (
+                      <span className="role-badge admin">不限</span>
+                    ) : (
+                      <button
+                        type="button"
+                        className={`chip ${u.plan === "pro" ? "chip-active" : ""}`}
+                        onClick={() => setPlan(u.id, u.plan === "pro" ? "free" : "pro")}
+                        title="点击切换 免费 / PRO"
+                      >
+                        {u.plan === "pro" ? "PRO" : "免费"}
+                      </button>
+                    )}
+                  </td>
+                  <td>
+                    {u.todayUsage} / {u.dailyLimit === -1 ? "不限" : u.dailyLimit}
                   </td>
                   <td>{u.evaluations}</td>
                   <td>{new Date(u.created_at).toLocaleString("zh-CN")}</td>
@@ -151,6 +183,10 @@ export default function Admin() {
             </tbody>
           </table>
         )}
+        <p className="hint" style={{ marginTop: 10 }}>
+          点击「套餐」可切换 免费 / PRO（PRO ¥{proPrice ?? 9.9}/月）。免费：100 次/天、高级模型尝鲜 5
+          次/天；PRO：500 次/天、高级模型 30 次/天。管理员账号不受额度限制。
+        </p>
       </div>
 
       {events.length > 0 && (

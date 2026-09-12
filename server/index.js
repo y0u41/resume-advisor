@@ -221,6 +221,13 @@ app.use((err, req, res, next) => {
   if (err?.message === "不允许的来源") {
     return res.status(403).json({ code: 6002, error: "不允许的来源" });
   }
+  // 请求体解析失败等客户端错误：按原状态码返回（如 JSON 格式错误 → 400，而不是 500）
+  const status = err?.statusCode || err?.status;
+  if (status && status >= 400 && status < 500) {
+    return res
+      .status(status)
+      .json({ code: 1001, error: status === 413 ? "请求体过大" : "请求格式错误" });
+  }
   console.error("未处理错误:", err);
   // 不向客户端泄露内部错误细节
   res.status(500).json({ error: "服务器内部错误，请稍后重试" });

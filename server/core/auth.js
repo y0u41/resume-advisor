@@ -53,7 +53,7 @@ export function getUserFromToken(token) {
     const payload = jwt.verify(token, AUTH_SECRET);
     const row = db
       .prepare(
-        "SELECT id, email, username, role, created_at, deleted_at, purge_after FROM users WHERE id = ?"
+        "SELECT id, email, username, role, plan, created_at, deleted_at, purge_after FROM users WHERE id = ?"
       )
       .get(payload.uid);
     if (!row) return null;
@@ -62,6 +62,7 @@ export function getUserFromToken(token) {
       email: row.email,
       username: row.username,
       role: row.role,
+      plan: row.role === "admin" ? "pro" : row.plan || "free",
       created_at: row.created_at,
       pendingDeletion: row.deleted_at ? { purgeAfter: row.purge_after } : null,
     };

@@ -22,7 +22,11 @@ export default function UserBar() {
       )}
       <span className="user-email" title={user.email}>
         {user.username || user.email}
-        {user.role === "admin" && <span className="role-badge admin">管理员</span>}
+        {user.role === "admin" ? (
+          <span className="role-badge admin">管理员</span>
+        ) : user.plan === "pro" ? (
+          <span className="role-badge pro">PRO</span>
+        ) : null}
       </span>
       <ThemeToggle />
       <button type="button" className="btn-link" onClick={handleLogout}>

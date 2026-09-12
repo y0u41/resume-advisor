@@ -61,6 +61,29 @@ db.exec(`
   )
 `);
 
+// 分层额度计数（total=总次数 / premium=高级模型 / ocr=图片简历），按 plan 限流
+db.exec(`
+  CREATE TABLE IF NOT EXISTS quota_counters (
+    user_id INTEGER NOT NULL,
+    day TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    count INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, day, kind)
+  )
+`);
+// 兼容旧库：把 usage_log 的总次数迁移到 quota_counters
+try {
+  const migrated = db.prepare("SELECT COUNT(*) c FROM quota_counters WHERE kind = 'total'").get().c;
+  const legacy = db.prepare("SELECT COUNT(*) c FROM usage_log").get().c;
+  if (migrated === 0 && legacy > 0) {
+    db.exec(
+      "INSERT OR IGNORE INTO quota_counters (user_id, day, kind, count) SELECT user_id, day, 'total', count FROM usage_log"
+    );
+  }
+} catch {
+  // 迁移失败不阻塞启动
+}
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS downloads (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -186,6 +209,10 @@ if (!userColumns.includes("deleted_at")) {
 }
 if (!userColumns.includes("purge_after")) {
   db.exec("ALTER TABLE users ADD COLUMN purge_after DATETIME");
+}
+// 套餐：free（默认）/ pro；管理员不受额度限制（见 core/plans.js）
+if (!userColumns.includes("plan")) {
+  db.exec("ALTER TABLE users ADD COLUMN plan TEXT NOT NULL DEFAULT 'free'");
 }
 db.exec(
   "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username) WHERE username IS NOT NULL"

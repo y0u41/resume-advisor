@@ -49,7 +49,7 @@ router.post("/auth/register", (req, res) => {
   logEvent(user.id, "register");
   // 漏斗关键事件：由游客试用转化而来
   if (source === "guest") logEvent(user.id, "register_from_guest");
-  res.json({ user: { ...user, username: null, role: "user" } });
+  res.json({ user: { ...user, username: null, role: "user", plan: "free" } });
 });
 
 router.post("/auth/login", (req, res) => {
@@ -81,7 +81,13 @@ router.post("/auth/login", (req, res) => {
     logEvent(row.id, "return_7d");
   }
   res.json({
-    user: { id: row.id, email: row.email, username: row.username, role: row.role },
+    user: {
+      id: row.id,
+      email: row.email,
+      username: row.username,
+      role: row.role,
+      plan: row.role === "admin" ? "pro" : row.plan || "free",
+    },
   });
 });
 

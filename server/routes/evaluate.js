@@ -1,7 +1,7 @@
 import { Router } from "express";
 import crypto from "crypto";
 import db from "../core/db.js";
-import { callLLM, callLLMStream, followUpStream, interviewStream, directionsStream } from "../llm/llm.js";
+import { callLLM, callLLMStream, followUpStream, interviewStream, directionsStream, getProviderInfo } from "../llm/llm.js";
 import { evaluateResume } from "../scoring/index.js";
 import { getJdKeywords } from "../core/jdKeywords.js";
 import { logEvent } from "../core/events.js";
@@ -11,7 +11,8 @@ import { listProviders, defaultModel } from "../core/models.js";
 import { saveEvaluation, findCachedEvaluation } from "../core/store.js";
 import { getPersonKey, getPersonName } from "../core/person.js";
 import { requireAuth } from "../core/auth.js";
-import { consumeQuota, getUsage, DAILY_LIMIT } from "../core/quota.js";
+import { consumeQuota, getUsage, quotaMessage } from "../core/quota.js";
+import { normalizePlan, dailyLimitFor, defaultModelFor, isPremiumModel } from "../core/plans.js";
 import { acquire } from "../core/queue.js";
 
 const router = Router();
@@ -74,17 +75,32 @@ router.post("/resume/validate", (req, res) => {
   });
 });
 
-// 解析请求中的 provider/model 与候选人类型，非法则回退默认
-function resolveOverride(body) {
+// 解析请求中的 provider/model 与候选人类型；未指定则按套餐选默认模型
+function resolveOverride(body, plan = "free") {
   const isStudent = body?.candidateType === "student" || body?.isStudent === true;
   const provider = body?.provider;
-  const group = provider ? listProviders().find((p) => p.provider === provider) : null;
+  if (!provider) {
+    const fallback = defaultModelFor(plan);
+    return fallback
+      ? { provider: fallback.provider, model: fallback.model, isStudent }
+      : { isStudent };
+  }
+  const group = listProviders().find((p) => p.provider === provider);
   if (!group) return { isStudent };
   const model =
     body?.model && group.models.some((m) => m.id === body.model)
       ? body.model
       : defaultModel(provider);
   return { provider, model, isStudent };
+}
+
+// 本次请求实际使用的模型（用于判断是否高级模型）
+function effectiveModel(override) {
+  try {
+    return getProviderInfo(override).model || "";
+  } catch {
+    return "";
+  }
 }
 
 const MAX_RESUME = 40000;
@@ -148,7 +164,7 @@ router.post("/evaluate", async (req, res) => {
     return res.status(400).json({ error: invalid });
   }
 
-  const override = resolveOverride(req.body);
+  const override = resolveOverride(req.body, normalizePlan(req.user));
   const stream = req.query.stream === "true";
   const cacheKey = computeCacheKey(resume, jobTitle, jobDescription || "", override);
 
@@ -216,9 +232,9 @@ router.post("/evaluate", async (req, res) => {
   }
 
   try {
-    const quota = consumeQuota(req.user.id);
+    const quota = consumeQuota(req.user, { isPremium: isPremiumModel(effectiveModel(override)) });
     if (!quota.allowed) {
-      const msg = `今日评估次数已用完（${quota.used}/${quota.limit}），请明天再试`;
+      const msg = quotaMessage(quota);
       if (stream) {
         safeWrite(`data: ${JSON.stringify({ error: msg, done: true })}\n\n`);
         res.end();
@@ -374,7 +390,7 @@ router.post("/compare", async (req, res) => {
     }
   }
 
-  const override = resolveOverride(req.body);
+  const override = resolveOverride(req.body, normalizePlan(req.user));
 
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
@@ -394,11 +410,13 @@ router.post("/compare", async (req, res) => {
     }
   };
 
+  const plan = normalizePlan(req.user);
+  const limit = dailyLimitFor(plan);
   const used = getUsage(req.user.id);
-  if (used + jobs.length > DAILY_LIMIT) {
+  if (plan !== "admin" && used + jobs.length > limit) {
     safeWrite(
       `data: ${JSON.stringify({
-        error: `今日额度不足（需 ${jobs.length} 次，剩余 ${DAILY_LIMIT - used} 次）`,
+        error: `今日额度不足（需 ${jobs.length} 次，剩余 ${Math.max(0, limit - used)} 次）`,
         done: true,
       })}\n\n`
     );
@@ -439,7 +457,7 @@ router.post("/compare", async (req, res) => {
       const matchRate =
         objective.matchRate != null ? Math.round(objective.matchRate * 100) : computeMatchRate(report);
 
-      consumeQuota(req.user.id);
+      consumeQuota(req.user, { isPremium: isPremiumModel(effectiveModel(override)) });
 
       const id = saveEvaluation(
         req.user.id,
@@ -488,7 +506,7 @@ router.post("/followup", async (req, res) => {
   }
   if (question.length > 1000) return res.status(400).json({ error: "问题过长（上限 1000 字）" });
 
-  const override = resolveOverride(req.body);
+  const override = resolveOverride(req.body, normalizePlan(req.user));
 
   const controller = new AbortController();
   let clientClosed = false;
@@ -577,7 +595,7 @@ router.post("/interview", async (req, res) => {
     return res.status(400).json({ error: `简历过长（上限 ${MAX_RESUME} 字）` });
   }
 
-  const override = resolveOverride(req.body);
+  const override = resolveOverride(req.body, normalizePlan(req.user));
 
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
@@ -597,11 +615,9 @@ router.post("/interview", async (req, res) => {
     }
   };
 
-  const quota = consumeQuota(req.user.id);
+  const quota = consumeQuota(req.user, { isPremium: isPremiumModel(effectiveModel(override)) });
   if (!quota.allowed) {
-    safeWrite(
-      `data: ${JSON.stringify({ error: `今日额度已用完（${quota.used}/${quota.limit}）`, done: true })}\n\n`
-    );
+    safeWrite(`data: ${JSON.stringify({ error: quotaMessage(quota), done: true })}\n\n`);
     res.end();
     return;
   }
@@ -685,7 +701,7 @@ router.post("/directions", async (req, res) => {
     return res.status(400).json({ error: `简历过长（上限 ${MAX_RESUME} 字）` });
   }
 
-  const override = resolveOverride(req.body);
+  const override = resolveOverride(req.body, normalizePlan(req.user));
 
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
@@ -705,11 +721,9 @@ router.post("/directions", async (req, res) => {
     }
   };
 
-  const quota = consumeQuota(req.user.id);
+  const quota = consumeQuota(req.user, { isPremium: isPremiumModel(effectiveModel(override)) });
   if (!quota.allowed) {
-    safeWrite(
-      `data: ${JSON.stringify({ error: `今日额度已用完（${quota.used}/${quota.limit}）`, done: true })}\n\n`
-    );
+    safeWrite(`data: ${JSON.stringify({ error: quotaMessage(quota), done: true })}\n\n`);
     res.end();
     return;
   }
@@ -784,7 +798,12 @@ router.get("/evaluations", (req, res) => {
        FROM evaluations WHERE user_id = ? ORDER BY favorite DESC, id DESC LIMIT 300`
     )
     .all(req.user.id);
-  res.json({ records: rows, usage: { used: getUsage(req.user.id), limit: DAILY_LIMIT } });
+  const plan = normalizePlan(req.user);
+  const limit = dailyLimitFor(plan);
+  res.json({
+    records: rows,
+    usage: { used: getUsage(req.user.id), limit: Number.isFinite(limit) ? limit : -1, plan },
+  });
 });
 
 router.get("/evaluations/:id", (req, res) => {
