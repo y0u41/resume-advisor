@@ -1,6 +1,6 @@
 // 岗位关键词库的「服务端渲染」SEO 页面。
 // 前端是 SPA（客户端渲染），搜索引擎难以索引，故这些公开页直接由服务端输出完整 HTML。
-import { CATEGORIES } from "../core/keywordLibrary.js";
+// 冷启动保护：数据量不足的方向/全站不发布、noindex，避免薄内容页拉低权重。
 
 const SITE_NAME = "简历参谋";
 const SITE_TAGLINE = "贴简历 + 说岗位，AI 给评分、挑问题、给改法";
@@ -43,7 +43,7 @@ h2{font-size:17px;margin:26px 0 10px}
 footer.site{margin-top:36px;padding-top:18px;border-top:1px solid #e4e4e7;color:#71717a;font-size:13px}
 `;
 
-function page({ title, description, canonical, jsonLd, body }) {
+function page({ title, description, canonical, jsonLd, body, robots = "index,follow" }) {
   return `<!doctype html>
 <html lang="zh-CN">
 <head>
@@ -51,7 +51,7 @@ function page({ title, description, canonical, jsonLd, body }) {
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>${esc(title)}</title>
 <meta name="description" content="${esc(description)}" />
-<meta name="robots" content="index,follow" />
+<meta name="robots" content="${esc(robots)}" />
 ${canonical ? `<link rel="canonical" href="${esc(canonical)}" />` : ""}
 <meta property="og:title" content="${esc(title)}" />
 <meta property="og:description" content="${esc(description)}" />
@@ -88,12 +88,32 @@ function tags(list, slug) {
 }
 
 export function renderKeywordsIndex(lib) {
+  const published = lib.categories.filter((c) => c.publishable);
+
+  // 冷启动：数据不足 → 不索引、不铺薄页面，展示"积累中"并引导去评估（贡献数据）
+  if (!lib.siteReady || published.length === 0) {
+    const body = `
+<h1>岗位关键词库 · 正在积累</h1>
+<p class="lead">我们正从真实岗位 JD 里汇总各方向的高频关键词。目前样本还少，先不铺开内容单薄的页面——等数据够了会自动开放。</p>
+<p class="meta">当前已汇总 ${lib.totalJds} 份 JD · ${lib.totalKeywords} 个关键词（开放门槛：${lib.thresholds.minTotalJd} 份 JD）</p>
+<p class="lead" style="margin-top:16px"><a class="cta" href="/">把你的简历贴进来评估 →</a> 每一次评估都会让这个库更完整。</p>
+`;
+    return page({
+      title: `岗位关键词库 · 正在积累 | ${SITE_NAME}`,
+      description: "岗位关键词库正在从真实 JD 中积累数据，暂未开放。",
+      canonical: abs("/keywords"),
+      jsonLd: null,
+      robots: "noindex,follow",
+      body,
+    });
+  }
+
   const title = `岗位关键词库 · 各行业 JD 高频技能关键词 | ${SITE_NAME}`;
-  const description = `汇总真实招聘 JD 的高频技能与要求关键词，覆盖${lib.categories
+  const description = `汇总真实招聘 JD 的高频技能与要求关键词，覆盖${published
     .map((c) => c.label)
     .slice(0, 6)
-    .join("、")}等 ${lib.categories.length} 个方向，共 ${lib.totalKeywords} 个关键词。`;
-  const cats = lib.categories
+    .join("、")}等 ${published.length} 个方向，共 ${lib.totalKeywords} 个关键词。`;
+  const cats = published
     .map(
       (c) =>
         `<a class="cat" href="${esc(abs(`/keywords/${c.slug}`))}"><b>${esc(
@@ -101,6 +121,7 @@ export function renderKeywordsIndex(lib) {
         )}</b><span>${c.jdCount} 份 JD · ${c.keywords.length} 个关键词</span></a>`
     )
     .join("");
+  const accumulating = lib.categories.length - published.length;
 
   const body = `
 <h1>岗位关键词库</h1>
@@ -111,6 +132,7 @@ export function renderKeywordsIndex(lib) {
 
 <h2>按岗位方向浏览</h2>
 <div class="cats">${cats}</div>
+${accumulating > 0 ? `<p class="meta">另有 ${accumulating} 个方向数据仍在积累，暂不开放。</p>` : ""}
 
 <h2>全站高频关键词</h2>
 <div class="tags">${lib.topKeywords
@@ -125,7 +147,7 @@ export function renderKeywordsIndex(lib) {
     name: title,
     description,
     url: abs("/keywords"),
-    hasPart: lib.categories.map((c) => ({
+    hasPart: published.map((c) => ({
       "@type": "ItemList",
       name: `${c.label} 高频关键词`,
       url: abs(`/keywords/${c.slug}`),
@@ -136,14 +158,33 @@ export function renderKeywordsIndex(lib) {
   return page({ title, description, canonical: abs("/keywords"), jsonLd, body });
 }
 
-export function renderCategoryPage(cat) {
+export function renderCategoryPage(cat, lib) {
+  // 冷启动：该方向数据不足 → noindex，展示"积累中"并引导去评估
+  if (!cat.publishable) {
+    const body = `
+<p class="crumb"><a href="${esc(abs("/keywords"))}">岗位关键词库</a> › ${esc(cat.label)}</p>
+<h1>${esc(cat.label)} · 正在积累</h1>
+<p class="lead">这个方向目前汇总到的 JD 还不多（${cat.jdCount} 份），先不铺开内容单薄的页面。</p>
+<p class="lead" style="margin-top:16px"><a class="cta" href="/">贴简历评估一次 →</a> 你的评估会让这个方向更快开放。</p>
+`;
+    return page({
+      title: `${cat.label} 岗位关键词 · 正在积累 | ${SITE_NAME}`,
+      description: `${cat.label}方向的关键词数据正在积累中。`,
+      canonical: abs(`/keywords/${cat.slug}`),
+      jsonLd: null,
+      robots: "noindex,follow",
+      body,
+    });
+  }
+
   const title = `${cat.label} 岗位高频关键词（${cat.jdCount} 份 JD 汇总）| ${SITE_NAME}`;
   const description = `${cat.label}方向真实 JD 里最常出现的关键词，共 ${cat.keywords.length} 个：${cat.keywords
     .slice(0, 10)
     .map((k) => k.word)
     .join("、")}。写简历时对照补齐。`;
 
-  const others = CATEGORIES.filter((c) => c.slug !== cat.slug && c.slug !== "other")
+  const others = (lib?.categories || [])
+    .filter((c) => c.publishable && c.slug !== cat.slug)
     .slice(0, 12)
     .map((c) => `<a class="tag" href="${esc(abs(`/keywords/${c.slug}`))}">${esc(c.label)}</a>`)
     .join("");
@@ -205,11 +246,15 @@ Sitemap: ${abs("/sitemap.xml")}
 }
 
 export function renderSitemap(lib) {
-  const urls = [
-    { loc: abs("/keywords"), priority: "0.8" },
-    ...lib.categories.map((c) => ({ loc: abs(`/keywords/${c.slug}`), priority: "0.7" })),
-    { loc: abs("/"), priority: "1.0" },
-  ];
+  const urls = [];
+  // 冷启动：数据不足时 /keywords 不进 sitemap（避免薄内容页被收录）
+  if (lib.siteReady) {
+    urls.push({ loc: abs("/keywords"), priority: "0.8" });
+    for (const c of lib.categories.filter((c) => c.publishable)) {
+      urls.push({ loc: abs(`/keywords/${c.slug}`), priority: "0.7" });
+    }
+  }
+  urls.push({ loc: abs("/"), priority: "1.0" });
   return `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 ${urls

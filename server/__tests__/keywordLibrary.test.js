@@ -47,4 +47,11 @@ describe("岗位关键词库", () => {
     const be = lib.categories.find((c) => c.slug === "backend");
     expect(be.keywords.some((k) => k.word === "1")).toBe(false);
   });
+
+  it("冷启动：数据不足时全站/分类均标记为不可发布", () => {
+    const lib = buildLibrary();
+    expect(lib.siteReady).toBe(false);
+    for (const c of lib.categories) expect(c.publishable).toBe(false);
+    expect(lib.thresholds.minTotalJd).toBeGreaterThan(0);
+  });
 });

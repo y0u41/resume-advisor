@@ -57,6 +57,13 @@ const STOPWORDS = new Set([
   "能力", "经验", "熟悉", "了解", "具备", "负责", "掌握", "优先考虑", "加分项",
 ]);
 
+// 冷启动保护：数据量不足时不对外发布（避免薄内容页拉低 SEO 权重 / 观感差）
+// 分类需同时满足「JD 数 ≥ KEYWORDS_MIN_JD」且「关键词数 ≥ KEYWORDS_MIN_KEYWORDS」才发布；
+// 全站需满足「JD 总数 ≥ KEYWORDS_MIN_TOTAL_JD」才让 /keywords 可索引。
+export const KEYWORDS_MIN_JD = Number(process.env.KEYWORDS_MIN_JD || 5);
+export const KEYWORDS_MIN_KEYWORDS = Number(process.env.KEYWORDS_MIN_KEYWORDS || 10);
+export const KEYWORDS_MIN_TOTAL_JD = Number(process.env.KEYWORDS_MIN_TOTAL_JD || 20);
+
 export function categoryOf(title) {
   const t = String(title || "").toLowerCase();
   for (const c of CATEGORIES) {
@@ -125,15 +132,19 @@ export function buildLibrary({ minJd = 1, keywordLimit = 120 } = {}) {
   }
 
   const categories = [...cats.values()]
-    .map((c) => ({
-      slug: c.slug,
-      label: c.label,
-      jdCount: c.jdCount,
-      keywords: [...c.keywords.values()]
+    .map((c) => {
+      const keywords = [...c.keywords.values()]
         .filter((k) => k.count >= minJd)
         .sort((a, b) => b.count - a.count || a.word.localeCompare(b.word))
-        .slice(0, keywordLimit),
-    }))
+        .slice(0, keywordLimit);
+      return {
+        slug: c.slug,
+        label: c.label,
+        jdCount: c.jdCount,
+        keywords,
+        publishable: c.jdCount >= KEYWORDS_MIN_JD && keywords.length >= KEYWORDS_MIN_KEYWORDS,
+      };
+    })
     .filter((c) => c.keywords.length > 0)
     .sort(
       (a, b) =>
@@ -152,6 +163,12 @@ export function buildLibrary({ minJd = 1, keywordLimit = 120 } = {}) {
     updatedAt,
     totalJds,
     totalKeywords: allKeywords.size,
+    siteReady: totalJds >= KEYWORDS_MIN_TOTAL_JD,
+    thresholds: {
+      minJd: KEYWORDS_MIN_JD,
+      minKeywords: KEYWORDS_MIN_KEYWORDS,
+      minTotalJd: KEYWORDS_MIN_TOTAL_JD,
+    },
     categories,
     topKeywords,
   };

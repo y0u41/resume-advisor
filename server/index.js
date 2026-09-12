@@ -213,7 +213,7 @@ app.get("/keywords/:slug", (req, res) => {
   const cat = lib.categories.find((c) => c.slug === req.params.slug);
   if (!cat) return res.status(404).type("html").send(renderNotFound());
   res.setHeader("Cache-Control", "public, max-age=3600");
-  res.type("html").send(renderCategoryPage(cat));
+  res.type("html").send(renderCategoryPage(cat, lib));
 });
 app.get("/robots.txt", (req, res) => {
   res.type("text/plain").send(renderRobots());
