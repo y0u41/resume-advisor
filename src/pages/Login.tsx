@@ -11,7 +11,7 @@ const STATS = [
   { num: "9", label: "大报告模块" },
   { num: "4", label: "维客观评分" },
   { num: "6", label: "大求职功能" },
-  { num: "2", label: "套专业模板" },
+  { num: "6", label: "套专业模板" },
 ];
 
 const FEATURES = [
