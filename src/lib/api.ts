@@ -228,7 +228,7 @@ export function interviewStream(
     candidateType?: string;
   },
   onChunk: (textSoFar: string) => void,
-  onDone: (text: string) => void,
+  onDone: (text: string, id?: number) => void,
   onError: (message: string) => void,
   onQueued?: (position: number) => void
 ): Promise<void> {
@@ -236,7 +236,7 @@ export function interviewStream(
     onChunk,
     onQueued,
     onError,
-    onDone: (data, fullText) => onDone(data.text ?? fullText),
+    onDone: (data, fullText) => onDone(data.text ?? fullText, data.id),
   });
 }
 
@@ -248,7 +248,7 @@ export function directionsStream(
     candidateType?: string;
   },
   onChunk: (textSoFar: string) => void,
-  onDone: (text: string) => void,
+  onDone: (text: string, id?: number) => void,
   onError: (message: string) => void,
   onQueued?: (position: number) => void
 ): Promise<void> {
@@ -256,7 +256,7 @@ export function directionsStream(
     onChunk,
     onQueued,
     onError,
-    onDone: (data, fullText) => onDone(data.text ?? fullText),
+    onDone: (data, fullText) => onDone(data.text ?? fullText, data.id),
   });
 }
 

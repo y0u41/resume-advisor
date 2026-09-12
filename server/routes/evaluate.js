@@ -646,7 +646,20 @@ router.post("/interview", async (req, res) => {
       return;
     }
 
-    safeWrite(`data: ${JSON.stringify({ chunk: "", done: true, text: fullText })}\n\n`);
+    // 落库，断线后也可在历史/结果页回看（与主评估一致）
+    const id = saveEvaluation(
+      req.user.id,
+      resume,
+      jobTitle,
+      jobDescription || "",
+      null,
+      fullText,
+      "",
+      null,
+      override.isStudent ? "student" : "general",
+      null
+    );
+    safeWrite(`data: ${JSON.stringify({ chunk: "", done: true, id, text: fullText })}\n\n`);
     res.end();
   } catch (error) {
     if (controller.signal.aborted) {
@@ -736,7 +749,20 @@ router.post("/directions", async (req, res) => {
       return;
     }
 
-    safeWrite(`data: ${JSON.stringify({ chunk: "", done: true, text: fullText })}\n\n`);
+    // 落库，断线后也可在历史/结果页回看（与主评估一致）
+    const id = saveEvaluation(
+      req.user.id,
+      resume,
+      "岗位方向推荐",
+      "",
+      null,
+      fullText,
+      "",
+      null,
+      override.isStudent ? "student" : "general",
+      null
+    );
+    safeWrite(`data: ${JSON.stringify({ chunk: "", done: true, id, text: fullText })}\n\n`);
     res.end();
   } catch (error) {
     if (controller.signal.aborted) {

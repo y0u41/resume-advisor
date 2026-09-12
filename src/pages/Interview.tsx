@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import UserBar from "../components/UserBar";
 import Logo from "../components/Logo";
 import Nav from "../components/Nav";
@@ -156,6 +157,12 @@ export default function Interview() {
                 ⬇️ 下载面试准备
               </button>
             </div>
+          )}
+
+          {task?.resultId != null && (
+            <p className="hint" style={{ marginTop: 10 }}>
+              已保存到历史记录，<Link to={`/result/${task.resultId}`}>查看报告页 →</Link>
+            </p>
           )}
         </div>
       )}

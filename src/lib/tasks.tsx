@@ -199,13 +199,13 @@ export function TaskProvider({ children }: { children: ReactNode }) {
       interviewStream(
         payload,
         (text) => update(id, { text }),
-        (text) => {
+        (text, evalId) => {
           if (!text || !text.trim()) {
             update(id, { status: "error", error: "生成结果为空，请重试", finishedAt: Date.now() });
             toast(`「${title}」生成结果为空，请重试`, "error");
             return;
           }
-          update(id, { status: "done", text, result: text, finishedAt: Date.now() });
+          update(id, { status: "done", text, result: text, resultId: evalId, finishedAt: Date.now() });
           toast(`「${title}」面试题已生成`, "success");
         },
         (msg) => {
@@ -226,13 +226,13 @@ export function TaskProvider({ children }: { children: ReactNode }) {
       directionsStream(
         payload,
         (text) => update(id, { text }),
-        (text) => {
+        (text, evalId) => {
           if (!text || !text.trim()) {
             update(id, { status: "error", error: "生成结果为空，请重试", finishedAt: Date.now() });
             toast(`「${title}」生成结果为空，请重试`, "error");
             return;
           }
-          update(id, { status: "done", text, result: text, finishedAt: Date.now() });
+          update(id, { status: "done", text, result: text, resultId: evalId, finishedAt: Date.now() });
           toast(`「${title}」方向推荐已生成`, "success");
         },
         (msg) => {

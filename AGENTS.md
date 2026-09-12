@@ -64,7 +64,7 @@ docs/                 文档 + docs/adr + docs/features（按功能分类）
 20. **ATS 可解析性检测**：`server/scoring/ats.js` 的 `checkAts(resumeText)` 做确定性结构检查（姓名首行 / 联系方式 / 邮箱 / 板块标题 / 日期格式 / 要点符号），作为 `objective.ats` 返回并在结果页展示。改动需同步 `server/__tests__/scoring.test.js`。
 21. **反馈与投票**：`feedback` 表 + `POST /api/feedback`（登录、每天限流，`kind=vote|feedback`）；结果页底部「这份报告有帮助吗？」投票 + 反馈输入；管理员 `GET /api/admin/feedback` 查看。
 22. **成本看板**：`llm_usage` 表 + `server/core/usage.js`（AsyncLocalStorage 采集；`withUsageContext` 标记功能/用户，LLM 层自动记录 token）。管理员 `GET /api/admin/usage` 查看（按功能/模型/用户聚合 + 估算成本；单价可用 `LLM_PRICE_JSON` 覆盖）。流式请求已开启 `stream_options.include_usage`。
-23. **后台任务持久化**：客户端把任务元数据落 `localStorage`（`src/lib/tasks.tsx`，刷新后恢复；运行中的标记为中断）。服务端 `/api/evaluate` 在客户端断开后**不中止 LLM**（用 `safeWrite` 守卫写入），让评估跑完并落库，刷新后可在历史记录查看。
+23. **后台任务持久化**：客户端把任务元数据落 `localStorage`（`src/lib/tasks.tsx`，刷新后恢复；运行中的标记为中断）。服务端所有流式任务在客户端断开后**不中止 LLM**（用 `safeWrite` 守卫写入）；**evaluate / compare / interview / directions 的结果都会落库**（`evaluations` 表），刷新后可在历史记录/结果页回看。
 24. **生产环境注意**：① `TRUST_PROXY`（反向代理后=1、直连=0）——否则游客限流/速率限制按代理 IP 串味（见 `server/index.js`）；② **Caddy 不要对 SSE 压缩**（会缓冲，见 `deploy/Caddyfile`）；③ 静态资源 `/assets/` 长缓存、`index.html` 不缓存；④ 500 不向客户端泄露内部错误；⑤ `pdfjs-dist` 依赖 `Promise.withResolvers`，已在 `core/pdfText.js` 加 Node 20 兼容 polyfill。
 25. **注销彻底性**：新增任何带 `user_id` 的表时，**必须**同步 `server/jobs/purge.js` 的 `USER_TABLES`，否则账号注销后数据残留（隐私风险）；`startPurgeJob` 同时执行 `runCleanup`（清理过期 `guest_trials` 2 天、`jd_keywords` 90 天）。前端渲染用户内容走 `dangerouslySetInnerHTML` 时必须先转义（见 `resumeTemplate.ts` 的 `escapeHtml` / `safePhoto`）。
 

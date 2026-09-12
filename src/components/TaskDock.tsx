@@ -24,7 +24,8 @@ export default function TaskDock() {
   const visible = tasks.slice(0, 4);
 
   const open = (t: Task) => {
-    if (t.kind === "evaluate" && t.resultId != null) {
+    // 有落库结果（评估/面试/方向）→ 直接打开结果页
+    if (t.resultId != null) {
       navigate(`/result/${t.resultId}`);
       dismiss(t.id);
       return;
