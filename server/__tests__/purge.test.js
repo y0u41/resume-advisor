@@ -73,3 +73,32 @@ describe("注销清理（自动发现含 user_id 的表）", () => {
     db.exec("DROP TABLE _new_userdata");
   });
 });
+
+// 「新表登记」防呆：每张表都必须被明确分类，否则本测试失败、强制开发者做决定。
+//   ① 含 user_id → 由 tablesWithUserId() 自动清理；
+//   ② 否则必须显式登记进 NON_USER_TABLES（并注明为何不含用户数据）。
+// 这样即使新表用了 uid / owner_id / email 等别的列名，也不会悄悄漏掉注销清理。
+const NON_USER_TABLES = new Set([
+  "users", // 账号主表：由 delUser 单独删除
+  "jd_keywords", // 共享 JD 关键词缓存：不含用户信息
+  "guest_trials", // 游客额度：按 IP 计数，由 runCleanup 过期清理
+]);
+
+describe("新表登记防呆", () => {
+  it("每张表都被分类：含 user_id 自动清理，否则必须显式登记", () => {
+    const all = db
+      .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'")
+      .all()
+      .map((r) => r.name);
+    const purged = new Set(tablesWithUserId());
+    const unclassified = all.filter((t) => !purged.has(t) && !NON_USER_TABLES.has(t));
+    expect(unclassified).toEqual([]);
+  });
+
+  it("白名单表确实不含 user_id（防止误登记掩盖问题）", () => {
+    for (const t of NON_USER_TABLES) {
+      const cols = db.prepare(`PRAGMA table_info("${t}")`).all().map((c) => c.name);
+      expect(cols.includes("user_id")).toBe(false);
+    }
+  });
+});
