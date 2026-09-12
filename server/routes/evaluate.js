@@ -381,13 +381,22 @@ router.post("/compare", async (req, res) => {
   res.setHeader("Connection", "keep-alive");
 
   const controller = new AbortController();
+  let clientClosed = false;
   res.on("close", () => {
-    if (!res.writableEnded) controller.abort(new Error("客户端已断开"));
+    clientClosed = true;
   });
+  const safeWrite = (line) => {
+    if (clientClosed || res.writableEnded) return;
+    try {
+      res.write(line);
+    } catch {
+      // 连接已关闭，忽略
+    }
+  };
 
   const used = getUsage(req.user.id);
   if (used + jobs.length > DAILY_LIMIT) {
-    res.write(
+    safeWrite(
       `data: ${JSON.stringify({
         error: `今日额度不足（需 ${jobs.length} 次，剩余 ${DAILY_LIMIT - used} 次）`,
         done: true,
@@ -400,10 +409,10 @@ router.post("/compare", async (req, res) => {
   let release;
   try {
     release = await acquire((position) => {
-      res.write(`data: ${JSON.stringify({ queued: true, position })}\n\n`);
+      safeWrite(`data: ${JSON.stringify({ queued: true, position })}\n\n`);
     });
   } catch (error) {
-    res.write(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
+    safeWrite(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
     res.end();
     return;
   }
@@ -416,7 +425,7 @@ router.post("/compare", async (req, res) => {
         return;
       }
       const job = jobs[i];
-      res.write(
+      safeWrite(
         `data: ${JSON.stringify({ progress: { index: i, total: jobs.length, title: job.title } })}\n\n`
       );
 
@@ -454,7 +463,7 @@ router.post("/compare", async (req, res) => {
     }
 
     results.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
-    res.write(`data: ${JSON.stringify({ done: true, results })}\n\n`);
+    safeWrite(`data: ${JSON.stringify({ done: true, results })}\n\n`);
     res.end();
   } catch (error) {
     if (controller.signal.aborted) {
@@ -462,7 +471,7 @@ router.post("/compare", async (req, res) => {
       return;
     }
     console.error("对比失败:", error);
-    res.write(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
+    safeWrite(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
     res.end();
   } finally {
     if (release) release();
@@ -482,17 +491,26 @@ router.post("/followup", async (req, res) => {
   const override = resolveOverride(req.body);
 
   const controller = new AbortController();
+  let clientClosed = false;
   res.on("close", () => {
-    if (!res.writableEnded) controller.abort(new Error("客户端已断开"));
+    clientClosed = true;
   });
+  const safeWrite = (line) => {
+    if (clientClosed || res.writableEnded) return;
+    try {
+      res.write(line);
+    } catch {
+      // 连接已关闭，忽略
+    }
+  };
 
   let release;
   try {
     release = await acquire((position) => {
-      res.write(`data: ${JSON.stringify({ queued: true, position })}\n\n`);
+      safeWrite(`data: ${JSON.stringify({ queued: true, position })}\n\n`);
     });
   } catch (error) {
-    res.write(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
+    safeWrite(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
     res.end();
     return;
   }
@@ -515,7 +533,7 @@ router.post("/followup", async (req, res) => {
         },
         (chunk) => {
           fullText += chunk;
-          res.write(`data: ${JSON.stringify({ chunk, done: false })}\n\n`);
+          safeWrite(`data: ${JSON.stringify({ chunk, done: false })}\n\n`);
         },
         controller.signal,
         override
@@ -525,7 +543,7 @@ router.post("/followup", async (req, res) => {
         if (!res.writableEnded) res.end();
         return;
       }
-      res.write(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
+      safeWrite(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
       res.end();
       return;
     }
@@ -535,12 +553,12 @@ router.post("/followup", async (req, res) => {
       return;
     }
 
-    res.write(`data: ${JSON.stringify({ chunk: "", done: true, answer: fullText })}\n\n`);
+    safeWrite(`data: ${JSON.stringify({ chunk: "", done: true, answer: fullText })}\n\n`);
     res.end();
   } catch (error) {
     console.error("追问失败:", error);
     if (!res.writableEnded) {
-      res.write(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
+      safeWrite(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
       res.end();
     }
   } finally {
@@ -566,13 +584,22 @@ router.post("/interview", async (req, res) => {
   res.setHeader("Connection", "keep-alive");
 
   const controller = new AbortController();
+  let clientClosed = false;
   res.on("close", () => {
-    if (!res.writableEnded) controller.abort(new Error("客户端已断开"));
+    clientClosed = true;
   });
+  const safeWrite = (line) => {
+    if (clientClosed || res.writableEnded) return;
+    try {
+      res.write(line);
+    } catch {
+      // 连接已关闭，忽略
+    }
+  };
 
   const quota = consumeQuota(req.user.id);
   if (!quota.allowed) {
-    res.write(
+    safeWrite(
       `data: ${JSON.stringify({ error: `今日额度已用完（${quota.used}/${quota.limit}）`, done: true })}\n\n`
     );
     res.end();
@@ -582,10 +609,10 @@ router.post("/interview", async (req, res) => {
   let release;
   try {
     release = await acquire((position) => {
-      res.write(`data: ${JSON.stringify({ queued: true, position })}\n\n`);
+      safeWrite(`data: ${JSON.stringify({ queued: true, position })}\n\n`);
     });
   } catch (error) {
-    res.write(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
+    safeWrite(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
     res.end();
     return;
   }
@@ -601,7 +628,7 @@ router.post("/interview", async (req, res) => {
       },
       (chunk) => {
         fullText += chunk;
-        res.write(`data: ${JSON.stringify({ chunk, done: false })}\n\n`);
+        safeWrite(`data: ${JSON.stringify({ chunk, done: false })}\n\n`);
       },
       controller.signal,
       override
@@ -614,12 +641,12 @@ router.post("/interview", async (req, res) => {
 
     // 流式偶发返回空（限流/超时/模型异常）时，明确报错而不是发空的「成功」
     if (!fullText.trim()) {
-      res.write(`data: ${JSON.stringify({ error: "生成结果为空，请重试", done: true })}\n\n`);
+      safeWrite(`data: ${JSON.stringify({ error: "生成结果为空，请重试", done: true })}\n\n`);
       res.end();
       return;
     }
 
-    res.write(`data: ${JSON.stringify({ chunk: "", done: true, text: fullText })}\n\n`);
+    safeWrite(`data: ${JSON.stringify({ chunk: "", done: true, text: fullText })}\n\n`);
     res.end();
   } catch (error) {
     if (controller.signal.aborted) {
@@ -627,7 +654,7 @@ router.post("/interview", async (req, res) => {
       return;
     }
     console.error("面试准备失败:", error);
-    res.write(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
+    safeWrite(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
     res.end();
   } finally {
     if (release) release();
@@ -652,13 +679,22 @@ router.post("/directions", async (req, res) => {
   res.setHeader("Connection", "keep-alive");
 
   const controller = new AbortController();
+  let clientClosed = false;
   res.on("close", () => {
-    if (!res.writableEnded) controller.abort(new Error("客户端已断开"));
+    clientClosed = true;
   });
+  const safeWrite = (line) => {
+    if (clientClosed || res.writableEnded) return;
+    try {
+      res.write(line);
+    } catch {
+      // 连接已关闭，忽略
+    }
+  };
 
   const quota = consumeQuota(req.user.id);
   if (!quota.allowed) {
-    res.write(
+    safeWrite(
       `data: ${JSON.stringify({ error: `今日额度已用完（${quota.used}/${quota.limit}）`, done: true })}\n\n`
     );
     res.end();
@@ -668,10 +704,10 @@ router.post("/directions", async (req, res) => {
   let release;
   try {
     release = await acquire((position) => {
-      res.write(`data: ${JSON.stringify({ queued: true, position })}\n\n`);
+      safeWrite(`data: ${JSON.stringify({ queued: true, position })}\n\n`);
     });
   } catch (error) {
-    res.write(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
+    safeWrite(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
     res.end();
     return;
   }
@@ -682,7 +718,7 @@ router.post("/directions", async (req, res) => {
       { resume, isStudent: override.isStudent },
       (chunk) => {
         fullText += chunk;
-        res.write(`data: ${JSON.stringify({ chunk, done: false })}\n\n`);
+        safeWrite(`data: ${JSON.stringify({ chunk, done: false })}\n\n`);
       },
       controller.signal,
       override
@@ -695,12 +731,12 @@ router.post("/directions", async (req, res) => {
 
     // 流式偶发返回空（限流/超时/模型异常）时，明确报错而不是发空的「成功」
     if (!fullText.trim()) {
-      res.write(`data: ${JSON.stringify({ error: "生成结果为空，请重试", done: true })}\n\n`);
+      safeWrite(`data: ${JSON.stringify({ error: "生成结果为空，请重试", done: true })}\n\n`);
       res.end();
       return;
     }
 
-    res.write(`data: ${JSON.stringify({ chunk: "", done: true, text: fullText })}\n\n`);
+    safeWrite(`data: ${JSON.stringify({ chunk: "", done: true, text: fullText })}\n\n`);
     res.end();
   } catch (error) {
     if (controller.signal.aborted) {
@@ -708,7 +744,7 @@ router.post("/directions", async (req, res) => {
       return;
     }
     console.error("方向推荐失败:", error);
-    res.write(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
+    safeWrite(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
     res.end();
   } finally {
     if (release) release();

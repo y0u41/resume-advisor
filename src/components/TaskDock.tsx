@@ -29,6 +29,12 @@ export default function TaskDock() {
       dismiss(t.id);
       return;
     }
+    // 断线恢复的任务：引导去历史记录
+    if (t.status === "error" && t.kind === "evaluate") {
+      navigate("/history");
+      dismiss(t.id);
+      return;
+    }
     navigate(KIND_ROUTE[t.kind] || "/");
   };
 
@@ -46,7 +52,7 @@ export default function TaskDock() {
                 ? "后台进行中…"
                 : t.status === "done"
                   ? "已完成 · 点击查看"
-                  : `失败：${t.error || "未知错误"}`}
+                  : t.error || "失败"}
             </span>
           </button>
           <button type="button" className="task-pill-close" onClick={() => dismiss(t.id)} title="关闭">

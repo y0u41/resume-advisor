@@ -44,9 +44,10 @@ router.get("/admin/feedback", (req, res) => {
   res.json({ recent, votes });
 });
 
-// 成本看板（管理员）：token 消耗与估算成本
+// 成本看板（管理员）：token 消耗与估算成本；?days=1(今日)/7(近7天)/0(全部)
 router.get("/admin/usage", (req, res) => {
-  res.json(usageSummary());
+  const days = [1, 7].includes(Number(req.query.days)) ? Number(req.query.days) : 0;
+  res.json(usageSummary(days));
 });
 
 export default router;

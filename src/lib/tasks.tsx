@@ -83,7 +83,11 @@ function loadStoredTasks(): Task[] {
     if (!Array.isArray(arr)) return [];
     return arr.map((t: Task) =>
       t.status === "running"
-        ? { ...t, status: "error", error: "页面刷新导致中断；若服务端已完成，可在历史记录中查看" }
+        ? {
+            ...t,
+            status: "error",
+            error: "页面刷新后本地不再进行；任务可能已在后台完成，去「历史记录」查看",
+          }
         : t
     );
   } catch {

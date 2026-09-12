@@ -58,92 +58,80 @@ function pricing() {
 function costOf(model, promptTokens, completionTokens) {
   const p = pricing()[model];
   if (!p) return 0;
-  return ((promptTokens * (p.in || 0)) + (completionTokens * (p.out || 0))) / 1_000_000;
+  return (promptTokens * (p.in || 0) + completionTokens * (p.out || 0)) / 1_000_000;
 }
 
 function round4(n) {
   return Math.round(n * 10000) / 10000;
 }
 
-export function usageSummary() {
-  const totals = db
-    .prepare(
-      `SELECT COUNT(*) AS calls,
-              COALESCE(SUM(prompt_tokens),0) AS prompt_tokens,
-              COALESCE(SUM(completion_tokens),0) AS completion_tokens,
-              COALESCE(SUM(total_tokens),0) AS total_tokens
-       FROM llm_usage`
-    )
-    .get();
+// days：0=全部，1=今日，7=近 7 天（含今日）
+export function usageSummary(days = 0) {
+  const windowStart =
+    days > 0 ? `datetime('now', 'start of day', '-${days - 1} days')` : null;
+  const where = windowStart ? `WHERE created_at >= ${windowStart}` : "";
 
-  const byFeature = db
+  const rows = db
     .prepare(
-      `SELECT feature, COUNT(*) AS calls,
-              COALESCE(SUM(prompt_tokens),0) AS prompt_tokens,
-              COALESCE(SUM(completion_tokens),0) AS completion_tokens,
-              COALESCE(SUM(total_tokens),0) AS total_tokens
-       FROM llm_usage GROUP BY feature ORDER BY total_tokens DESC`
+      `SELECT user_id, feature, model, prompt_tokens, completion_tokens, total_tokens, date(created_at) AS day
+       FROM llm_usage ${where}`
     )
     .all();
 
-  const byModel = db
-    .prepare(
-      `SELECT model, COUNT(*) AS calls,
-              COALESCE(SUM(prompt_tokens),0) AS prompt_tokens,
-              COALESCE(SUM(completion_tokens),0) AS completion_tokens,
-              COALESCE(SUM(total_tokens),0) AS total_tokens
-       FROM llm_usage GROUP BY model ORDER BY total_tokens DESC`
-    )
-    .all();
+  const totals = {
+    calls: rows.length,
+    prompt_tokens: 0,
+    completion_tokens: 0,
+    total_tokens: 0,
+    cost: 0,
+  };
+  const byFeature = new Map();
+  const byModel = new Map();
+  const byUser = new Map();
+  const byDay = new Map();
 
-  const byUser = db
-    .prepare(
-      `SELECT u.user_id, COALESCE(us.email, '(游客)') AS email,
-              COUNT(*) AS calls,
-              COALESCE(SUM(u.total_tokens),0) AS total_tokens,
-              COALESCE(SUM(u.prompt_tokens),0) AS prompt_tokens,
-              COALESCE(SUM(u.completion_tokens),0) AS completion_tokens
-       FROM llm_usage u LEFT JOIN users us ON us.id = u.user_id
-       GROUP BY u.user_id ORDER BY total_tokens DESC LIMIT 100`
-    )
-    .all();
+  for (const r of rows) {
+    const cost = costOf(r.model, r.prompt_tokens, r.completion_tokens);
+    totals.prompt_tokens += r.prompt_tokens;
+    totals.completion_tokens += r.completion_tokens;
+    totals.total_tokens += r.total_tokens;
+    totals.cost += cost;
 
-  const withCost = (row) => ({ ...row, cost: round4(costOf(row.model || "", row.prompt_tokens, row.completion_tokens)) });
-  const featureCost = byFeature.map((r) => ({
-    ...r,
-    cost: round4(
-      db
-        .prepare(
-          `SELECT model, prompt_tokens, completion_tokens FROM llm_usage WHERE feature = ?`
-        )
-        .all(r.feature)
-        .reduce((s, x) => s + costOf(x.model, x.prompt_tokens, x.completion_tokens), 0)
-    ),
-  }));
+    const bump = (map, key, extra) => {
+      const cur =
+        map.get(key) ||
+        { calls: 0, prompt_tokens: 0, completion_tokens: 0, total_tokens: 0, cost: 0, ...extra };
+      cur.calls += 1;
+      cur.prompt_tokens += r.prompt_tokens;
+      cur.completion_tokens += r.completion_tokens;
+      cur.total_tokens += r.total_tokens;
+      cur.cost += cost;
+      map.set(key, cur);
+    };
+
+    bump(byFeature, r.feature, { feature: r.feature });
+    bump(byModel, r.model, { model: r.model });
+    bump(byUser, r.user_id ?? null, { user_id: r.user_id ?? null });
+    bump(byDay, r.day, { day: r.day });
+  }
+
+  const emailStmt = db.prepare("SELECT email FROM users WHERE id = ?");
+  const withCost = (x) => ({ ...x, cost: round4(x.cost) });
+  const sortByTokens = (a, b) => b.total_tokens - a.total_tokens;
 
   return {
-    totals: {
-      ...totals,
-      cost: round4(
-        db
-          .prepare("SELECT model, prompt_tokens, completion_tokens FROM llm_usage")
-          .all()
-          .reduce((s, x) => s + costOf(x.model, x.prompt_tokens, x.completion_tokens), 0)
-      ),
-    },
-    byFeature: featureCost,
-    byModel: byModel.map(withCost),
-    byUser: byUser.map((r) => ({
-      ...r,
-      cost: round4(
-        db
-          .prepare(
-            "SELECT model, prompt_tokens, completion_tokens FROM llm_usage WHERE user_id IS ?"
-          )
-          .all(r.user_id)
-          .reduce((s, x) => s + costOf(x.model, x.prompt_tokens, x.completion_tokens), 0)
-      ),
-    })),
+    rangeDays: days,
+    totals: withCost(totals),
+    byFeature: [...byFeature.values()].map(withCost).sort(sortByTokens),
+    byModel: [...byModel.values()].map(withCost).sort(sortByTokens),
+    byUser: [...byUser.values()]
+      .map((u) => ({
+        ...withCost(u),
+        email: u.user_id != null ? emailStmt.get(u.user_id)?.email || "(已注销)" : "(游客)",
+      }))
+      .sort(sortByTokens)
+      .slice(0, 100),
+    byDay: [...byDay.values()].map(withCost).sort((a, b) => (a.day < b.day ? -1 : 1)),
     pricing: pricing(),
   };
 }

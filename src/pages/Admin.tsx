@@ -20,6 +20,7 @@ interface UsageRow {
   model?: string;
   user_id?: number | null;
   email?: string;
+  day?: string;
   calls: number;
   prompt_tokens: number;
   completion_tokens: number;
@@ -28,6 +29,7 @@ interface UsageRow {
 }
 
 interface UsageSummary {
+  rangeDays: number;
   totals: {
     calls: number;
     prompt_tokens: number;
@@ -38,6 +40,7 @@ interface UsageSummary {
   byFeature: UsageRow[];
   byModel: UsageRow[];
   byUser: UsageRow[];
+  byDay: UsageRow[];
 }
 
 export default function Admin() {
@@ -45,6 +48,7 @@ export default function Admin() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [dailyLimit, setDailyLimit] = useState<number | null>(null);
   const [usage, setUsage] = useState<UsageSummary | null>(null);
+  const [usageDays, setUsageDays] = useState(0);
   const [events, setEvents] = useState<{ name: string; count: number }[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -66,15 +70,19 @@ export default function Admin() {
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-    fetch("/api/admin/usage")
-      .then((r) => r.json())
-      .then(setUsage)
-      .catch(() => {});
     fetch("/api/admin/events")
       .then((r) => r.json())
       .then((d) => setEvents(d.counts || []))
       .catch(() => {});
   }, [user]);
+
+  useEffect(() => {
+    if (user?.role !== "admin") return;
+    fetch(`/api/admin/usage?days=${usageDays}`)
+      .then((r) => r.json())
+      .then(setUsage)
+      .catch(() => {});
+  }, [user, usageDays]);
 
   const countOf = (name: string) => events.find((e) => e.name === name)?.count || 0;
   const trials = countOf("guest_trial");
@@ -163,7 +171,10 @@ export default function Admin() {
           </div>
           <p className="hint" style={{ marginTop: 8 }}>
             注册总数 {countOf("register")} · 首次评估 {countOf("first_evaluate")} · 下载{" "}
-            {countOf("download")} · 追问 {countOf("followup")} · 7 日回访 {countOf("return_7d")}
+            {countOf("download")} · 追问 {countOf("followup")} · 老用户回访 {countOf("return_7d")}
+          </p>
+          <p className="hint" style={{ marginTop: 4 }}>
+            注：「老用户回访」= 注册满 7 天的老用户当日登录，并非 cohort 留存。
           </p>
         </div>
       )}
@@ -174,10 +185,58 @@ export default function Admin() {
             <span className="section-icon">💰</span>
             成本看板
           </h2>
+          <div className="chips" style={{ marginBottom: 10 }}>
+            {[
+              { d: 0, label: "全部" },
+              { d: 1, label: "今日" },
+              { d: 7, label: "近 7 天" },
+            ].map((x) => (
+              <button
+                key={x.d}
+                type="button"
+                className="chip"
+                style={
+                  usageDays === x.d
+                    ? { borderColor: "var(--primary)", color: "var(--primary)" }
+                    : undefined
+                }
+                onClick={() => setUsageDays(x.d)}
+              >
+                {x.label}
+              </button>
+            ))}
+          </div>
           <p className="hint" style={{ marginBottom: 10 }}>
-            累计 {usage.totals.calls} 次调用 · 输入 {usage.totals.prompt_tokens} / 输出{" "}
-            {usage.totals.completion_tokens} tokens · 估算成本 ¥{usage.totals.cost}
+            {usageDays === 0 ? "全部" : usageDays === 1 ? "今日" : "近 7 天"}：{usage.totals.calls}{" "}
+            次调用 · 输入 {usage.totals.prompt_tokens} / 输出 {usage.totals.completion_tokens}{" "}
+            tokens · 估算成本 ¥{usage.totals.cost}
           </p>
+
+          {usage.byDay.length > 0 && (
+            <>
+              <h3 style={{ fontSize: "0.9rem", margin: "8px 0 6px" }}>按天趋势</h3>
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>日期</th>
+                    <th>调用</th>
+                    <th>tokens</th>
+                    <th>估算成本(¥)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {usage.byDay.map((d) => (
+                    <tr key={d.day}>
+                      <td>{d.day}</td>
+                      <td>{d.calls}</td>
+                      <td>{d.total_tokens}</td>
+                      <td>{d.cost}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          )}
 
           <h3 style={{ fontSize: "0.9rem", margin: "8px 0 6px" }}>按功能</h3>
           <table className="admin-table">
