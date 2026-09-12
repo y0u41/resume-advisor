@@ -230,7 +230,7 @@ export default function Builder() {
   };
 
   return (
-    <div className="container">
+    <div className="container container--wide">
       <div className="header">
         <UserBar />
         <div className="brand">

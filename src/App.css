@@ -88,6 +88,11 @@ body {
   padding: 24px 20px 60px;
 }
 
+/* 双栏页（如简历模板）用更宽的容器，给 A4 预览留出可读的缩放比 */
+.container--wide {
+  max-width: 1200px;
+}
+
 /* ---------- Header ---------- */
 .header {
   text-align: center;
@@ -1545,8 +1550,8 @@ body,
 /* ---------- 简历模板生成器 ---------- */
 .builder {
   display: grid;
-  /* 表单 : 预览 —— 预览要容纳「左右分栏」模板，比例从 1.618:1 放宽到 1.15:1 */
-  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  /* 表单 : 预览 —— 预览按 A4 等比缩放，需更宽才能看清，故让预览列略大于表单列 */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
   gap: 32px;
   align-items: start;
 }
@@ -1742,6 +1747,7 @@ body,
 
 .builder-paper-page {
   transform-origin: top left;
+  margin: 0 auto;
   padding: 32px;
   background: #fff;
 }
