@@ -16,6 +16,7 @@
 
 - **后台任务**：`src/lib/tasks.tsx` 的 `TaskProvider` 位于路由之上，所有长任务（评估/对比/面试/推荐）在其中后台运行，切换页面不中断；`src/components/TaskDock.tsx` 提供悬浮任务栏。
 - **统一响应信封**：所有 JSON 响应为 `{ code, message, requestId, ... }`，错误码见 [`docs/error-codes.md`](../error-codes.md)。
-- **确定性客观分**：`server/scoring/`（词典驱动），与 LLM 报告并存。
+- **确定性客观分**：`server/scoring/`（关键词优先由 LLM 从 JD 抽取、按 JD 哈希缓存，再走确定性匹配），与 LLM 报告并存。
 - **结构化简历 Schema**：`shared/resumeSchema.js`（前后端共用）。
 - **并发/缓存/额度**：`server/core/queue.js`、`server/core/store.js`、`server/core/quota.js`。
+- **游客试用**：未登录也可按 IP 试用 1 次（`server/routes/guest.js`，结果打码、不落库）；注册后解锁完整报告 / 下载 / 历史。
