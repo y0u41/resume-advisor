@@ -10,5 +10,6 @@
 | [0004](./0004-account-deletion-cooling-period.md) | 账号注销采用 7 天冷静期 + 定时物理删除 |
 | [0005](./0005-download-history.md) | 记录下载/导出历史 |
 | [0006](./0006-optimistic-concurrency.md) | 评估记录更新采用乐观并发（revision） |
+| [0007](./0007-report-format-stays-text.md) | 报告保持文本格式，暂不做 JSON 结构化输出 |
 
 > 参考来源：resume-workshop 的相关设计（MIT License）经裁剪后移植。
