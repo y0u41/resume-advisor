@@ -134,8 +134,8 @@ sudo systemctl reload caddy
 
 **域名解析**：到域名服务商处添加一条 A 记录，指向服务器公网 IP。
 
-> ⚠️ **必须在 `.env` 设 `TRUST_PROXY=1`**（本项目默认已为 1）。Caddy 反代后若不信任代理，`req.ip` 会全是 `127.0.0.1`，导致**游客限流与速率限制全局串味**（第二个游客当天即被判定"试用次数已用完"）。`deploy/Caddyfile` 已用 `header_up X-Forwarded-For {client_ip}` 传递真实客户端 IP。
-> 若为**直连**（无反向代理），请设 `TRUST_PROXY=0`，否则客户端可伪造 `X-Forwarded-For` 绕过限流。
+> ⚠️ **反代部署必须在 `.env` 设 `TRUST_PROXY=1`**。Caddy 反代后若不信任代理，`req.ip` 会全是 `127.0.0.1`，导致**游客限流与速率限制全局串味**（第二个游客当天即被判定"试用次数已用完"）。`deploy/Caddyfile` 已用 `header_up X-Forwarded-For {client_ip}` 传递真实客户端 IP。
+> 项目**默认为 `0`（直连，不信任任何 `X-Forwarded-For`）**。当前 3001 端口直连部署务必保持 0，否则客户端可伪造 `X-Forwarded-For` 绕过游客限流、无限刷试用，使转化数据失真。
 
 ---
 

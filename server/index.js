@@ -14,10 +14,18 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 const HOST = process.env.HOST || "127.0.0.1";
 
-// 反向代理（如 Caddy）后必须信任代理，否则 req.ip 全是代理地址，
-// 会导致游客限流/速率限制全局串味。默认信任一层（匹配 DEPLOY.md 的 Caddy 部署）；
-// 若为直连（无代理），请设 TRUST_PROXY=0，避免客户端伪造 X-Forwarded-For。
-app.set("trust proxy", Number(process.env.TRUST_PROXY ?? 1));
+// 反向代理（如 Caddy/Nginx）后必须信任代理，否则 req.ip 全是代理地址，
+// 会导致游客限流/速率限制全局串味（第二个游客当天即被判「试用次数已用完」）。
+// 默认 0（不信任）：当前生产为 3001 端口**直连**，若信任一层，客户端可伪造
+// X-Forwarded-For 无限刷游客试用 → 转化数据（guest_trial→注册）直接失真。
+// 部署到反向代理之后时，必须在 .env 显式设 TRUST_PROXY=1。
+const TRUST_PROXY = Number(process.env.TRUST_PROXY ?? 0);
+app.set("trust proxy", TRUST_PROXY);
+if (process.env.TRUST_PROXY === undefined) {
+  console.warn(
+    "[安全] 未设置 TRUST_PROXY，按直连处理（不信任 X-Forwarded-For）。若部署在反向代理后，请设 TRUST_PROXY=1。"
+  );
+}
 
 // 统一请求 ID 与响应信封（渐进式，向后兼容）
 app.use(requestId);

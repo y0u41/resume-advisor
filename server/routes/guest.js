@@ -135,16 +135,19 @@ router.post("/guest/evaluate", async (req, res) => {
     }
 
     const score = extractScore(fullText);
-    // 与注册用户一致：关键词优先用 LLM 从 JD 抽取（按 JD 哈希缓存），
-    // 否则非技术岗会回退到技术词典、给出误导性的低客观分（首因效应）。
+    // 漏斗关键事件：游客试用（user_id 为空，用于统计试用→注册转化）。
+    // 必须在关键词抽取之前记录——抽取是额外 LLM 调用，若此处断开/失败会丢事件，
+    // 导致转化率分母偏小、数据失真。
+    logEvent(null, "guest_trial", { student: isStudent ? 1 : 0 });
+    // 与注册用户完全一致：关键词优先用 LLM 从 JD 抽取（按 JD 哈希缓存），
+    // 并传入同一 override（含应届生模式）；否则非技术岗会回退到技术词典、
+    // 给出误导性的低客观分（首因效应），使游客与注册后的结果不一致。
     const jdKeywords = jobDescription
-      ? await getJdKeywords(jobDescription, controller.signal, { isStudent: false })
+      ? await getJdKeywords(jobDescription, controller.signal, { isStudent })
       : [];
     const objective = evaluateResume(resume, { jdText: jobDescription || "", jdKeywords });
     const preview = fullText.slice(0, GUEST_PREVIEW_CHARS);
     completed = true;
-    // 漏斗关键事件：游客试用（user_id 为空，用于统计试用→注册转化）
-    logEvent(null, "guest_trial", { student: isStudent ? 1 : 0 });
 
     res.write(
       `data: ${JSON.stringify({
