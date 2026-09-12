@@ -98,6 +98,11 @@ function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
+// 仅允许 data:image/* 的照片，避免注入非预期内容（渲染走 dangerouslySetInnerHTML）
+function safePhoto(photo: string): string {
+  return /^data:image\//i.test(photo || "") ? photo : "";
+}
+
 function sectionHtml(label: string, content: string): string {
   return `<section class="rsec">
     <h2 class="rsec-title">${label}</h2>
@@ -129,7 +134,7 @@ function singleHtml(d: ResumeData, style: ResumeStyle): string {
         ${contact ? `<div class="rcontact">${contact}</div>` : ""}
         ${d.intention.trim() ? `<div class="rintention">求职意向：${escapeHtml(d.intention.trim())}</div>` : ""}
       </div>
-      ${d.photo ? `<img class="rphoto" src="${d.photo}" alt="" />` : ""}
+      ${safePhoto(d.photo) ? `<img class="rphoto" src="${safePhoto(d.photo)}" alt="" />` : ""}
     </header>
     ${sections}
   </div>`;
@@ -169,7 +174,7 @@ function sidebarHtml(d: ResumeData, style: ResumeStyle): string {
 
   return `<div class="resume resume-sidebar">
     <aside class="rside">
-      ${d.photo ? `<img class="rphoto-side" src="${d.photo}" alt="" />` : ""}
+      ${safePhoto(d.photo) ? `<img class="rphoto-side" src="${safePhoto(d.photo)}" alt="" />` : ""}
       ${sideBlocks.join("")}
     </aside>
     <main class="rmain">
