@@ -2325,6 +2325,37 @@ body,
   margin-bottom: 8px;
 }
 
+.ats-checks {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ats-check {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 0.8rem;
+}
+
+.ats-icon {
+  flex: none;
+}
+
+.ats-label {
+  flex: none;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.ats-detail {
+  color: var(--text-secondary);
+}
+
+.ats-fail .ats-detail {
+  color: var(--danger);
+}
+
 /* ---------- 分享报告页 ---------- */
 .share-page {
   position: relative;

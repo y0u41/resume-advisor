@@ -174,6 +174,13 @@ export interface ObjectiveSuggestion {
   relatedTerms?: string[];
 }
 
+export interface AtsCheck {
+  key: string;
+  label: string;
+  status: "ok" | "warn" | "fail" | string;
+  detail: string;
+}
+
 export interface ObjectiveScore {
   score: number;
   matchRate?: number;
@@ -182,4 +189,5 @@ export interface ObjectiveScore {
   keywords?: ObjectiveKeyword[];
   matched?: ObjectiveKeyword[];
   missing?: ObjectiveKeyword[];
+  ats?: { score: number; checks: AtsCheck[] };
 }

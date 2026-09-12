@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { evaluateResume, extractKeywords, normalizeText } from "../scoring/index.js";
+import { evaluateResume, extractKeywords, normalizeText, checkAts } from "../scoring/index.js";
 
 const goodResume = `张三
 联系方式：13800138000 邮箱：zhangsan@example.com 城市：杭州
@@ -87,5 +87,30 @@ describe("确定性评分引擎", () => {
     expect(r.matchRate).toBeGreaterThan(0.5);
     // 相同输入结果一致（确定性）
     expect(evaluateResume(resume, { jdText: jd, jdKeywords })).toEqual(r);
+  });
+
+  it("ATS 结构检查：规范简历得分高", () => {
+    const good = `张三
+手机：13800138000 邮箱：zs@example.com
+教育背景
+东北石油大学 通信工程 本科 2023.08 - 2027.06
+工作经历
+某公司 前端 2024.01 - 2024.06
+- 负责页面开发
+- 优化性能 40%
+项目经历
+简历助手 2024.02 - 2024.03
+技能特长
+C++、JavaScript`;
+    const r = checkAts(good);
+    expect(r.score).toBeGreaterThanOrEqual(90);
+    expect(r.checks.find((c) => c.key === "contact").status).toBe("ok");
+    expect(r.checks.find((c) => c.key === "education").status).toBe("ok");
+  });
+
+  it("ATS 结构检查：缺联系方式判为 fail", () => {
+    const r = checkAts("张三\n爱好打篮球");
+    expect(r.checks.find((c) => c.key === "contact").status).toBe("fail");
+    expect(r.score).toBeLessThan(60);
   });
 });

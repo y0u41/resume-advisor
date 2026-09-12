@@ -237,6 +237,25 @@ function ObjectiveCard({
         </div>
       )}
 
+      {objective.ats && (
+        <div className="objective-missing">
+          <div className="objective-missing-title">
+            ATS 可解析性 · {objective.ats.score}/100（简历能否被机器正确解析）
+          </div>
+          <div className="ats-checks">
+            {objective.ats.checks.map((c) => (
+              <div key={c.key} className={`ats-check ats-${c.status}`}>
+                <span className="ats-icon">
+                  {c.status === "ok" ? "✅" : c.status === "fail" ? "❌" : "⚠️"}
+                </span>
+                <span className="ats-label">{c.label}</span>
+                <span className="ats-detail">{c.detail}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <p className="hint">
         该分数由内置算法（关键词匹配 + 四维评分）确定性计算，与上方 AI 报告相互印证、可复现。
       </p>

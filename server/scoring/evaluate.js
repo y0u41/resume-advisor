@@ -2,6 +2,7 @@ import { matchTextToJD } from "./match.js";
 import { countOccurrences } from "./extract.js";
 import { normalizeText } from "./normalize.js";
 import { round2 } from "./round.js";
+import { checkAts } from "./ats.js";
 
 // 把「LLM 抽取的关键词字符串」转成与词库同构的关键词对象。
 // 权重仍按「基础 + 位置加成 + 词频加成」计算，匹配过程仍是确定性、可解释的，
@@ -269,6 +270,7 @@ export function evaluateResume(resumeText, options = {}) {
     score,
     dimensions,
     suggestions,
+    ats: checkAts(resumeText),
     ...(match
       ? {
           matchRate: match.matchRate,
