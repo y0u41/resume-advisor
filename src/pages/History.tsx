@@ -11,6 +11,7 @@ interface EvalRecord {
   score: number | null;
   person_name: string | null;
   person_key: string | null;
+  favorite?: number;
   created_at: string;
 }
 
@@ -59,6 +60,17 @@ export default function History() {
     if (!confirm("确定删除这条记录？")) return;
     await fetch(`/api/evaluations/${id}`, { method: "DELETE" });
     setRecords((prev) => prev.filter((r) => r.id !== id));
+  };
+
+  const toggleFavorite = async (r: EvalRecord) => {
+    const next = r.favorite ? 0 : 1;
+    const res = await fetch(`/api/evaluations/${r.id}/favorite`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ favorite: next }),
+    });
+    if (!res.ok) return;
+    setRecords((prev) => prev.map((x) => (x.id === r.id ? { ...x, favorite: next } : x)));
   };
 
   return (
@@ -123,9 +135,18 @@ export default function History() {
                       )}
                     </div>
                   </div>
-                  <button className="btn btn-danger" onClick={() => handleDelete(r.id)}>
-                    删除
-                  </button>
+                  <div style={{ display: "flex", gap: 8, flex: "none" }}>
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => toggleFavorite(r)}
+                      title={r.favorite ? "取消收藏" : "收藏（收藏的记录不会被自动清理）"}
+                    >
+                      {r.favorite ? "★ 已收藏" : "☆ 收藏"}
+                    </button>
+                    <button className="btn btn-danger" onClick={() => handleDelete(r.id)}>
+                      删除
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>

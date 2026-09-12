@@ -15,29 +15,58 @@ beforeEach(() => {
 const USER = 1;
 
 describe("saveEvaluation 保留策略", () => {
-  it("同一人提交 13 次，只保留最新 12 条", () => {
+  it("同一人提交超过上限，只保留最新 MAX_PER_PERSON 条", () => {
     const resume = "王五\nJava开发工程师";
-    for (let i = 1; i <= 13; i++) {
-      saveEvaluation(USER, resume, "Java开发", "JD", 5, `report-${i}`);
+    const n = MAX_PER_PERSON + 2;
+    for (let i = 1; i <= n; i++) {
+      saveEvaluation(USER, resume, "Java开发", "JD", i, `report-${i}`);
     }
     const count = db
       .prepare("SELECT COUNT(*) c FROM evaluations WHERE user_id = ?")
       .get(USER).c;
     expect(count).toBe(MAX_PER_PERSON);
-    expect(MAX_PER_PERSON).toBe(12);
+    expect(MAX_PER_PERSON).toBe(30);
   });
 
   it("保留的是最新的记录", () => {
     const resume = "王五\nJava开发工程师";
-    for (let i = 1; i <= 13; i++) {
-      saveEvaluation(USER, resume, "Java开发", "JD", 5, `report-${i}`);
+    const n = MAX_PER_PERSON + 2;
+    for (let i = 1; i <= n; i++) {
+      saveEvaluation(USER, resume, "Java开发", "JD", i, `report-${i}`);
     }
     const reports = db
       .prepare("SELECT report FROM evaluations WHERE user_id = ? ORDER BY id")
       .all(USER)
       .map((r) => r.report);
     expect(reports).not.toContain("report-1");
-    expect(reports).toContain("report-13");
+    expect(reports).toContain(`report-${n}`);
+  });
+
+  it("最高分记录不会被自动清理", () => {
+    const resume = "王五\nJava开发工程师";
+    saveEvaluation(USER, resume, "Java开发", "JD", 10, "highest");
+    for (let i = 1; i <= MAX_PER_PERSON + 2; i++) {
+      saveEvaluation(USER, resume, "Java开发", "JD", 3, `low-${i}`);
+    }
+    const reports = db
+      .prepare("SELECT report FROM evaluations WHERE user_id = ?")
+      .all(USER)
+      .map((r) => r.report);
+    expect(reports).toContain("highest");
+  });
+
+  it("收藏的记录不会被自动清理", () => {
+    const resume = "王五\nJava开发工程师";
+    const favId = saveEvaluation(USER, resume, "Java开发", "JD", 2, "favorite");
+    db.prepare("UPDATE evaluations SET favorite = 1 WHERE id = ?").run(favId);
+    for (let i = 1; i <= MAX_PER_PERSON + 2; i++) {
+      saveEvaluation(USER, resume, "Java开发", "JD", 3, `low-${i}`);
+    }
+    const reports = db
+      .prepare("SELECT report FROM evaluations WHERE user_id = ?")
+      .all(USER)
+      .map((r) => r.report);
+    expect(reports).toContain("favorite");
   });
 
   it("不同的人互不影响", () => {

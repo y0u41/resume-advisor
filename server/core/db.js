@@ -42,6 +42,7 @@ db.exec(`
     candidate_type TEXT DEFAULT 'general',
     objective_json TEXT,
     revision INTEGER NOT NULL DEFAULT 1,
+    favorite INTEGER NOT NULL DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )
 `);
@@ -101,6 +102,9 @@ if (!columns.includes("objective_json")) {
 }
 if (!columns.includes("revision")) {
   db.exec("ALTER TABLE evaluations ADD COLUMN revision INTEGER NOT NULL DEFAULT 1");
+}
+if (!columns.includes("favorite")) {
+  db.exec("ALTER TABLE evaluations ADD COLUMN favorite INTEGER NOT NULL DEFAULT 0");
 }
 
 db.exec("CREATE INDEX IF NOT EXISTS idx_eval_person ON evaluations(person_key)");

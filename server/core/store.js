@@ -1,8 +1,8 @@
 import db from "./db.js";
 import { getPersonKey, getPersonName } from "./person.js";
 
-// 同一个人最多保留的提交次数
-export const MAX_PER_PERSON = 12;
+// 同一个人最多保留的提交次数（放宽上限；收藏与最高分永不删除）
+export const MAX_PER_PERSON = 30;
 
 const insertStmt = db.prepare(
   `INSERT INTO evaluations
@@ -12,11 +12,16 @@ const insertStmt = db.prepare(
 
 const pruneStmt = db.prepare(
   `DELETE FROM evaluations
-   WHERE user_id = ? AND person_key = ?
+   WHERE user_id = ? AND person_key = ? AND favorite = 0
      AND id NOT IN (
        SELECT id FROM evaluations
        WHERE user_id = ? AND person_key = ?
        ORDER BY id DESC LIMIT ?
+     )
+     AND id NOT IN (
+       SELECT id FROM evaluations
+       WHERE user_id = ? AND person_key = ?
+       ORDER BY score DESC LIMIT 1
      )`
 );
 
@@ -35,7 +40,15 @@ const saveTx = db.transaction((row) => {
     row.candidateType || "general",
     row.objectiveJson || null
   );
-  pruneStmt.run(row.userId, row.personKey, row.userId, row.personKey, MAX_PER_PERSON);
+  pruneStmt.run(
+    row.userId,
+    row.personKey,
+    row.userId,
+    row.personKey,
+    MAX_PER_PERSON,
+    row.userId,
+    row.personKey
+  );
   return info.lastInsertRowid;
 });
 

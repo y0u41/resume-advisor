@@ -39,6 +39,8 @@ interface EvalData {
   created_at: string;
   objective?: ObjectiveScore | null;
   revision?: number;
+  previousScore?: number | null;
+  scoreDelta?: number | null;
 }
 
 const ICONS: Record<MatchStatus, string> = {
@@ -307,7 +309,8 @@ export default function Result() {
       setIsStudent(d.candidate_type === "student");
       setLoading(false);
 
-      if (!hasFull && id && id !== "latest") {
+      // 拉取完整记录以获取客观分 / 改进轨迹等字段
+      if (id && id !== "latest") {
         fetch(`/api/evaluations/${id}`)
           .then((r) => r.json())
           .then((full) => applyFull(full))
@@ -491,6 +494,20 @@ export default function Result() {
             <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)", marginTop: 6 }}>
               {new Date(data.created_at).toLocaleString("zh-CN")}
             </div>
+            {data.scoreDelta != null && (
+              <div
+                style={{
+                  fontSize: "0.85rem",
+                  fontWeight: 600,
+                  marginTop: 4,
+                  color: data.scoreDelta >= 0 ? "var(--success)" : "var(--danger)",
+                }}
+              >
+                较上次 {data.scoreDelta >= 0 ? "+" : ""}
+                {data.scoreDelta} 分
+                {data.previousScore != null ? `（上次 ${data.previousScore}）` : ""}
+              </div>
+            )}
           </div>
           <ScoreBadge score={data.score} />
         </div>

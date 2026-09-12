@@ -677,8 +677,8 @@ router.post("/directions", async (req, res) => {
 router.get("/evaluations", (req, res) => {
   const rows = db
     .prepare(
-      `SELECT id, job_title, score, person_name, person_key, created_at
-       FROM evaluations WHERE user_id = ? ORDER BY id DESC LIMIT 300`
+      `SELECT id, job_title, score, person_name, person_key, favorite, created_at
+       FROM evaluations WHERE user_id = ? ORDER BY favorite DESC, id DESC LIMIT 300`
     )
     .all(req.user.id);
   res.json({ records: rows, usage: { used: getUsage(req.user.id), limit: DAILY_LIMIT } });
@@ -695,6 +695,22 @@ router.get("/evaluations/:id", (req, res) => {
     } catch {
       row.objective = null;
     }
+  }
+  // 改进轨迹：同一人（person_key）上一次的分数与差值
+  if (row.person_key) {
+    const prev = db
+      .prepare(
+        `SELECT score FROM evaluations
+         WHERE user_id = ? AND person_key = ? AND id < ? AND score IS NOT NULL
+         ORDER BY id DESC LIMIT 1`
+      )
+      .get(row.user_id, row.person_key, row.id);
+    row.previousScore = prev?.score ?? null;
+    row.scoreDelta =
+      prev && row.score != null ? Math.round((row.score - prev.score) * 10) / 10 : null;
+  } else {
+    row.previousScore = null;
+    row.scoreDelta = null;
   }
   res.json(row);
 });
@@ -769,6 +785,16 @@ router.delete("/evaluations/:id", (req, res) => {
     req.user.id
   );
   res.json({ ok: true });
+});
+
+// 收藏 / 取消收藏（收藏的记录不会被自动清理）
+router.put("/evaluations/:id/favorite", (req, res) => {
+  const favorite = req.body?.favorite ? 1 : 0;
+  const info = db
+    .prepare("UPDATE evaluations SET favorite = ? WHERE id = ? AND user_id = ?")
+    .run(favorite, req.params.id, req.user.id);
+  if (info.changes === 0) return res.status(404).json({ error: "记录不存在" });
+  res.json({ ok: true, favorite: !!favorite });
 });
 
 export default router;
