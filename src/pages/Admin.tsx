@@ -248,6 +248,20 @@ export default function Admin() {
             <span className="section-icon">⭐</span>
             PRO 开通申请
           </h2>
+          <p className="hint" style={{ marginBottom: 10 }}>
+            申请 {proRequests.length} · 已开通{" "}
+            {proRequests.filter((r) => r.status === "approved").length} · 开通率{" "}
+            <strong>
+              {proRequests.length
+                ? Math.round(
+                    (proRequests.filter((r) => r.status === "approved").length /
+                      proRequests.length) *
+                      100
+                  )
+                : 0}
+              %
+            </strong>
+          </p>
           <table className="admin-table">
             <thead>
               <tr>
