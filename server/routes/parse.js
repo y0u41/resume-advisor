@@ -3,6 +3,7 @@ import multer from "multer";
 import { requireAuth } from "../core/auth.js";
 import { ocrImage } from "../llm/llm.js";
 import { getVisionOverride } from "../core/models.js";
+import { extractPdfTextOrdered } from "../core/pdfText.js";
 
 const router = Router();
 router.use(requireAuth);
@@ -23,13 +24,20 @@ const IMAGE_MIME = {
 };
 const MAX_OCR_PAGES = 5;
 
-// 这些库含原生或较重的依赖，改为「用到时才加载」，避免启动时崩溃。
+// 文本型 PDF：用 pdfjs 取文字坐标，按「视觉阅读顺序」重建
+// （修正设计型排版里 z-index/position/transform 导致的文字层乱序）。
+// 这些库较重，延迟加载避免启动开销；pdfjs 失败时回退 pdf-parse。
 async function extractPdfText(buffer) {
+  try {
+    const ordered = await extractPdfTextOrdered(buffer);
+    if (ordered) return ordered;
+  } catch (error) {
+    console.warn("pdfjs 提取失败，回退 pdf-parse:", error.message);
+  }
   const { PDFParse } = await import("pdf-parse");
   const parser = new PDFParse({ data: buffer });
   try {
-    const result = await parser.getText();
-    return result.text;
+    return (await parser.getText()).text;
   } finally {
     await parser.destroy();
   }

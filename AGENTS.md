@@ -54,6 +54,7 @@ docs/                 文档 + docs/adr + docs/features（按功能分类）
 10. **未知 `/api` 路径 404**：`server/index.js` 的 `API_PREFIXES` 网关会拦截未知前缀——**新增 API 前缀时必须同步补充该列表**。
 11. **结构化简历契约**：`shared/resumeSchema.js` 是单一事实来源，改字段要同步 `resumeSchema.d.ts` 与 `src/lib/resume/resumeSchema.ts`；写严读宽、未知字段丢弃。
 12. **乐观并发**：更新评估记录用 `revision`，冲突返回 409 + `details.currentRevision`；不要绕过该检查直接 UPDATE。
+13. **PDF 阅读顺序**：`server/core/pdfText.js` 用 pdfjs 按坐标重建「视觉阅读顺序」，修正设计型 PDF（z-index/position/transform）导致的文字层乱序；文本型 PDF 走此路径，图片型 PDF 走 OCR。改动需同步 `server/__tests__/pdfText.test.js`。
 
 ## 5. 数据与接口约定
 
