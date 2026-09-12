@@ -2,6 +2,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useState,
   type ReactNode,
 } from "react";
@@ -71,6 +72,44 @@ interface TaskContextValue {
 
 const TaskContext = createContext<TaskContextValue | null>(null);
 
+const STORAGE_KEY = "resume_tasks_v1";
+
+// 从 localStorage 恢复任务：刷新后，运行中的任务已无法继续 → 标记为中断
+function loadStoredTasks(): Task[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    const arr = JSON.parse(raw);
+    if (!Array.isArray(arr)) return [];
+    return arr.map((t: Task) =>
+      t.status === "running"
+        ? { ...t, status: "error", error: "页面刷新导致中断；若服务端已完成，可在历史记录中查看" }
+        : t
+    );
+  } catch {
+    return [];
+  }
+}
+
+// 只持久化元数据，避免 localStorage 过大
+function persistTasks(tasks: Task[]) {
+  try {
+    const slim = tasks.slice(0, 10).map((t) => ({
+      id: t.id,
+      kind: t.kind,
+      title: t.title,
+      status: t.status,
+      resultId: t.resultId,
+      error: t.error,
+      createdAt: t.createdAt,
+      finishedAt: t.finishedAt,
+    }));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(slim));
+  } catch {
+    // 忽略
+  }
+}
+
 let seq = 0;
 function newId() {
   seq += 1;
@@ -78,8 +117,12 @@ function newId() {
 }
 
 export function TaskProvider({ children }: { children: ReactNode }) {
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const [tasks, setTasks] = useState<Task[]>(() => loadStoredTasks());
   const toast = useToast();
+
+  useEffect(() => {
+    persistTasks(tasks);
+  }, [tasks]);
 
   const update = useCallback(
     (id: string, patch: Partial<Task> | ((t: Task) => Partial<Task>)) => {

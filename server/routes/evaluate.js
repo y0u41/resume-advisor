@@ -186,11 +186,20 @@ router.post("/evaluate", async (req, res) => {
     }
   }
 
-  // 客户端断开时中止上游 LLM 请求
+  // 客户端断开（刷新/关闭）时不中止 LLM：让评估在服务端跑完并落库，刷新后可在历史记录查看
   const controller = new AbortController();
+  let clientClosed = false;
   res.on("close", () => {
-    if (!res.writableEnded) controller.abort(new Error("客户端已断开"));
+    clientClosed = true;
   });
+  const safeWrite = (line) => {
+    if (clientClosed || res.writableEnded) return;
+    try {
+      res.write(line);
+    } catch {
+      // 连接已关闭，忽略
+    }
+  };
 
   if (stream) {
     res.setHeader("Content-Type", "text/event-stream");
@@ -202,11 +211,11 @@ router.post("/evaluate", async (req, res) => {
   let release;
   try {
     release = await acquire((position) => {
-      if (stream) res.write(`data: ${JSON.stringify({ queued: true, position })}\n\n`);
+      if (stream) safeWrite(`data: ${JSON.stringify({ queued: true, position })}\n\n`);
     });
   } catch (error) {
     if (stream) {
-      res.write(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
+      safeWrite(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
       res.end();
     } else {
       res.status(503).json({ error: error.message });
@@ -219,7 +228,7 @@ router.post("/evaluate", async (req, res) => {
     if (!quota.allowed) {
       const msg = `今日评估次数已用完（${quota.used}/${quota.limit}），请明天再试`;
       if (stream) {
-        res.write(`data: ${JSON.stringify({ error: msg, done: true })}\n\n`);
+        safeWrite(`data: ${JSON.stringify({ error: msg, done: true })}\n\n`);
         res.end();
       } else {
         res.status(429).json({ code: 3001, error: msg });
@@ -237,7 +246,7 @@ router.post("/evaluate", async (req, res) => {
           jobDescription || "",
           (chunk) => {
             fullText += chunk;
-            res.write(`data: ${JSON.stringify({ chunk, done: false })}\n\n`);
+            safeWrite(`data: ${JSON.stringify({ chunk, done: false })}\n\n`);
           },
           controller.signal,
           override
@@ -261,13 +270,13 @@ router.post("/evaluate", async (req, res) => {
             override
           );
           fullText = report;
-          res.write(`data: ${JSON.stringify({ chunk: report, done: false })}\n\n`);
+          safeWrite(`data: ${JSON.stringify({ chunk: report, done: false })}\n\n`);
         } catch (error) {
           if (controller.signal.aborted) {
             if (!res.writableEnded) res.end();
             return;
           }
-          res.write(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
+          safeWrite(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
           res.end();
           return;
         }
@@ -279,7 +288,7 @@ router.post("/evaluate", async (req, res) => {
       }
 
       if (!fullText.trim()) {
-        res.write(`data: ${JSON.stringify({ error: "评估结果为空，请重试", done: true })}\n\n`);
+        safeWrite(`data: ${JSON.stringify({ error: "评估结果为空，请重试", done: true })}\n\n`);
         res.end();
         return;
       }
@@ -300,7 +309,7 @@ router.post("/evaluate", async (req, res) => {
 
       maybeLogFirstEvaluate(req.user.id);
 
-      res.write(
+      safeWrite(
         `data: ${JSON.stringify({ chunk: "", done: true, id, score, report: fullText, objective, revision: 1 })}\n\n`
       );
       res.end();
@@ -336,7 +345,7 @@ router.post("/evaluate", async (req, res) => {
     }
     console.error("评估失败:", error);
     if (stream) {
-      res.write(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
+      safeWrite(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
       res.end();
     } else {
       res.status(500).json({ error: error.message });

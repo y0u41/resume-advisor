@@ -24,3 +24,4 @@
 - **最小埋点**：`events` 表 + 6 个事件（注册 / 首次评估 / 报告读完 / 追问 / 下载 / 7 日回访），管理员 `GET /api/admin/events` 查看。
 - **反馈与投票**：`POST /api/feedback`（结果页「有帮助吗」投票 + 文字反馈），管理员 `GET /api/admin/feedback` 查看。
 - **成本看板**：`llm_usage` 表自动记录每次 LLM 调用的 token，管理员 `GET /api/admin/usage` 按功能/模型/用户聚合 + 估算成本。
+- **任务持久化**：任务元数据存 `localStorage`（刷新后恢复）；评估在服务端断开后仍跑完并落库，刷新不丢。
