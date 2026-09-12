@@ -4,6 +4,7 @@ import db from "../core/db.js";
 import { callLLM, callLLMStream, followUpStream, interviewStream, directionsStream } from "../llm/llm.js";
 import { evaluateResume } from "../scoring/index.js";
 import { getJdKeywords } from "../core/jdKeywords.js";
+import { logEvent } from "../core/events.js";
 import { parseResumeContent, contentToText, ResumeContentSchema } from "../../shared/resumeSchema.js";
 import { listProviders, defaultModel } from "../core/models.js";
 import { saveEvaluation, findCachedEvaluation } from "../core/store.js";
@@ -98,14 +99,23 @@ function extractConclusion(report) {
   return m ? m[1].trim().slice(0, 120) : "";
 }
 
-function validateInput({ resume, jobTitle, jobDescription, jobUrl }) {
-  if (!resume || !jobTitle) return "请提供简历全文和应聘岗位";
+function validateInput({ resume, jobTitle, jobDescription, jobUrl }) {  if (!resume || !jobTitle) return "请提供简历全文和应聘岗位";
   if (typeof resume !== "string" || typeof jobTitle !== "string") return "参数类型错误";
   if (resume.length > MAX_RESUME) return `简历过长（上限 ${MAX_RESUME} 字）`;
   if (jobTitle.length > MAX_TITLE) return `岗位名称过长（上限 ${MAX_TITLE} 字）`;
   if (jobDescription && jobDescription.length > MAX_JD) return `JD 过长（上限 ${MAX_JD} 字）`;
   if (jobUrl && jobUrl.length > MAX_URL) return `链接过长`;
   return null;
+}
+
+// 首次评估埋点
+function maybeLogFirstEvaluate(userId) {
+  try {
+    const count = db.prepare("SELECT COUNT(*) c FROM evaluations WHERE user_id = ?").get(userId).c;
+    if (count === 1) logEvent(userId, "first_evaluate");
+  } catch {
+    // 忽略
+  }
 }
 
 router.post("/evaluate", async (req, res) => {
@@ -275,6 +285,8 @@ router.post("/evaluate", async (req, res) => {
         objectiveJson
       );
 
+      maybeLogFirstEvaluate(req.user.id);
+
       res.write(
         `data: ${JSON.stringify({ chunk: "", done: true, id, score, report: fullText, objective, revision: 1 })}\n\n`
       );
@@ -301,6 +313,7 @@ router.post("/evaluate", async (req, res) => {
         objectiveJson
       );
 
+      maybeLogFirstEvaluate(req.user.id);
       res.json({ id, score, report, objective, revision: 1 });
     }
   } catch (error) {

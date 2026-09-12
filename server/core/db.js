@@ -89,6 +89,19 @@ db.exec(`
   )
 `);
 
+// 最小埋点事件（注册/首次评估/报告读完/追问/下载/7日回访）
+db.exec(`
+  CREATE TABLE IF NOT EXISTS events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    name TEXT NOT NULL,
+    meta TEXT DEFAULT '',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )
+`);
+db.exec("CREATE INDEX IF NOT EXISTS idx_events_name ON events(name, created_at)");
+db.exec("CREATE INDEX IF NOT EXISTS idx_events_user ON events(user_id)");
+
 // 兼容旧库：补上新增字段
 const columns = db.prepare("PRAGMA table_info(evaluations)").all().map((c) => c.name);
 if (!columns.includes("person_key")) db.exec("ALTER TABLE evaluations ADD COLUMN person_key TEXT");

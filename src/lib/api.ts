@@ -277,6 +277,19 @@ export async function recordDownload(
   }
 }
 
+// ===== 最小埋点（失败静默，不影响主流程）=====
+export function logEvent(name: string, meta?: Record<string, unknown>): void {
+  try {
+    fetch("/api/events", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, meta }),
+    }).catch(() => {});
+  } catch {
+    // 忽略
+  }
+}
+
 // ===== 分享（只读链接）=====
 export async function shareEvaluation(
   id: number,

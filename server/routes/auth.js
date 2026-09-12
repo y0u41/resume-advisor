@@ -9,6 +9,7 @@ import {
   requireAuth,
   findUserByAccount,
 } from "../core/auth.js";
+import { logEvent, hasEventToday } from "../core/events.js";
 
 const router = Router();
 
@@ -45,6 +46,7 @@ router.post("/auth/register", (req, res) => {
 
   const user = { id: info.lastInsertRowid, email: normalized };
   setAuthCookie(res, signToken(user));
+  logEvent(user.id, "register");
   res.json({ user: { ...user, username: null, role: "user" } });
 });
 
@@ -69,6 +71,13 @@ router.post("/auth/login", (req, res) => {
   }
 
   setAuthCookie(res, signToken(row));
+  // 7 日回访：账号创建 ≥7 天，且当天首次登录
+  const ageDays = db
+    .prepare("SELECT julianday('now') - julianday(created_at) AS d FROM users WHERE id = ?")
+    .get(row.id)?.d;
+  if (ageDays != null && ageDays >= 7 && !hasEventToday(row.id, "return_7d")) {
+    logEvent(row.id, "return_7d");
+  }
   res.json({
     user: { id: row.id, email: row.email, username: row.username, role: row.role },
   });

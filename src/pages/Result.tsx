@@ -5,7 +5,7 @@ import UserBar from "../components/UserBar";
 import ModelSelect from "../components/ModelSelect";
 import Logo from "../components/Logo";
 import Nav from "../components/Nav";
-import { followUpStream, recordDownload, shareEvaluation } from "../lib/api";
+import { followUpStream, recordDownload, shareEvaluation, logEvent } from "../lib/api";
 import { downloadReport, type DownloadFormat } from "../lib/report/download";
 import { useToast } from "../lib/ui/toast";
 import { useTasks } from "../lib/tasks";
@@ -335,6 +335,28 @@ export default function Result() {
     }
   }, [id]);
 
+  // 报告读完埋点：滚动到底部附近记录一次
+  useEffect(() => {
+    if (!data?.id) return;
+    let done = false;
+    const onScroll = () => {
+      if (done) return;
+      const el = document.documentElement;
+      if (el.scrollTop + window.innerHeight >= el.scrollHeight - 120) {
+        done = true;
+        logEvent("report_read", { id: data.id });
+        window.removeEventListener("scroll", onScroll);
+      }
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    const timer = setTimeout(onScroll, 1500);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data?.id]);
+
   const handleReevaluate = () => {
     if (!resume.trim() || !jobTitle.trim()) return;
     const taskId = startEvaluate(
@@ -401,6 +423,7 @@ export default function Result() {
     try {
       await downloadReport(data, downloadFormat);
       recordDownload("report", data.job_title || "评估报告", downloadFormat);
+      logEvent("download", { id: data.id, format: downloadFormat });
       toast("已开始下载", "success");
     } catch (err: any) {
       toast("下载失败：" + err.message, "error");
@@ -432,6 +455,7 @@ export default function Result() {
   const runFollowup = async (q: string) => {
     const question = q.trim();
     if (!question || !data) return;
+    logEvent("followup", { id: data.id });
     setFollowupQ(question);
     setFollowupLoading(true);
     setFollowupAnswer("");
