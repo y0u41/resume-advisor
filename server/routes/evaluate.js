@@ -422,8 +422,13 @@ router.post("/compare", async (req, res) => {
 
       const report = await callLLM(resume, job.title, job.jd || "", controller.signal, override);
       const score = extractScore(report);
-      const matchRate = computeMatchRate(report);
       const conclusion = extractConclusion(report);
+
+      // 客观分（与结果页一致）：关键词优先 LLM 抽取，匹配度采用算法口径
+      const jdKeywords = job.jd ? await getJdKeywords(job.jd, controller.signal, override) : [];
+      const objective = evaluateResume(resume, { jdText: job.jd || "", jdKeywords });
+      const matchRate =
+        objective.matchRate != null ? Math.round(objective.matchRate * 100) : computeMatchRate(report);
 
       consumeQuota(req.user.id);
 
@@ -436,7 +441,8 @@ router.post("/compare", async (req, res) => {
         report,
         "",
         computeCacheKey(resume, job.title, job.jd || "", override),
-        override.isStudent ? "student" : "general"
+        override.isStudent ? "student" : "general",
+        JSON.stringify(objective)
       );
 
       results.push({ id, title: job.title, score, matchRate, conclusion });
