@@ -2004,13 +2004,22 @@ body,
 
 .pro-pay-qr {
   display: block;
-  width: 180px;
-  height: 180px;
+  width: min(240px, 100%);
+  height: auto;
+  margin: 4px 0 14px clamp(0px, 12%, 96px);
   object-fit: contain;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: #fff;
   padding: 6px;
+}
+
+/* 窄屏：放大后的收款码居中，避免右移导致溢出 */
+@media (max-width: 560px) {
+  .pro-pay-qr {
+    margin-left: auto;
+    margin-right: auto;
+  }
 }
 
 /* ---------- 额度预警条 ---------- */
