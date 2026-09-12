@@ -18,6 +18,12 @@ data/
 *.db-shm
 *.db-wal
 
+# 收款码等个人支付图片（含个人信息，切勿提交到公开仓库）
+public/pay-qr*
+public/pay-*.png
+public/pay-*.jpg
+public/pay-*.jpeg
+
 # 日志
 *.log
 logs/

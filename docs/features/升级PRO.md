@@ -38,6 +38,43 @@
 | GET | `/api/admin/pro-requests` | 管理员：申请列表（待处理优先） |
 | POST | `/api/admin/pro-requests/:id` | 管理员：`action=approve\|reject`；**approve 即写入 `plan='pro'` + 到期时间（未过期则顺延一个月）** |
 
+## 正式配置收款码（让闭环真正转起来）
+
+支付网关接入前，用**个人收款码 + 人工开通**闭环。三步：
+
+1. **准备收款码图片**：微信/支付宝「收款码」保存为 PNG（建议正方形、≤ 500KB）。
+2. **放到 `public/`**（Vite 构建时原样拷到 `dist/`，可通过根路径访问）：
+   ```
+   resume-evaluator/public/pay-qr.png
+   ```
+   > 该文件已被 `.gitignore` 排除（`public/pay-qr*`），**不会**进入公开仓库。
+3. **服务器 `.env` 配置并重启**：
+   ```
+   PRO_PAY_QR=/pay-qr.png
+   PRO_PAY_NOTE=付款后请填写你付款的账号邮箱，管理员核对后开通
+   # 或用外部支付链接（爱发电 / 有赞）：
+   # PRO_PAY_URL=https://afdian.net/@yourname
+   ```
+   ```bash
+   cd /opt/git/resume-evaluator
+   git pull && npm ci && npm run build
+   pm2 restart resume-evaluator
+   ```
+
+**验证**：登录后打开 `/pro` → 「第 1 步 · 支付 ¥9.9」下方出现收款码，手机扫一扫能打开收款页。
+图片 404 时页面会退回"提交申请、管理员联系收款"的兜底文案（不会显示裂图）。
+
+**三种收款方式**（可同时配）：
+
+| 变量 | 用途 |
+|------|------|
+| `PRO_PAY_QR` | 收款码图片：站内路径 `/pay-qr.png`、外链 URL、或 `data:image/png;base64,...` |
+| `PRO_PAY_URL` | 外部支付链接（新窗口打开） |
+| `PRO_PAY_NOTE` | 补充说明（转账备注、联系方式等） |
+
+**完整闭环**：用户扫码付款 → 填付款邮箱提交申请 → 管理员后台「PRO 开通申请」点「开通」→ 用户获得 1 个月 PRO
+（`plan_expires_at`，到期自动回落免费）。两端都配置好后，**无需改代码**。
+
 ## 有效期与自动降级（防止"一次性置位"漏钱）
 
 定价是 **¥9.9/月**，所以 PRO 必须是**按月**的，而不是一置位就永久有效。

@@ -27,6 +27,13 @@ if (process.env.TRUST_PROXY === undefined) {
   );
 }
 
+// 收款配置提示：未配置收款方式时，/pro 只能"提交申请 → 管理员联系收款"（闭环仍可转，但多一步人工）
+if (!process.env.PRO_PAY_QR && !process.env.PRO_PAY_URL) {
+  console.warn(
+    "[PRO] 未配置收款方式（PRO_PAY_QR 或 PRO_PAY_URL），/pro 页将引导用户提交申请后由管理员联系收款。"
+  );
+}
+
 // 统一请求 ID 与响应信封（渐进式，向后兼容）
 app.use(requestId);
 app.use(envelope);

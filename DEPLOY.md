@@ -172,6 +172,19 @@ sudo ufw enable
 
 ---
 
+## 8.2 配置 PRO 收款码（让付费闭环能转）
+
+1. 把微信/支付宝收款码保存为 `resume-evaluator/public/pay-qr.png`（该文件已被 `.gitignore` 排除，不会进公开仓库）。
+2. `.env` 加：
+   ```
+   PRO_PAY_QR=/pay-qr.png
+   PRO_PAY_NOTE=付款后请填写你付款的账号邮箱，管理员核对后开通
+   ```
+3. `npm run build && pm2 restart resume-evaluator`。
+4. 登录后打开 `/pro`，确认出现收款码。完整闭环见 `docs/features/升级PRO.md`。
+
+---
+
 ## 9. 升级与维护
 
 ```bash

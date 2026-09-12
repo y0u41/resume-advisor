@@ -16,6 +16,7 @@ export default function Pro() {
   const [note, setNote] = useState("");
   const [payEmail, setPayEmail] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [qrError, setQrError] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -59,10 +60,15 @@ export default function Pro() {
   const payForm = (
     <>
       <div className="pro-pay-title">第 1 步 · 支付 ¥{price}</div>
-      {plan?.pay.qr ? (
-        <img className="pro-pay-qr" src={plan.pay.qr} alt="PRO 收款码" />
+      {plan?.pay.qr && !qrError ? (
+        <img
+          className="pro-pay-qr"
+          src={plan.pay.qr}
+          alt="PRO 收款码"
+          onError={() => setQrError(true)}
+        />
       ) : (
-        <p className="hint">收款码暂未配置；也可先提交申请，管理员会与你联系收款。</p>
+        <p className="hint">收款码暂未配置或加载失败；也可先提交申请，管理员会与你联系收款。</p>
       )}
       {plan?.pay.url && (
         <p style={{ marginTop: 10 }}>
