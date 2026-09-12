@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import UserBar from "../components/UserBar";
 import Logo from "../components/Logo";
@@ -60,6 +60,9 @@ const STYLES: ResumeStyle[] = ["student", "classic", "project"];
 const LAYOUTS: ResumeLayout[] = ["single", "sidebar"];
 const DRAFT_KEY = "resume_builder_draft";
 const VERSIONS_KEY = "resume_builder_versions";
+// 预览按与 PDF 导出同一版心宽度（760px，含 32px 内边距）渲染后整体等比缩放，
+// 保证「所见即导出所得」，且左右分栏等版式与 A4 完全一致。
+const PREVIEW_PAGE_WIDTH = 760;
 
 interface Draft {
   data: ResumeData;
@@ -109,6 +112,10 @@ export default function Builder() {
   const [format, setFormat] = useState<DownloadFormat>("pdf");
   const [downloading, setDownloading] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
+  const previewViewportRef = useRef<HTMLDivElement>(null);
+  const previewPageRef = useRef<HTMLDivElement>(null);
+  const [previewScale, setPreviewScale] = useState(1);
+  const [previewHeight, setPreviewHeight] = useState(0);
   const toast = useToast();
 
   useEffect(() => {
@@ -158,6 +165,25 @@ export default function Builder() {
 
   const text = buildResume(data, style);
   const html = resumeToHtml(data, style, layout);
+
+  // 等比缩放：按预览列可用宽度把 760px 版心缩放到刚好铺满
+  useLayoutEffect(() => {
+    const viewport = previewViewportRef.current;
+    const page = previewPageRef.current;
+    if (!viewport || !page) return;
+    const update = () => {
+      const avail = viewport.clientWidth;
+      if (!avail) return;
+      const scale = Math.min(1, avail / PREVIEW_PAGE_WIDTH);
+      setPreviewScale(scale);
+      setPreviewHeight(page.scrollHeight * scale);
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(viewport);
+    ro.observe(page);
+    return () => ro.disconnect();
+  }, [html]);
   const canDownload = data.name.trim().length > 0 || text.replace(/^姓名\s*$/m, "").trim().length > 0;
 
   const set = (key: keyof ResumeData, value: string) =>
@@ -368,9 +394,21 @@ export default function Builder() {
         <div className="builder-preview">
           <div className="builder-preview-head">
             <span>实时预览</span>
+            <span className="builder-preview-scale">A4 · {Math.round(previewScale * 100)}%</span>
           </div>
           <div className="card builder-paper">
-            <div dangerouslySetInnerHTML={{ __html: html }} />
+            <div
+              className="builder-paper-viewport"
+              ref={previewViewportRef}
+              style={previewHeight ? { height: previewHeight } : undefined}
+            >
+              <div
+                className="builder-paper-page"
+                ref={previewPageRef}
+                style={{ width: PREVIEW_PAGE_WIDTH, transform: `scale(${previewScale})` }}
+                dangerouslySetInnerHTML={{ __html: html }}
+              />
+            </div>
           </div>
 
           <div className="builder-download">

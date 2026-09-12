@@ -1708,6 +1708,10 @@ body,
 }
 
 .builder-preview-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
   font-size: 0.8rem;
   font-weight: 700;
   color: var(--text-secondary);
@@ -1715,12 +1719,31 @@ body,
   margin-bottom: 10px;
 }
 
+.builder-preview-scale {
+  font-weight: 600;
+  letter-spacing: 0;
+  opacity: 0.75;
+}
+
 .builder-paper {
   margin-bottom: 14px;
   background: #fff;
   min-height: 340px;
-  /* 收窄内边距，让预览（尤其左右分栏）有更多可用宽度 */
-  padding: 16px;
+  /* 版心与内边距由 .builder-paper-page 提供，此处只做外框与裁切 */
+  padding: 0;
+  overflow: hidden;
+}
+
+/* 等比缩放预览：viewport 裁切，page 固定 760px 版心后整体缩放 */
+.builder-paper-viewport {
+  position: relative;
+  overflow: hidden;
+}
+
+.builder-paper-page {
+  transform-origin: top left;
+  padding: 32px;
+  background: #fff;
 }
 
 /* ---------- 简历模板排版（预览 + PDF 共用） ---------- */
@@ -1855,31 +1878,6 @@ body,
   border-bottom: 2px solid var(--primary);
   padding-bottom: 12px;
   margin-bottom: 18px;
-}
-
-/* 实时预览里，左右分栏需适配较窄的预览宽度：侧栏改为按比例伸缩。
-   （仅作用于预览；PDF 导出仍走上面的 200px 定宽侧栏，版式不变） */
-.builder-preview .resume-sidebar .rside {
-  width: 34%;
-  min-width: 96px;
-  max-width: 200px;
-  padding: 18px 12px;
-}
-
-.builder-preview .resume-sidebar .rphoto-side {
-  width: 68px;
-  height: 88px;
-  margin-bottom: 14px;
-}
-
-.builder-preview .resume-sidebar .rmain {
-  padding: 18px 14px;
-}
-
-/* 窄栏里长邮箱/长技能串换行，避免撑破或裁切 */
-.builder-preview .resume-sidebar .rside-body,
-.builder-preview .resume-sidebar .rsec-body {
-  overflow-wrap: anywhere;
 }
 
 /* ---------- 报告排版（PDF 导出） ---------- */
