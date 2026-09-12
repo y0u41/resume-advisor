@@ -45,6 +45,7 @@ export default function Admin() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [dailyLimit, setDailyLimit] = useState<number | null>(null);
   const [usage, setUsage] = useState<UsageSummary | null>(null);
+  const [events, setEvents] = useState<{ name: string; count: number }[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -69,7 +70,16 @@ export default function Admin() {
       .then((r) => r.json())
       .then(setUsage)
       .catch(() => {});
+    fetch("/api/admin/events")
+      .then((r) => r.json())
+      .then((d) => setEvents(d.counts || []))
+      .catch(() => {});
   }, [user]);
+
+  const countOf = (name: string) => events.find((e) => e.name === name)?.count || 0;
+  const trials = countOf("guest_trial");
+  const fromGuest = countOf("register_from_guest");
+  const convRate = trials ? Math.round((fromGuest / trials) * 100) : 0;
 
   if (user && user.role !== "admin") {
     return <Navigate to="/" replace />;
@@ -134,6 +144,29 @@ export default function Admin() {
           </table>
         )}
       </div>
+
+      {events.length > 0 && (
+        <div className="card">
+          <h2 className="section-title">
+            <span className="section-icon">🔻</span>
+            转化漏斗
+          </h2>
+          <p className="hint">
+            游客试用 <strong>{trials}</strong> → 试用后注册 <strong>{fromGuest}</strong> → 转化率{" "}
+            <strong>{convRate}%</strong>
+          </p>
+          <div className="progress-track" style={{ marginTop: 8 }}>
+            <div
+              className="progress-fill"
+              style={{ ["--target-width" as string]: `${convRate}%` }}
+            />
+          </div>
+          <p className="hint" style={{ marginTop: 8 }}>
+            注册总数 {countOf("register")} · 首次评估 {countOf("first_evaluate")} · 下载{" "}
+            {countOf("download")} · 追问 {countOf("followup")} · 7 日回访 {countOf("return_7d")}
+          </p>
+        </div>
+      )}
 
       {usage && (
         <div className="card">
