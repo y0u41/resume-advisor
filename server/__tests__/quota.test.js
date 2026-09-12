@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, beforeEach } from "vitest";
 
-let consumeQuota, getUsage, getPremiumUsage, db;
+let consumeQuota, refundQuota, getUsage, getPremiumUsage, db;
 
 beforeAll(async () => {
   process.env.DB_PATH = ":memory:";
@@ -8,7 +8,7 @@ beforeAll(async () => {
   process.env.PRO_DAILY_LIMIT = "10";
   process.env.FREE_PREMIUM_DAILY = "1";
   process.env.PRO_PREMIUM_DAILY = "5";
-  ({ consumeQuota, getUsage, getPremiumUsage } = await import("../core/quota.js"));
+  ({ consumeQuota, refundQuota, getUsage, getPremiumUsage } = await import("../core/quota.js"));
   db = (await import("../core/db.js")).default;
 });
 
@@ -63,5 +63,34 @@ describe("每日额度（按套餐分层）", () => {
     consumeQuota(free);
     expect(consumeQuota(free).allowed).toBe(false);
     expect(consumeQuota({ id: 9, role: "user", plan: "free" }).allowed).toBe(true);
+  });
+});
+
+describe("额度退还（评估失败时，避免「失败了次数却少了」）", () => {
+  it("退还 total，premium 也同步退还", () => {
+    consumeQuota(free, { isPremium: true });
+    expect(getUsage(1)).toBe(1);
+    expect(getPremiumUsage(1)).toBe(1);
+    refundQuota(free, { isPremium: true });
+    expect(getUsage(1)).toBe(0);
+    expect(getPremiumUsage(1)).toBe(0);
+  });
+
+  it("退还后额度可再次使用（不会卡住）", () => {
+    consumeQuota(free);
+    refundQuota(free);
+    expect(consumeQuota(free).allowed).toBe(true);
+    expect(getUsage(1)).toBe(1);
+  });
+
+  it("不会退成负数", () => {
+    refundQuota(free);
+    expect(getUsage(1)).toBe(0);
+  });
+
+  it("管理员不计数，退还也是 no-op", () => {
+    consumeQuota(admin);
+    refundQuota(admin);
+    expect(getUsage(3)).toBe(0);
   });
 });

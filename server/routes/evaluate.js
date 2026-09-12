@@ -11,7 +11,7 @@ import { listProviders, defaultModel } from "../core/models.js";
 import { saveEvaluation, findCachedEvaluation } from "../core/store.js";
 import { getPersonKey, getPersonName } from "../core/person.js";
 import { requireAuth } from "../core/auth.js";
-import { consumeQuota, getUsage, quotaMessage } from "../core/quota.js";
+import { consumeQuota, refundQuota, getUsage, quotaMessage } from "../core/quota.js";
 import { normalizePlan, dailyLimitFor, defaultModelFor, isPremiumModel } from "../core/plans.js";
 import { acquire } from "../core/queue.js";
 
@@ -231,8 +231,12 @@ router.post("/evaluate", async (req, res) => {
     return;
   }
 
+  const isPremium = isPremiumModel(effectiveModel(override));
+  let consumed = false;
+  let success = false;
+
   try {
-    const quota = consumeQuota(req.user, { isPremium: isPremiumModel(effectiveModel(override)) });
+    const quota = consumeQuota(req.user, { isPremium });
     if (!quota.allowed) {
       const msg = quotaMessage(quota);
       if (stream) {
@@ -243,6 +247,7 @@ router.post("/evaluate", async (req, res) => {
       }
       return;
     }
+    consumed = true;
 
     // 客观分：仅在缓存未命中、真正要评估时计算；放在并发槽位内，避免绕过队列。
     // 关键词优先用 LLM 抽取（覆盖任意行业、按 JD 哈希缓存），匹配仍是确定性可解释的。
@@ -323,6 +328,7 @@ router.post("/evaluate", async (req, res) => {
         objectiveJson
       );
 
+      success = true;
       maybeLogFirstEvaluate(req.user.id);
 
       safeWrite(
@@ -351,6 +357,7 @@ router.post("/evaluate", async (req, res) => {
         objectiveJson
       );
 
+      success = true;
       maybeLogFirstEvaluate(req.user.id);
       res.json({ id, score, report, objective, revision: 1 });
     }
@@ -367,6 +374,8 @@ router.post("/evaluate", async (req, res) => {
       res.status(500).json({ error: error.message });
     }
   } finally {
+    // 失败 / 空结果 / 中断：退还本次额度（管理员不计数，refundQuota 内部已跳过）
+    if (consumed && !success) refundQuota(req.user, { isPremium });
     if (release) release();
   }
 });
@@ -617,12 +626,23 @@ router.post("/interview", async (req, res) => {
     }
   };
 
-  const quota = consumeQuota(req.user, { isPremium: isPremiumModel(effectiveModel(override)) });
+  const isPremium = isPremiumModel(effectiveModel(override));
+  let consumed = false;
+  let success = false;
+  let refunded = false;
+  const refundOnce = () => {
+    if (!consumed || success || refunded) return;
+    refunded = true;
+    refundQuota(req.user, { isPremium });
+  };
+
+  const quota = consumeQuota(req.user, { isPremium });
   if (!quota.allowed) {
     safeWrite(`data: ${JSON.stringify({ error: quotaMessage(quota), done: true })}\n\n`);
     res.end();
     return;
   }
+  consumed = true;
 
   let release;
   try {
@@ -630,6 +650,7 @@ router.post("/interview", async (req, res) => {
       safeWrite(`data: ${JSON.stringify({ queued: true, position })}\n\n`);
     });
   } catch (error) {
+    refundOnce(); // 已扣额度但没能排上队
     safeWrite(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
     res.end();
     return;
@@ -677,6 +698,7 @@ router.post("/interview", async (req, res) => {
       override.isStudent ? "student" : "general",
       null
     );
+    success = true;
     safeWrite(`data: ${JSON.stringify({ chunk: "", done: true, id, text: fullText })}\n\n`);
     res.end();
   } catch (error) {
@@ -688,6 +710,7 @@ router.post("/interview", async (req, res) => {
     safeWrite(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
     res.end();
   } finally {
+    refundOnce();
     if (release) release();
   }
 });
@@ -723,12 +746,23 @@ router.post("/directions", async (req, res) => {
     }
   };
 
-  const quota = consumeQuota(req.user, { isPremium: isPremiumModel(effectiveModel(override)) });
+  const isPremium = isPremiumModel(effectiveModel(override));
+  let consumed = false;
+  let success = false;
+  let refunded = false;
+  const refundOnce = () => {
+    if (!consumed || success || refunded) return;
+    refunded = true;
+    refundQuota(req.user, { isPremium });
+  };
+
+  const quota = consumeQuota(req.user, { isPremium });
   if (!quota.allowed) {
     safeWrite(`data: ${JSON.stringify({ error: quotaMessage(quota), done: true })}\n\n`);
     res.end();
     return;
   }
+  consumed = true;
 
   let release;
   try {
@@ -736,6 +770,7 @@ router.post("/directions", async (req, res) => {
       safeWrite(`data: ${JSON.stringify({ queued: true, position })}\n\n`);
     });
   } catch (error) {
+    refundOnce(); // 已扣额度但没能排上队
     safeWrite(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
     res.end();
     return;
@@ -778,6 +813,7 @@ router.post("/directions", async (req, res) => {
       override.isStudent ? "student" : "general",
       null
     );
+    success = true;
     safeWrite(`data: ${JSON.stringify({ chunk: "", done: true, id, text: fullText })}\n\n`);
     res.end();
   } catch (error) {
@@ -789,6 +825,7 @@ router.post("/directions", async (req, res) => {
     safeWrite(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
     res.end();
   } finally {
+    refundOnce();
     if (release) release();
   }
 });

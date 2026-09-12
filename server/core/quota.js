@@ -81,6 +81,24 @@ export function consumeQuota(user, { isPremium = false, isOcr = false } = {}) {
   };
 }
 
+// 退还一次额度：评估/生成失败（网络、模型故障、空结果、中断）时调用，
+// 避免"评估失败了，次数却少了"——这是最伤付费意愿的一类体验。
+// total 必退；premium / ocr 按当时是否计入退；不会退成负数。管理员不受限、不计数 → 直接跳过。
+export function refundQuota(user, { isPremium = false, isOcr = false } = {}) {
+  if (!user?.id) return;
+  if (isUnlimited(normalizePlan(user))) return;
+  try {
+    const dec = db.prepare(
+      "UPDATE quota_counters SET count = MAX(count - 1, 0) WHERE user_id = ? AND day = ? AND kind = ?"
+    );
+    dec.run(user.id, today(), "total");
+    if (isPremium) dec.run(user.id, today(), "premium");
+    if (isOcr) dec.run(user.id, today(), "ocr");
+  } catch (error) {
+    console.warn("额度退还失败:", error.message);
+  }
+}
+
 // 只读快照：当前套餐的用量/额度（不消耗），用于前端「额度即将用完」预警
 export function getQuota(user) {
   const plan = normalizePlan(user);
