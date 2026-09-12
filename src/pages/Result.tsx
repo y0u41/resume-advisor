@@ -1,367 +1,25 @@
 import { useEffect, useState } from "react";
-import { useParams, useLocation, useNavigate, Link } from "react-router-dom";
-import UrlFetch from "../components/UrlFetch";
+import { useParams, useLocation, Link } from "react-router-dom";
 import UserBar from "../components/UserBar";
-import ModelSelect from "../components/ModelSelect";
 import Logo from "../components/Logo";
 import Nav from "../components/Nav";
-import { followUpStream, recordDownload, shareEvaluation, logEvent, submitFeedback } from "../lib/api";
+import { recordDownload, shareEvaluation, logEvent } from "../lib/api";
 import { downloadReport, type DownloadFormat } from "../lib/report/download";
 import { useToast } from "../lib/ui/toast";
-import { useTasks } from "../lib/tasks";
 import { useModels } from "../lib/ui/models";
-import {
-  parseReport,
-  parseMatchItems,
-  sectionIcon,
-  matchRate,
-  type MatchStatus,
-  type ObjectiveScore,
-} from "../lib/report/report";
-
-const FOLLOWUP_CHIPS = [
-  "帮我把自我评价重写一版",
-  "把项目经历改成 STAR 格式",
-  "我是应届生，没实习经历怎么补强",
-  "帮我把简历精简到一页",
-  "针对这个岗位，最该补的技能是什么",
-];
-
-interface EvalData {
-  id: number;
-  resume: string;
-  job_title: string;
-  job_description: string;
-  job_url: string;
-  score: number | null;
-  report: string;
-  candidate_type: string;
-  created_at: string;
-  objective?: ObjectiveScore | null;
-  revision?: number;
-  previousScore?: number | null;
-  scoreDelta?: number | null;
-}
-
-const ICONS: Record<MatchStatus, string> = {
-  ok: "✅",
-  partial: "⚠️",
-  miss: "❌",
-};
-
-function ScoreBadge({ score }: { score: number | null }) {
-  if (score === null) return null;
-  const cls = score >= 7 ? "score-high" : score >= 4 ? "score-mid" : "score-low";
-  return (
-    <div className={`score-badge ${cls}`}>
-      {score}
-      <small>/ 10</small>
-    </div>
-  );
-}
-
-function MatchSection({ content }: { content: string }) {
-  const items = parseMatchItems(content);
-
-  if (items.length === 0) {
-    return <div className="report">{content}</div>;
-  }
-
-  const okCount = items.filter((i) => i.status === "ok").length;
-  const partialCount = items.filter((i) => i.status === "partial").length;
-  const rate = matchRate(items);
-
-  return (
-    <div>
-      <div className="match-summary">
-        <div className="match-rate">
-          <div className="match-rate-label">
-            <span>岗位匹配度</span>
-            <span>
-              {okCount} 项满足 · {partialCount} 项部分 · {items.length - okCount - partialCount} 项缺失
-            </span>
-          </div>
-          <div className="progress-track">
-            <div
-              className="progress-fill"
-              style={{ ["--target-width" as string]: `${rate}%` }}
-            />
-          </div>
-        </div>
-        <div className={`score-badge ${rate >= 70 ? "score-high" : rate >= 40 ? "score-mid" : "score-low"}`}>
-          {rate}
-          <small>%</small>
-        </div>
-      </div>
-
-      <div className="match-list">
-        {items.map((item, i) => (
-          <div
-            key={i}
-            className={`match-item ${item.status}`}
-            style={{ animationDelay: `${i * 0.05}s` }}
-          >
-            <span className="match-icon">{ICONS[item.status]}</span>
-            <div className="match-body">
-              <div className="match-req">{item.req}</div>
-              <div className="match-detail">{item.detail}</div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function KeywordChips({ content }: { content: string }) {
-  const words = content
-    .split(/[、,，\n；;]+/)
-    .map((s) => s.replace(/^[\s\-*•【】]+|[\s:：]+$/g, "").trim())
-    .filter((s) => s.length > 0 && s.length <= 30);
-  if (words.length === 0) return <div className="report">{content}</div>;
-  return (
-    <div>
-      <div className="chips">
-        {words.map((w, i) => (
-          <span key={i} className="chip chip-miss">
-            {w}
-          </span>
-        ))}
-      </div>
-      <p className="hint">以上是简历里缺失、建议补上的关键词（有助通过 ATS 机器筛选）。</p>
-    </div>
-  );
-}
-
-function ReportView({ report }: { report: string }) {
-  const sections = parseReport(report);
-  if (sections.length === 0) {
-    return (
-      <div className="card">
-        <div className="report">{report}</div>
-      </div>
-    );
-  }
-  return (
-    <>
-      {sections.map((s, i) => (
-        <div className="card" key={i}>
-          <h2 className="section-title">
-            <span className="section-icon">{sectionIcon(s.title)}</span>
-            {s.title}
-          </h2>
-          {s.title.includes("匹配对照") ? (
-            <MatchSection content={s.content} />
-          ) : s.title.includes("关键词") ? (
-            <KeywordChips content={s.content} />
-          ) : (
-            <div className="report">{s.content}</div>
-          )}
-        </div>
-      ))}
-    </>
-  );
-}
-
-function ObjectiveCard({
-  objective,
-  llmScore,
-}: {
-  objective?: ObjectiveScore | null;
-  llmScore?: number | null;
-}) {
-  if (!objective) return null;
-  const rate =
-    typeof objective.matchRate === "number" ? Math.round(objective.matchRate * 100) : null;
-  const missing = objective.missing || [];
-  // LLM 十分制换算成百分制，与算法客观分对比
-  const llm100 = llmScore != null ? Math.round(llmScore * 10) : null;
-  const disagree = llm100 != null && Math.abs(llm100 - objective.score) >= 20;
-
-  return (
-    <div className="card">
-      <h2 className="section-title">
-        <span className="section-icon">📐</span>
-        客观评分（算法）
-      </h2>
-
-      <div className="objective-summary">
-        <div
-          className={`score-badge ${
-            objective.score >= 80 ? "score-high" : objective.score >= 60 ? "score-mid" : "score-low"
-          }`}
-        >
-          {objective.score}
-          <small>/ 100</small>
-        </div>
-        {rate !== null && (
-          <div className="objective-rate">
-            <div className="match-rate-label">
-              <span>关键词匹配度</span>
-              <span>{rate}%</span>
-            </div>
-            <div className="progress-track">
-              <div className="progress-fill" style={{ ["--target-width" as string]: `${rate}%` }} />
-            </div>
-          </div>
-        )}
-      </div>
-
-      <div className="objective-dims">
-        {objective.dimensions.map((d) => (
-          <div className="objective-dim" key={d.name}>
-            <div className="objective-dim-head">
-              <span>{d.label}</span>
-              <span>
-                {d.score} 分 · 权重 {Math.round(d.weight * 100)}%
-              </span>
-            </div>
-            <div className="progress-track">
-              <div className="progress-fill" style={{ ["--target-width" as string]: `${d.score}%` }} />
-            </div>
-            <div className="objective-dim-reason">{d.reason}</div>
-          </div>
-        ))}
-      </div>
-
-      {missing.length > 0 && (
-        <div className="objective-missing">
-          <div className="objective-missing-title">缺失关键词（{missing.length}）</div>
-          <div className="chips">
-            {missing.slice(0, 20).map((k) => (
-              <span key={k.canonical} className="chip chip-miss">
-                {k.canonical}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {objective.ats && (
-        <div className="objective-missing">
-          <div className="objective-missing-title">
-            ATS 可解析性 · {objective.ats.score}/100（简历能否被机器正确解析）
-          </div>
-          <div className="ats-checks">
-            {objective.ats.checks.map((c) => (
-              <div key={c.key} className={`ats-check ats-${c.status}`}>
-                <span className="ats-icon">
-                  {c.status === "ok" ? "✅" : c.status === "fail" ? "❌" : "⚠️"}
-                </span>
-                <span className="ats-label">{c.label}</span>
-                <span className="ats-detail">{c.detail}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <p className="hint">
-        该分数由内置算法（关键词匹配 + 四维评分）确定性计算，与上方 AI 报告相互印证、可复现。
-      </p>
-      {disagree && (
-        <p className="hint" style={{ marginTop: 6 }}>
-          AI 评分（{llmScore}/10）与算法客观分（{objective.score}/100）差异较大：AI 更侧重经历、表达等语义因素，算法更侧重关键词覆盖与量化等硬指标。建议以 AI 的改进建议为主，同时对照上方「缺失关键词」补齐短板。
-        </p>
-      )}
-    </div>
-  );
-}
-
-function FeedbackCard({ evalId }: { evalId: number }) {
-  const toast = useToast();
-  const storageKey = `fb_${evalId}`;
-  const [voted, setVoted] = useState<string>(() => {
-    try {
-      return localStorage.getItem(storageKey) || "";
-    } catch {
-      return "";
-    }
-  });
-  const [comment, setComment] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [sent, setSent] = useState(false);
-
-  const vote = async (rating: string) => {
-    if (voted || busy) return;
-    setBusy(true);
-    try {
-      await submitFeedback({ kind: "vote", rating, context: String(evalId) });
-      setVoted(rating);
-      try {
-        localStorage.setItem(storageKey, rating);
-      } catch {
-        // 忽略
-      }
-      toast("感谢你的反馈！", "success");
-    } catch (e: any) {
-      toast(e.message, "error");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const sendComment = async () => {
-    if (!comment.trim()) return;
-    setBusy(true);
-    try {
-      await submitFeedback({ kind: "feedback", content: comment.trim(), context: String(evalId) });
-      setSent(true);
-      setComment("");
-      toast("已提交，感谢反馈！", "success");
-    } catch (e: any) {
-      toast(e.message, "error");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div className="card">
-      <h2 className="section-title">
-        <span className="section-icon">💬</span>
-        这份报告有帮助吗？
-      </h2>
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-        <button
-          className="btn btn-secondary btn-sm"
-          onClick={() => vote("helpful")}
-          disabled={!!voted || busy}
-        >
-          {voted === "helpful" ? "👍 已评价：有帮助" : "👍 有帮助"}
-        </button>
-        <button
-          className="btn btn-secondary btn-sm"
-          onClick={() => vote("not_helpful")}
-          disabled={!!voted || busy}
-        >
-          {voted === "not_helpful" ? "👎 已评价：没帮助" : "👎 没帮助"}
-        </button>
-      </div>
-      <div className="form-group" style={{ marginTop: 12 }}>
-        <label>还有什么想说的？（选填）</label>
-        <textarea
-          rows={3}
-          placeholder="告诉我们哪里可以改进…"
-          value={comment}
-          onChange={(e) => setComment(e.target.value)}
-        />
-      </div>
-      <button
-        className="btn btn-secondary btn-sm"
-        onClick={sendComment}
-        disabled={busy || !comment.trim()}
-      >
-        {sent ? "已提交" : "提交反馈"}
-      </button>
-    </div>
-  );
-}
+import { parseReport } from "../lib/report/report";
+import type { EvalData } from "../components/result/types";
+import ResultActions from "../components/result/ResultActions";
+import ResumeEditor from "../components/result/ResumeEditor";
+import ReportView from "../components/result/ReportView";
+import ObjectiveCard from "../components/result/ObjectiveCard";
+import FollowupPanel from "../components/result/FollowupPanel";
+import JdCard from "../components/result/JdCard";
+import FeedbackCard from "../components/result/FeedbackCard";
 
 export default function Result() {
   const { id } = useParams();
   const location = useLocation();
-  const navigate = useNavigate();
   const stateData = location.state as any;
 
   const [data, setData] = useState<EvalData | null>(null);
@@ -374,8 +32,6 @@ export default function Result() {
   const [isStudent, setIsStudent] = useState(false);
   const [showEditor, setShowEditor] = useState(false);
 
-  const [saving, setSaving] = useState(false);
-  const [saveMsg, setSaveMsg] = useState("");
   const [downloadFormat, setDownloadFormat] = useState<DownloadFormat>("pdf");
   const [downloading, setDownloading] = useState(false);
   const [shareHideContact, setShareHideContact] = useState(false);
@@ -384,12 +40,8 @@ export default function Result() {
   const [shareUrl, setShareUrl] = useState("");
   const [shareExpires, setShareExpires] = useState("");
   const [sharing, setSharing] = useState(false);
-  const [followupQ, setFollowupQ] = useState("");
-  const [followupAnswer, setFollowupAnswer] = useState("");
-  const [followupLoading, setFollowupLoading] = useState(false);
   const { groups, selection, setSelection } = useModels();
   const toast = useToast();
-  const { startEvaluate } = useTasks();
 
   const applyFull = (d: EvalData) => {
     setData(d);
@@ -402,7 +54,6 @@ export default function Result() {
 
   useEffect(() => {
     if (stateData?.report) {
-      const hasFull = stateData.resume !== undefined;
       const d: EvalData = {
         id: stateData.id ?? (id && id !== "latest" ? Number(id) : 0),
         resume: stateData.resume ?? "",
@@ -479,66 +130,6 @@ export default function Result() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data?.id]);
 
-  const handleReevaluate = () => {
-    if (!resume.trim() || !jobTitle.trim()) return;
-    const taskId = startEvaluate(
-      {
-        resume,
-        jobTitle,
-        jobDescription,
-        jobUrl,
-        provider: selection?.provider,
-        model: selection?.model,
-        candidateType: isStudent ? "student" : "general",
-      },
-      `${jobTitle.trim()}（重评）`
-    );
-    navigate(`/result/task/${taskId}`);
-  };
-
-  const saveResume = async () => {
-    if (!data) return;
-    if (!data.id) {
-      setSaveMsg("该记录尚未保存，无法保存修改");
-      return;
-    }
-    setSaving(true);
-    setSaveMsg("");
-    try {
-      const res = await fetch(`/api/evaluations/${data.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          resume,
-          job_title: jobTitle,
-          job_description: jobDescription,
-          job_url: jobUrl,
-          revision: data.revision,
-        }),
-      });
-      if (!res.ok) {
-        const e = await res.json().catch(() => ({}));
-        if (res.status === 409) {
-          setSaveMsg("记录已在别处更新，已为你加载最新版本，请确认后重新编辑");
-          const latest = await fetch(`/api/evaluations/${data.id}`)
-            .then((r) => r.json())
-            .catch(() => null);
-          if (latest) applyFull(latest);
-          return;
-        }
-        setSaveMsg(e.error || "保存失败");
-        return;
-      }
-      const updated = await res.json();
-      applyFull(updated);
-      setSaveMsg("已保存 ✅");
-    } catch (err: any) {
-      setSaveMsg("保存失败：" + err.message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const handleDownload = async () => {
     if (!data) return;
     setDownloading(true);
@@ -572,37 +163,6 @@ export default function Result() {
       toast("生成分享链接失败：" + err.message, "error");
     } finally {
       setSharing(false);
-    }
-  };
-
-  const runFollowup = async (q: string) => {
-    const question = q.trim();
-    if (!question || !data) return;
-    logEvent("followup", { id: data.id });
-    setFollowupQ(question);
-    setFollowupLoading(true);
-    setFollowupAnswer("");
-    try {
-      await followUpStream(
-        {
-          resume,
-          jobTitle,
-          jobDescription,
-          report: data.report,
-          question,
-          provider: selection?.provider,
-          model: selection?.model,
-          candidateType: isStudent ? "student" : "general",
-        },
-        (text) => setFollowupAnswer(text),
-        () => {},
-        (msg) => setFollowupAnswer("（生成失败：" + msg + "）"),
-        (pos) => setFollowupAnswer(`（排队中，前面还有 ${pos} 位，请稍候…）`)
-      );
-    } catch (err: any) {
-      setFollowupAnswer("（请求失败：" + err.message + "）");
-    } finally {
-      setFollowupLoading(false);
     }
   };
 
@@ -654,311 +214,60 @@ export default function Result() {
         <Nav onNavigate={guardUnsaved} />
       </div>
 
-      <div className="card">
-        <div className="score-wrap" style={{ justifyContent: "space-between" }}>
-          <div>
-            <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)", marginBottom: 4 }}>
-              应聘岗位
-            </div>
-            <div style={{ fontSize: "1.2rem", fontWeight: 700 }}>{data.job_title || "—"}</div>
-            <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)", marginTop: 6 }}>
-              {new Date(data.created_at).toLocaleString("zh-CN")}
-            </div>
-            {data.scoreDelta != null && (
-              <div
-                style={{
-                  fontSize: "0.85rem",
-                  fontWeight: 600,
-                  marginTop: 4,
-                  color: data.scoreDelta >= 0 ? "var(--success)" : "var(--danger)",
-                }}
-              >
-                较上次 {data.scoreDelta >= 0 ? "+" : ""}
-                {data.scoreDelta} 分
-                {data.previousScore != null ? `（上次 ${data.previousScore}）` : ""}
-              </div>
-            )}
-          </div>
-          <ScoreBadge score={data.score} />
-        </div>
-
-        <div className="action-bar">
-          <button
-            className="btn btn-secondary btn-sm"
-            onClick={() => {
-              setSaveMsg("");
-              setShowEditor((v) => !v);
-            }}
-          >
-            {showEditor ? "收起编辑" : "📝 编辑简历"}
-          </button>
-
-          <button
-            className="btn btn-secondary btn-sm"
-            onClick={handleShare}
-            disabled={sharing || !data.id}
-          >
-            {sharing ? "生成中..." : "🔗 分享"}
-          </button>
-
-          <div className="download-group">
-            <select
-              className="format-select"
-              value={downloadFormat}
-              onChange={(e) => setDownloadFormat(e.target.value as DownloadFormat)}
-              disabled={downloading}
-            >
-              <option value="pdf">PDF</option>
-              <option value="docx">Word</option>
-              <option value="txt">TXT</option>
-              <option value="md">Markdown</option>
-            </select>
-            <button
-              className="btn btn-secondary btn-sm"
-              onClick={handleDownload}
-              disabled={downloading}
-            >
-              {downloading ? (
-                <>
-                  <span className="spinner spinner-sm" /> 生成中...
-                </>
-              ) : (
-                "⬇️ 下载报告"
-              )}
-            </button>
-          </div>
-
-          {saveMsg && !showEditor && <span className="save-msg">{saveMsg}</span>}
-        </div>
-
-        {shareUrl && (
-          <div
-            style={{
-              marginTop: 12,
-              padding: 12,
-              border: "1px solid var(--border)",
-              borderRadius: "var(--radius-sm)",
-            }}
-          >
-            <label className="switch-row" style={{ marginBottom: 8 }}>
-              <input
-                type="checkbox"
-                checked={shareHideContact}
-                onChange={(e) => setShareHideContact(e.target.checked)}
-              />
-              <span>隐藏联系方式（手机号 / 邮箱打码）</span>
-            </label>
-            <label className="switch-row" style={{ marginBottom: 8 }}>
-              <input
-                type="checkbox"
-                checked={shareHideName}
-                onChange={(e) => setShareHideName(e.target.checked)}
-              />
-              <span>隐藏姓名（保留首字，如「唐**」）</span>
-            </label>
-            <label className="switch-row" style={{ marginBottom: 8 }}>
-              <input
-                type="checkbox"
-                checked={shareIncludeResume}
-                onChange={(e) => setShareIncludeResume(e.target.checked)}
-              />
-              <span>同时分享简历原文（默认只分享报告）</span>
-            </label>
-            <input
-              readOnly
-              value={shareUrl}
-              onFocus={(e) => e.target.select()}
-              style={{ width: "100%" }}
-            />
-            <p className="hint" style={{ marginTop: 6 }}>
-              任何人可通过此链接查看只读报告（带水印）。
-              {shareExpires ? `有效期至 ${shareExpires}（UTC）。` : ""}
-              改动勾选后请再点「🔗 分享」重新生成。
-            </p>
-          </div>
-        )}
-      </div>
+      <ResultActions
+        data={data}
+        showEditor={showEditor}
+        onToggleEditor={() => setShowEditor((v) => !v)}
+        sharing={sharing}
+        onShare={handleShare}
+        downloadFormat={downloadFormat}
+        setDownloadFormat={setDownloadFormat}
+        downloading={downloading}
+        onDownload={handleDownload}
+        shareHideContact={shareHideContact}
+        setShareHideContact={setShareHideContact}
+        shareHideName={shareHideName}
+        setShareHideName={setShareHideName}
+        shareIncludeResume={shareIncludeResume}
+        setShareIncludeResume={setShareIncludeResume}
+        shareUrl={shareUrl}
+        shareExpires={shareExpires}
+      />
 
       <ObjectiveCard objective={data.objective} llmScore={data.score} />
 
       {showEditor && (
-        <div className="card">
-          <h2 className="section-title">
-            <span className="section-icon">📝</span>
-            编辑简历
-          </h2>
-
-          <div className="form-group">
-            <div className="label-row">
-              <label>简历全文</label>
-              <span className="char-count">{resume.length} 字</span>
-            </div>
-            <textarea
-              className="editor-textarea"
-              value={resume}
-              onChange={(e) => setResume(e.target.value)}
-              placeholder="在这里自由编辑简历内容，空间足够大..."
-            />
-          </div>
-
-          <div className="form-group">
-            <label>应聘岗位</label>
-            <input
-              type="text"
-              value={jobTitle}
-              onChange={(e) => setJobTitle(e.target.value)}
-              placeholder="应聘岗位"
-            />
-          </div>
-
-          <div className="form-group">
-            <label>岗位要求（JD）</label>
-            <UrlFetch
-              value={jobUrl}
-              onChange={setJobUrl}
-              onFetched={(text, url) => {
-                setJobDescription(text);
-                setJobUrl(url);
-              }}
-            />
-            <textarea
-              className="editor-textarea-sm"
-              value={jobDescription}
-              onChange={(e) => setJobDescription(e.target.value)}
-              placeholder="岗位要求（选填）"
-            />
-          </div>
-
-          <label className="switch-row">
-            <input
-              type="checkbox"
-              checked={isStudent}
-              onChange={(e) => setIsStudent(e.target.checked)}
-            />
-            <span>应届生 / 暂无工作经历</span>
-          </label>
-
-          <ModelSelect groups={groups} value={selection} onChange={setSelection} />
-
-          <div className="editor-actions">
-            <button
-              className="btn btn-primary"
-              disabled={saving || !resume.trim()}
-              onClick={saveResume}
-            >
-              {saving ? (
-                <>
-                  <span className="spinner" /> 保存中...
-                </>
-              ) : (
-                "💾 保存"
-              )}
-            </button>
-            <button
-              className="btn btn-secondary"
-              disabled={!resume.trim() || !jobTitle.trim()}
-              onClick={handleReevaluate}
-            >
-              再次评估
-            </button>
-          </div>
-          <p className="hint" style={{ marginTop: 10 }}>
-            「保存」更新当前这条记录；「再次评估」用当前内容重跑一遍并生成一条新记录。
-          </p>
-          {saveMsg && (
-            <p className="hint" style={{ marginTop: 10 }}>
-              {saveMsg}
-            </p>
-          )}
-        </div>
+        <ResumeEditor
+          data={data}
+          resume={resume}
+          setResume={setResume}
+          jobTitle={jobTitle}
+          setJobTitle={setJobTitle}
+          jobDescription={jobDescription}
+          setJobDescription={setJobDescription}
+          jobUrl={jobUrl}
+          setJobUrl={setJobUrl}
+          isStudent={isStudent}
+          setIsStudent={setIsStudent}
+          groups={groups}
+          selection={selection}
+          setSelection={setSelection}
+          onSaved={applyFull}
+        />
       )}
 
       <ReportView report={data.report} />
 
-      {(
-        <div className="card">
-          <h2 className="section-title">
-            <span className="section-icon">💬</span>
-            继续追问
-          </h2>
-          <p className="hint" style={{ marginBottom: 12 }}>
-            针对这份简历继续让 AI 帮你改，点下面的常用指令或直接提问：
-          </p>
+      <FollowupPanel
+        data={data}
+        resume={resume}
+        jobTitle={jobTitle}
+        jobDescription={jobDescription}
+        isStudent={isStudent}
+        selection={selection}
+      />
 
-          <div className="chips">
-            {FOLLOWUP_CHIPS.map((c) => (
-              <button
-                key={c}
-                type="button"
-                className="chip"
-                disabled={followupLoading}
-                onClick={() => runFollowup(c)}
-              >
-                {c}
-              </button>
-            ))}
-          </div>
-
-          <div className="followup-input">
-            <input
-              type="text"
-              placeholder="例如：帮我把项目经历改成 STAR 格式"
-              value={followupQ}
-              onChange={(e) => setFollowupQ(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") runFollowup(followupQ);
-              }}
-            />
-            <button
-              type="button"
-              className="btn btn-primary"
-              disabled={followupLoading || !followupQ.trim()}
-              onClick={() => runFollowup(followupQ)}
-            >
-              {followupLoading ? (
-                <>
-                  <span className="spinner" /> 生成中
-                </>
-              ) : (
-                "发送"
-              )}
-            </button>
-          </div>
-
-          {(followupAnswer || followupLoading) && (
-            <div className="followup-answer">
-              <div className={`report ${followupLoading ? "streaming-cursor" : ""}`}>
-                {followupAnswer}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {(data.job_description || data.job_url) && (
-        <div className="card">
-          <h3 style={{ marginBottom: 10, fontSize: "0.95rem", color: "var(--text-secondary)" }}>
-            原始 JD
-          </h3>
-          {data.job_url && (
-            <a className="jd-link" href={data.job_url} target="_blank" rel="noreferrer">
-              🔗 {data.job_url}
-            </a>
-          )}
-          {data.job_description && (
-            <div
-              style={{
-                fontSize: "0.85rem",
-                color: "var(--text-secondary)",
-                whiteSpace: "pre-wrap",
-                marginTop: data.job_url ? 10 : 0,
-              }}
-            >
-              {data.job_description}
-            </div>
-          )}
-        </div>
-      )}
+      <JdCard jobUrl={data.job_url} jobDescription={data.job_description} />
 
       <FeedbackCard evalId={data.id} />
     </div>

@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import Logo from "../components/Logo";
+import ReportView from "../components/result/ReportView";
 import { fetchShared } from "../lib/api";
-import { parseReport, sectionIcon } from "../lib/report/report";
 
 export default function ShareView() {
   const { token } = useParams();
@@ -51,7 +51,6 @@ export default function ShareView() {
     );
   }
 
-  const sections = parseReport(data.report || "");
   const scoreCls =
     data.score == null ? "" : data.score >= 7 ? "score-high" : data.score >= 4 ? "score-mid" : "score-low";
 
@@ -88,21 +87,7 @@ export default function ShareView() {
         </div>
       </div>
 
-      {sections.length > 0 ? (
-        sections.map((s, i) => (
-          <div className="card" key={i}>
-            <h2 className="section-title">
-              <span className="section-icon">{sectionIcon(s.title)}</span>
-              {s.title}
-            </h2>
-            <div className="report">{s.content}</div>
-          </div>
-        ))
-      ) : (
-        <div className="card">
-          <div className="report">{data.report}</div>
-        </div>
-      )}
+      <ReportView report={data.report || ""} />
 
       <div className="card" style={{ textAlign: "center" }}>
         <p className="hint">想给自己的简历也来一份这样的报告？</p>
