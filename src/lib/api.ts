@@ -408,6 +408,8 @@ export interface QuotaSnapshot {
   premiumLimit: number;
   planExpiresAt?: string | null;
   daysLeft?: number | null;
+  warnRatio?: number;
+  warnAt?: number;
   proDaily: number;
   price: number;
 }

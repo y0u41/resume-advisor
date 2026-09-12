@@ -4,8 +4,9 @@ import { useAuth } from "../lib/auth";
 import { useTasks } from "../lib/tasks";
 import { fetchQuota, type QuotaSnapshot } from "../lib/api";
 
-// 用到 80% 就温和提示一次（把 PRO 的售卖前置到"体验不错但快不够用"的时刻，而不是等报错）
-const THRESHOLD = 0.8;
+// 用到预警线（服务端按 QUOTA_WARN_RATIO 下发，默认 80%）就温和提示一次
+// （把 PRO 的售卖前置到"体验不错但快不够用"的时刻，而不是等报错）
+const FALLBACK_WARN_RATIO = 0.8;
 
 function todayKey() {
   return `quota_warn_dismissed_${new Date().toISOString().slice(0, 10)}`;
@@ -43,10 +44,10 @@ export default function QuotaBanner() {
   if (location.pathname === "/pro") return null;
   if (dismissed) return null;
 
-  const ratio = quota.used / quota.limit;
-  if (ratio < THRESHOLD) return null;
+  const warnAt = quota.warnAt ?? Math.ceil(quota.limit * (quota.warnRatio ?? FALLBACK_WARN_RATIO));
+  if (quota.used < warnAt) return null;
 
-  const pct = Math.round(ratio * 100);
+  const pct = Math.round((quota.used / quota.limit) * 100);
   const remaining = Math.max(0, quota.limit - quota.used);
 
   const dismiss = () => {

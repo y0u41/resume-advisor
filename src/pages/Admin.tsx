@@ -92,6 +92,28 @@ interface GuestExperiment {
   byPreview: ExperimentGroup[];
 }
 
+interface UsageDistribution {
+  windowDays: number;
+  userDays: number;
+  users: number;
+  days: number;
+  minSample: number;
+  enoughSamples: boolean;
+  percentiles: { p50: number; p75: number; p90: number; p95: number; p99: number; max: number };
+  freeLimit: number;
+  warnRatio: number;
+  warnAt: number;
+  hitWarn: number;
+  hitWarnPct: number;
+  suggestedLimit: number;
+  suggestedWarnAt: number;
+  suggestedHitWarnPct: number;
+  targetWarnPct: number;
+  targetLimit: number;
+  targetLimitWarnAt: number;
+  targetLimitHitPct: number;
+}
+
 export default function Admin() {
   const { user } = useAuth();
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -102,6 +124,8 @@ export default function Admin() {
   const [parseHealth, setParseHealth] = useState<ParseHealth | null>(null);
   const [proRequests, setProRequests] = useState<ProRequest[]>([]);
   const [experiment, setExperiment] = useState<GuestExperiment | null>(null);
+  const [usageDist, setUsageDist] = useState<UsageDistribution | null>(null);
+  const [distDays, setDistDays] = useState(30);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -181,6 +205,14 @@ export default function Admin() {
       .then(setUsage)
       .catch(() => {});
   }, [user, usageDays]);
+
+  useEffect(() => {
+    if (user?.role !== "admin") return;
+    fetch(`/api/admin/usage-distribution?days=${distDays}`)
+      .then((r) => r.json())
+      .then(setUsageDist)
+      .catch(() => {});
+  }, [user, distDays]);
 
   const countOf = (name: string) => events.find((e) => e.name === name)?.count || 0;
   const trials = countOf("guest_trial");
@@ -493,6 +525,84 @@ export default function Admin() {
             转化率 = 试用后注册 / 游客试用。归因依赖浏览器的 <code>guest_trialed</code> 标记：换设备 / 清缓存后注册会漏计，
             分子偏小 → 转化率被<strong>低估</strong>（保守方向，解读时注意）。两因素独立分桶，样本小时两者的交互会互相污染，
             单组 ≥ {experiment.minSample} 次试用前别下结论。
+          </p>
+        </div>
+      )}
+
+      {usageDist && (
+        <div className="card">
+          <h2 className="section-title">
+            <span className="section-icon">🎯</span>
+            免费额度校准
+          </h2>
+          <div className="chips" style={{ marginBottom: 10 }}>
+            {[
+              { d: 7, label: "近 7 天" },
+              { d: 30, label: "近 30 天" },
+              { d: 0, label: "全部" },
+            ].map((x) => (
+              <button
+                key={x.d}
+                type="button"
+                className="chip"
+                style={
+                  distDays === x.d
+                    ? { borderColor: "var(--primary)", color: "var(--primary)" }
+                    : undefined
+                }
+                onClick={() => setDistDays(x.d)}
+              >
+                {x.label}
+              </button>
+            ))}
+          </div>
+          <p className="hint" style={{ marginBottom: 8 }}>
+            样本 {usageDist.userDays} 用户×天 · {usageDist.users} 用户 · {usageDist.days} 天
+            （含 PRO 用户，会略微拉高上尾）
+          </p>
+          {!usageDist.enoughSamples && (
+            <p className="hint" style={{ color: "#b45309", marginBottom: 8 }}>
+              ⚠ 样本不足（{usageDist.userDays}/{usageDist.minSample} 用户×天）：下面的建议值仅供参考，先积累数据再调。
+            </p>
+          )}
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th>P50</th>
+                <th>P75</th>
+                <th>P90</th>
+                <th>P95</th>
+                <th>P99</th>
+                <th>最大</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>{usageDist.percentiles.p50}</td>
+                <td>{usageDist.percentiles.p75}</td>
+                <td>{usageDist.percentiles.p90}</td>
+                <td>{usageDist.percentiles.p95}</td>
+                <td>{usageDist.percentiles.p99}</td>
+                <td>{usageDist.percentiles.max}</td>
+              </tr>
+            </tbody>
+          </table>
+          <p className="hint" style={{ marginTop: 10 }}>
+            当前 <code>FREE_DAILY_LIMIT={usageDist.freeLimit}</code>，
+            {Math.round(usageDist.warnRatio * 100)}% 预警线 {usageDist.warnAt} 次 → 仅{" "}
+            <strong>{usageDist.hitWarnPct}%</strong> 的用户×天会触发（售卖提示几乎不可见）。
+          </p>
+          <p className="hint">
+            启发式（P90×1.5）：<code>FREE_DAILY_LIMIT≈{usageDist.suggestedLimit}</code> → 预警线{" "}
+            {usageDist.suggestedWarnAt} 次，预计 <strong>{usageDist.suggestedHitWarnPct}%</strong> 触发。
+            {usageDist.suggestedHitWarnPct < 1 &&
+              "（注意：分布平的时候这个值可能仍触发不到，见下）"}
+          </p>
+          <p className="hint">
+            目标法（更稳）：想让约 <strong>{usageDist.targetWarnPct}%</strong> 的重用户看到提示 →
+            <code>FREE_DAILY_LIMIT≈{usageDist.targetLimit}</code>（预警线 {usageDist.targetLimitWarnAt} 次，
+            实际 <strong>{usageDist.targetLimitHitPct}%</strong>）。改 <code>.env</code> 的{" "}
+            <code>FREE_DAILY_LIMIT</code> 后重启生效。
           </p>
         </div>
       )}

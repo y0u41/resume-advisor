@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from "async_hooks";
 import db from "./db.js";
+import { FREE_DAILY_LIMIT, QUOTA_WARN_RATIO } from "./plans.js";
 
 // 用 AsyncLocalStorage 记录当前请求的「用户 + 功能」上下文，
 // LLM 层在每次调用后自动上报 token 用量，无需改动各 LLM 函数签名。
@@ -133,5 +134,76 @@ export function usageSummary(days = 0) {
       .slice(0, 100),
     byDay: [...byDay.values()].map(withCost).sort((a, b) => (a.day < b.day ? -1 : 1)),
     pricing: pricing(),
+  };
+}
+
+// ===== 免费额度校准（数据驱动，而非拍脑袋）=====
+// 问题：免费额度 100/天 时，80% 预警线 = 80 次，正常用户根本用不到 → 「额度焦虑」这个售卖杠杆对免费档不触发。
+// 做法：看 per-user-per-day 用量分布，把 FREE_DAILY_LIMIT 定到 P90×1.5 左右，让预警在重用户身上真的出现。
+// 数据源：quota_counters(kind='total')（旧库的 usage_log 已在启动时迁移进来）。
+const DIST_MIN_SAMPLE = Number(process.env.USAGE_DIST_MIN_SAMPLE || 100);
+// 目标：让约该比例的重用户×天 看到升级提示（用于反推一个"真的会触发"的额度）
+const TARGET_WARN_PCT = Number(process.env.USAGE_TARGET_WARN_PCT || 10);
+
+// 最近秩法（nearest-rank）：P(p) = 排序后第 ceil(p/100*n) 个
+function percentile(sorted, p) {
+  if (!sorted.length) return 0;
+  const idx = Math.min(sorted.length - 1, Math.max(0, Math.ceil((p / 100) * sorted.length) - 1));
+  return sorted[idx];
+}
+
+const round10 = (n) => Math.round(n / 10) * 10;
+
+// days：0=全部，N=近 N 天（含今日）
+export function usageDistribution(days = 30) {
+  const where = days > 0 ? `AND day >= date('now', '-${days - 1} days')` : "";
+  const rows = db
+    .prepare(`SELECT user_id, day, count FROM quota_counters WHERE kind = 'total' ${where}`)
+    .all();
+  const counts = rows.map((r) => Number(r.count) || 0).sort((a, b) => a - b);
+  const n = counts.length;
+  const p90 = percentile(counts, 90);
+
+  const warnAt = Math.ceil(FREE_DAILY_LIMIT * QUOTA_WARN_RATIO);
+  const hitWarn = counts.filter((c) => c >= warnAt).length;
+  // 方案 A（用户提的启发式）：P90×1.5
+  const suggestedLimit = round10(Math.ceil(p90 * 1.5));
+  const suggestedWarnAt = Math.ceil(suggestedLimit * QUOTA_WARN_RATIO);
+  const suggestedHitWarn = counts.filter((c) => c >= suggestedWarnAt).length;
+  // 方案 B（目标触发率反推）：预警线落在 P(100-target) 上 → limit = warnAt / warnRatio
+  //   比 P90×1.5 更稳：P90×1.5 的预警线在 1.2×P90，分布平的时候可能一个人都触发不到。
+  const targetWarnAt = percentile(counts, 100 - TARGET_WARN_PCT);
+  const targetLimit = round10(Math.ceil(targetWarnAt / QUOTA_WARN_RATIO));
+  const targetLimitWarnAt = Math.ceil(targetLimit * QUOTA_WARN_RATIO);
+  const targetLimitHit = counts.filter((c) => c >= targetLimitWarnAt).length;
+  const pctOf = (x) => (n ? Math.round((x / n) * 1000) / 10 : 0);
+
+  return {
+    windowDays: days,
+    userDays: n,
+    users: new Set(rows.map((r) => r.user_id)).size,
+    days: new Set(rows.map((r) => r.day)).size,
+    minSample: DIST_MIN_SAMPLE,
+    enoughSamples: n >= DIST_MIN_SAMPLE,
+    percentiles: {
+      p50: percentile(counts, 50),
+      p75: percentile(counts, 75),
+      p90,
+      p95: percentile(counts, 95),
+      p99: percentile(counts, 99),
+      max: counts[n - 1] || 0,
+    },
+    freeLimit: FREE_DAILY_LIMIT,
+    warnRatio: QUOTA_WARN_RATIO,
+    warnAt,
+    hitWarn,
+    hitWarnPct: pctOf(hitWarn),
+    suggestedLimit,
+    suggestedWarnAt,
+    suggestedHitWarnPct: pctOf(suggestedHitWarn),
+    targetWarnPct: TARGET_WARN_PCT,
+    targetLimit,
+    targetLimitWarnAt,
+    targetLimitHitPct: pctOf(targetLimitHit),
   };
 }

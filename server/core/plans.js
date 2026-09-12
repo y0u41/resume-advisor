@@ -6,6 +6,8 @@ import { listProviders } from "./models.js";
 // 每日总额度
 export const FREE_DAILY_LIMIT = Number(process.env.FREE_DAILY_LIMIT || 100);
 export const PRO_DAILY_LIMIT = Number(process.env.PRO_DAILY_LIMIT || 500);
+// 「额度即将用完」预警比例：用到该比例就在顶部提示升级（把售卖前置）
+export const QUOTA_WARN_RATIO = Number(process.env.QUOTA_WARN_RATIO || 0.8);
 // 高级模型每日额度（免费仅尝鲜）
 export const FREE_PREMIUM_DAILY = Number(process.env.FREE_PREMIUM_DAILY || 5);
 export const PRO_PREMIUM_DAILY = Number(process.env.PRO_PREMIUM_DAILY || 30);

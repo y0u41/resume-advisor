@@ -8,6 +8,7 @@ import {
   planDaysLeft,
   PRO_PRICE,
   PRO_DAILY_LIMIT,
+  QUOTA_WARN_RATIO,
 } from "./plans.js";
 
 function today() {
@@ -95,6 +96,8 @@ export function getQuota(user) {
     premiumLimit: Number.isFinite(premiumLimit) ? premiumLimit : -1,
     planExpiresAt: plan === "pro" && user.role !== "admin" ? user.planExpiresAt || null : null,
     daysLeft: plan === "pro" ? planDaysLeft(user) : null,
+    warnRatio: QUOTA_WARN_RATIO,
+    warnAt: Number.isFinite(limit) ? Math.ceil(limit * QUOTA_WARN_RATIO) : -1,
     proDaily: PRO_DAILY_LIMIT,
     price: PRO_PRICE,
   };

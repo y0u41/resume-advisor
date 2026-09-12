@@ -6,7 +6,7 @@ import { normalizePlan, dailyLimitFor, PRO_PRICE, isPlanExpired, planDaysLeft, p
 import { eventCounts, recentEvents } from "../core/events.js";
 import { parseHealth } from "../core/parseHealth.js";
 import { guestExperimentStats } from "../core/experiments.js";
-import { usageSummary } from "../core/usage.js";
+import { usageSummary, usageDistribution } from "../core/usage.js";
 
 const router = Router();
 
@@ -152,6 +152,13 @@ router.get("/admin/feedback", (req, res) => {
 router.get("/admin/usage", (req, res) => {
   const days = [1, 7].includes(Number(req.query.days)) ? Number(req.query.days) : 0;
   res.json(usageSummary(days));
+});
+
+// 免费额度校准（管理员）：per-user-per-day 用量分布 + 建议 FREE_DAILY_LIMIT（P90×1.5）；?days=30 默认
+router.get("/admin/usage-distribution", (req, res) => {
+  const d = Number(req.query.days);
+  const days = Number.isFinite(d) && d >= 0 ? Math.min(d, 365) : 30;
+  res.json(usageDistribution(days));
 });
 
 export default router;
