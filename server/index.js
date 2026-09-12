@@ -191,6 +191,11 @@ app.use((err, req, res, next) => {
 
 app.listen(PORT, HOST, () => {
   console.log(`服务器运行在 http://${HOST}:${PORT}`);
+  if (process.env.NODE_ENV === "production" && process.env.COOKIE_SECURE !== "true") {
+    console.warn(
+      "[安全] 生产环境建议启用 HTTPS 并设置 COOKIE_SECURE=true（简历属敏感个人信息，明文 HTTP 存在泄露风险）"
+    );
+  }
   startPurgeJob();
   try {
     const { provider, baseUrl, model } = getProviderInfo();
