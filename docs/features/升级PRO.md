@@ -12,6 +12,9 @@
 
 - 顶栏 `UserBar`：「升级 PRO」（非管理员且非 PRO 用户可见）。
 - 额度报错文案：`server/core/quota.js` 的 `quotaMessage` 指向「升级 PRO」页并带上价格。
+- **额度预警条**（把售卖前置到"体验不错但快不够用"的时刻，而不是等报错）：
+  `GET /api/quota`（只读快照）+ `src/components/QuotaBanner.tsx`；用量 **≥ 80%** 时在顶部温和提示，
+  链到 `/pro`，可**按天 dismiss**（`localStorage`），任务完成数变化后自动刷新；管理员 / PRO 不显示。
 - 路由：`/pro`（`src/pages/Pro.tsx`，需登录，`Protected` 包裹）。
 
 ## 页面

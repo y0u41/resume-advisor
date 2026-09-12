@@ -150,6 +150,7 @@ const API_PREFIXES = [
   "/feedback",
   "/keywords",
   "/pro",
+  "/quota",
   "/health",
 ];
 app.use("/api", (req, res, next) => {

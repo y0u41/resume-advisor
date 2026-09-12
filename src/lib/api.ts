@@ -395,6 +395,22 @@ export async function fetchProPlan(): Promise<ProPlan> {
   return r.json();
 }
 
+export interface QuotaSnapshot {
+  plan: string;
+  unlimited: boolean;
+  used: number;
+  limit: number;
+  premiumUsed: number;
+  premiumLimit: number;
+  proDaily: number;
+  price: number;
+}
+
+export async function fetchQuota(): Promise<QuotaSnapshot> {
+  const r = await fetch("/api/quota");
+  return r.json();
+}
+
 export async function fetchProRequest(): Promise<{ request: any }> {
   const r = await fetch("/api/pro/request");
   return r.json();

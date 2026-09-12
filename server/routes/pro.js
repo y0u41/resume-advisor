@@ -1,10 +1,16 @@
 import { Router } from "express";
 import db from "../core/db.js";
 import { requireAuth } from "../core/auth.js";
+import { getQuota } from "../core/quota.js";
 import { PRO_PRICE, FREE_DAILY_LIMIT, PRO_DAILY_LIMIT, FREE_PREMIUM_DAILY, PRO_PREMIUM_DAILY } from "../core/plans.js";
 
 const router = Router();
 router.use(requireAuth);
+
+// 当前用量/额度快照（用于「额度即将用完」预警，不消耗额度）
+router.get("/quota", (req, res) => {
+  res.json(getQuota(req.user));
+});
 
 // 当前套餐 + 价格与额度（PRO 页展示）
 router.get("/pro/plan", (req, res) => {

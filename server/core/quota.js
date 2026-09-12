@@ -6,6 +6,7 @@ import {
   ocrDailyFor,
   isUnlimited,
   PRO_PRICE,
+  PRO_DAILY_LIMIT,
 } from "./plans.js";
 
 function today() {
@@ -75,6 +76,24 @@ export function consumeQuota(user, { isPremium = false, isOcr = false } = {}) {
     used: used + 1,
     premiumUsed: premiumUsed + (isPremium ? 1 : 0),
     ocrUsed: ocrUsed + (isOcr ? 1 : 0),
+  };
+}
+
+// 只读快照：当前套餐的用量/额度（不消耗），用于前端「额度即将用完」预警
+export function getQuota(user) {
+  const plan = normalizePlan(user);
+  const unlimited = isUnlimited(plan);
+  const limit = dailyLimitFor(plan);
+  const premiumLimit = premiumDailyFor(plan);
+  return {
+    plan,
+    unlimited,
+    used: unlimited ? 0 : getUsage(user.id),
+    limit: Number.isFinite(limit) ? limit : -1,
+    premiumUsed: unlimited ? 0 : getPremiumUsage(user.id),
+    premiumLimit: Number.isFinite(premiumLimit) ? premiumLimit : -1,
+    proDaily: PRO_DAILY_LIMIT,
+    price: PRO_PRICE,
   };
 }
 

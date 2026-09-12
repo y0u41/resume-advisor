@@ -1995,6 +1995,33 @@ body,
   }
 }
 
+/* ---------- 额度预警条 ---------- */
+.quota-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  max-width: 820px;
+  margin: 10px auto 0;
+  padding: 10px 16px;
+  border: 1px solid var(--warning);
+  background: var(--tint);
+  color: var(--text);
+  border-radius: var(--radius-md);
+  font-size: 0.85rem;
+}
+
+.quota-banner a {
+  color: var(--warning);
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+.quota-banner .btn-link {
+  color: var(--text-secondary);
+}
+
 /* ---------- Toast ---------- */
 .toast-container {
   position: fixed;

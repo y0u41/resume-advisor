@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from "./lib/auth";
 import { ToastProvider } from "./lib/ui/toast";
 import { TaskProvider } from "./lib/tasks";
 import TaskDock from "./components/TaskDock";
+import QuotaBanner from "./components/QuotaBanner";
 import Home from "./pages/Home";
 import Result from "./pages/Result";
 import History from "./pages/History";
@@ -43,6 +44,7 @@ export default function App() {
         <TaskProvider>
         <BrowserRouter>
         <TaskDock />
+        <QuotaBanner />
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/privacy" element={<Privacy />} />
