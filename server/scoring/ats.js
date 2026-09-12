@@ -9,8 +9,8 @@ const RE = {
   experience: /(工作经历|工作经验|实习经历|实习经历|工作经历|实习|工作|任职)/,
   projects: /(项目经历|项目经验|项目)/,
   skills: /(技能特长|专业技能|技能|技术栈)/,
-  // 规范日期：YYYY-MM / YYYY.MM / YYYY/MM
-  date: /\b(19|20)\d{2}\s*[.\-/]\s*(0?[1-9]|1[0-2])\b/,
+  // 规范日期：2023-08 / 2023.08 / 2023/08 / 2023年8月 / 2023年
+  date: /(19|20)\d{2}\s*([.\-/]\s*(0?[1-9]|1[0-2])|年\s*(0?[1-9]|1[0-2])?\s*月?)/,
   url: /https?:\/\//i,
 };
 
@@ -77,13 +77,13 @@ export function checkAts(resumeText) {
     add(key, label, ok ? "ok" : "warn", ok ? `已识别「${sample}」类标题` : `建议使用标准标题，如「${sample}」`);
   }
 
-  // 8. 日期格式规范
+  // 8. 日期格式规范（中英文写法均可）
   const hasStandardDate = RE.date.test(text);
   add(
     "date",
-    "日期格式（YYYY-MM）",
+    "日期格式",
     hasStandardDate ? "ok" : "warn",
-    hasStandardDate ? "存在规范日期（如 2023.08 / 2023-08）" : "建议统一为 YYYY-MM 或 YYYY.MM"
+    hasStandardDate ? "存在规范日期（如 2023.08 / 2023-08 / 2023年8月）" : "建议统一为 2023.08 / 2023-08 或 2023年8月"
   );
 
   // 9. 要点符号（ATS 更易解析条目）

@@ -113,4 +113,22 @@ C++、JavaScript`;
     expect(r.checks.find((c) => c.key === "contact").status).toBe("fail");
     expect(r.score).toBeLessThan(60);
   });
+
+  it("ATS 日期：中文「2023年8月」不再误报", () => {
+    const cn = `张三
+手机：13800138000
+教育背景
+东北石油大学 通信工程 本科 2023年8月 - 2027年6月
+工作经历
+某公司 2024年1月 - 2024年6月
+- 负责开发
+- 优化 40%
+项目经历
+简历助手 2024年2月
+技能特长
+C++`;
+    expect(checkAts(cn).checks.find((c) => c.key === "date").status).toBe("ok");
+    // 仅年份也应可接受
+    expect(checkAts("张三\n2023年 - 2027年\n手机 13800138000").checks.find((c) => c.key === "date").status).toBe("ok");
+  });
 });
