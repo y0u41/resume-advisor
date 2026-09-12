@@ -4,6 +4,7 @@ import { callLLM, callLLMStream } from "../llm/llm.js";
 import { evaluateResume } from "../scoring/index.js";
 import { getJdKeywords } from "../core/jdKeywords.js";
 import { withUsageContext } from "../core/usage.js";
+import { logEvent } from "../core/events.js";
 
 const router = Router();
 
@@ -142,6 +143,8 @@ router.post("/guest/evaluate", async (req, res) => {
     const objective = evaluateResume(resume, { jdText: jobDescription || "", jdKeywords });
     const preview = fullText.slice(0, GUEST_PREVIEW_CHARS);
     completed = true;
+    // 漏斗关键事件：游客试用（user_id 为空，用于统计试用→注册转化）
+    logEvent(null, "guest_trial", { student: isStudent ? 1 : 0 });
 
     res.write(
       `data: ${JSON.stringify({

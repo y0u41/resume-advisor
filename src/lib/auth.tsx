@@ -60,7 +60,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const register = async (email: string, password: string) => {
-    const data = await postJson("/api/auth/register", { email, password });
+    // 若此前试用过（游客），标记来源，用于统计试用→注册转化
+    let source = "";
+    try {
+      if (localStorage.getItem("guest_trialed") === "1") source = "guest";
+    } catch {
+      // 忽略
+    }
+    const data = await postJson("/api/auth/register", { email, password, source });
     setUser(data.user);
   };
 

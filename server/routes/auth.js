@@ -21,7 +21,7 @@ router.post("/auth/register", (req, res) => {
     return res.status(403).json({ code: 2003, error: "当前未开放注册" });
   }
 
-  const { email, password } = req.body || {};
+  const { email, password, source } = req.body || {};
   if (!email || !password) return res.status(400).json({ error: "请填写邮箱和密码" });
   if (!EMAIL_RE.test(email)) return res.status(400).json({ error: "邮箱格式不正确" });
   if (String(password).length < MIN_PASSWORD) {
@@ -47,6 +47,8 @@ router.post("/auth/register", (req, res) => {
   const user = { id: info.lastInsertRowid, email: normalized };
   setAuthCookie(res, signToken(user));
   logEvent(user.id, "register");
+  // 漏斗关键事件：由游客试用转化而来
+  if (source === "guest") logEvent(user.id, "register_from_guest");
   res.json({ user: { ...user, username: null, role: "user" } });
 });
 

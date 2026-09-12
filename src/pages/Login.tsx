@@ -125,6 +125,11 @@ export default function Login() {
         (data) => {
           setGuestResult(data);
           setGuestText(data.report || "");
+          try {
+            localStorage.setItem("guest_trialed", "1");
+          } catch {
+            // 忽略
+          }
           setQuota((q) =>
             q ? { ...q, remaining: Math.max(0, q.remaining - 1), used: q.used + 1 } : q
           );

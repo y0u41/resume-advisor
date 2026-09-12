@@ -1,6 +1,7 @@
 import db from "./db.js";
 
 // 最小埋点集：注册、首次评估、报告读完、追问、下载、7 日回访
+// 另含漏斗关键事件：guest_trial（游客试用）、register_from_guest（试用后注册）
 export const EVENT_NAMES = [
   "register",
   "first_evaluate",
@@ -8,6 +9,8 @@ export const EVENT_NAMES = [
   "followup",
   "download",
   "return_7d",
+  "guest_trial",
+  "register_from_guest",
 ];
 
 const insertStmt = db.prepare("INSERT INTO events (user_id, name, meta) VALUES (?, ?, ?)");
