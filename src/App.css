@@ -1848,14 +1848,13 @@ body,
   padding: 26px 18px;
 }
 
-.resume-sidebar .rphoto-side {
-  width: 92px;
-  height: 118px;
+.resume-sidebar .rphoto-head {
+  width: 84px;
+  height: 108px;
   object-fit: cover;
   border-radius: 8px;
-  display: block;
-  margin: 0 auto 18px;
-  border: 3px solid #fff;
+  flex-shrink: 0;
+  border: 2px solid #fff;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
 }
 
@@ -1886,9 +1885,18 @@ body,
 }
 
 .resume-sidebar .rmain-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
   border-bottom: 2px solid var(--primary);
   padding-bottom: 12px;
   margin-bottom: 18px;
+}
+
+.resume-sidebar .rmain-head-text {
+  flex: 1;
+  min-width: 0;
 }
 
 /* ---------- 4 套视觉模板（版式移植自 resume-workshop，MIT License） ---------- */

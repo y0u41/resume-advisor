@@ -196,15 +196,19 @@ function sidebarHtml(d: ResumeData, style: ResumeStyle): string {
     })
     .join("");
 
+  const photo = safePhoto(d.photo);
+
   return `<div class="resume resume-sidebar">
     <aside class="rside">
-      ${safePhoto(d.photo) ? `<img class="rphoto-side" src="${safePhoto(d.photo)}" alt="" />` : ""}
       ${sideBlocks.join("")}
     </aside>
     <main class="rmain">
       <div class="rmain-head">
-        <div class="rname">${escapeHtml(d.name.trim() || "姓名")}</div>
-        ${d.intention.trim() ? `<div class="rintention">求职意向：${escapeHtml(d.intention.trim())}</div>` : ""}
+        <div class="rmain-head-text">
+          <div class="rname">${escapeHtml(d.name.trim() || "姓名")}</div>
+          ${d.intention.trim() ? `<div class="rintention">求职意向：${escapeHtml(d.intention.trim())}</div>` : ""}
+        </div>
+        ${photo ? `<img class="rphoto-head" src="${photo}" alt="" />` : ""}
       </div>
       ${mainSections}
     </main>
