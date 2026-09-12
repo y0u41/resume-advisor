@@ -42,35 +42,35 @@
 
 ```
 server/                       后端
-  index.js                    入口：安全中间件、限流、路由挂载、静态托管、错误处理
-  db.js                       SQLite 初始化 + 迁移（users / evaluations / usage_log）
-  auth.js                     密码哈希、JWT 签发、Cookie、requireAuth / requireAdmin
-  quota.js                    每人每日额度
-  queue.js                    评估并发队列
-  models.js                   模型目录 + 视觉模型选择（getVisionOverride）
-  store.js                    评估保存 + 每人保留 12 条 + 缓存查询
-  person.js                   人物标识提取（首个非空行）
-  llm.js                      LLM 调用层（多提供商、超时、重试、流式、OCR、抽取）
-  prompt.js                   人设与提示词（评估 / 追问 / 面试 / 方向）
-  routes/
-    auth.js                   注册 / 登录 / 登出 / me
-    evaluate.js               评估 / 对比 / 追问 / 面试 / 方向 / 历史 CRUD / models
-    parse.js                  文件解析 + OCR
-    fetch.js                  链接抓取 + SSRF 防护 + 岗位信息抽取
-    admin.js                  用户管理
+  index.js                    入口：安全中间件、限流、路由挂载、静态托管、错误处理、API 前缀网关
+  core/                       领域与基础服务
+    db.js                     SQLite 初始化 + 迁移
+    auth.js                   密码哈希、JWT、Cookie、requireAuth / requireAdmin
+    quota.js / queue.js       每日额度 / 并发队列
+    store.js / person.js      评估保存（每人保留 12 条）/ 人物标识
+    models.js                 模型目录 + 视觉模型选择（getVisionOverride）
+    pdfText.js                PDF 按坐标重建「视觉阅读顺序」
+  llm/                        llm.js（调用层）/ prompt.js（人设与提示词）
+  http/                       envelope.js（响应信封）/ errors.js（错误码）
+  routes/                     auth / evaluate / parse / fetch / admin / account / downloads
+  scoring/                    确定性评分引擎（词典驱动，客观分）
+  jobs/purge.js               注销账号到期清理
   scripts/create-admin.js     创建 / 重置管理员
-  __tests__/                  单元测试（auth / person / queue / quota / store）
+  __tests__/                  单元测试（auth/person/queue/quota/store/scoring/envelope/pdfText）
 src/                          前端
-  pages/                      Login / Home / Result / History / Admin / Builder /
+  pages/                      Login / Home / Result / TaskRunner / History / Admin / Builder /
                               Compare / Interview / Directions / Privacy
-  components/                 FileUpload / UrlFetch / UserBar / ModelSelect / Logo /
-                              ThemeToggle / Nav
-  lib/                        auth / api / models / download / report /
-                              resumeTemplate / sample / toast / theme
-  lib/__tests__/              report / resumeTemplate 测试
+  components/                 FileUpload / UrlFetch / UserBar / ModelSelect / Logo / ThemeToggle /
+                              Nav / TaskDock / AccountDangerZone
+  lib/                        api.ts / auth.tsx / tasks.tsx（后台任务）
+    ui/                       toast / theme / models
+    resume/                   resumeTemplate / resumeSchema / sample
+    report/                   report / download
+    __tests__/                report / resumeTemplate / resumeSchema 测试
+shared/                       结构化简历 Schema（前后端共用，单一事实来源）
 public/                       PWA（manifest / sw.js / 图标 / theme-init.js）
 deploy/                       Caddyfile、env.production.example
-docs/                         本文档集
+docs/                         文档集 + docs/adr（决策记录）+ docs/features（按功能分类）
 ecosystem.config.cjs          pm2 配置
 ```
 
@@ -84,6 +84,7 @@ ecosystem.config.cjs          pm2 配置
 | username | TEXT | 管理员登录账号（唯一，可空） |
 | role | TEXT | `user` / `admin` |
 | password_hash | TEXT | scrypt / 加盐哈希 |
+| deleted_at / purge_after | DATETIME | 注销冷静期（到期由定时任务物理删除） |
 | created_at | DATETIME | |
 
 ### evaluations
@@ -92,12 +93,22 @@ ecosystem.config.cjs          pm2 配置
 | id | INTEGER PK | |
 | user_id | INTEGER | 数据隔离键 |
 | resume / job_title / job_description | TEXT | 输入 |
-| score | REAL | 总分 |
+| score | REAL | LLM 总分 |
 | report | TEXT | 报告全文 |
+| objective_json | TEXT | 确定性客观分（JSON） |
+| revision | INTEGER | 乐观并发版本号（默认 1） |
 | job_url | TEXT | 岗位链接 |
 | person_key / person_name | TEXT | 人物识别（历史分组） |
 | cache_key | TEXT | 结果缓存键 |
 | candidate_type | TEXT | `general` / `student` |
+| created_at | DATETIME | |
+
+### downloads
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | INTEGER PK | |
+| user_id | INTEGER | 归属用户 |
+| kind / title / format | TEXT | 类型（report/resume）/ 标题 / 格式 |
 | created_at | DATETIME | |
 
 ### usage_log
@@ -106,7 +117,7 @@ ecosystem.config.cjs          pm2 配置
 | user_id + day | PK | 每人每天一行 |
 | count | INTEGER | 当日用量 |
 
-- 建索引：`person_key`、`user_id`、`(user_id, cache_key)`。
+- 建索引：`person_key`、`user_id`、`(user_id, cache_key)`、`downloads(user_id)`。
 - `db.js` 启动时用 `PRAGMA table_info` 检测并 `ALTER TABLE` 补字段，兼容旧库平滑升级。
 
 ## 5. API 设计
@@ -125,9 +136,17 @@ ecosystem.config.cjs          pm2 配置
 | POST | `/api/directions` | 岗位方向推荐（流式） |
 | GET | `/api/evaluations` | 历史列表（按人分组） |
 | GET/PUT/DELETE | `/api/evaluations/:id` | 详情 / 修改 / 删除 |
-| POST | `/api/parse-file` | 文件解析（含 OCR） |
+| POST | `/api/parse-file` | 文件解析（PDF 顺序重建 / OCR） |
 | POST | `/api/fetch-url` | 链接抓取 + 岗位信息抽取 |
+| POST | `/api/resume/validate` | 结构化简历校验（写严读宽） |
+| POST/GET | `/api/downloads` | 记录 / 读取下载历史 |
+| GET | `/api/account/status` | 注销状态（含冷静期到期时间） |
+| POST | `/api/account/delete` | 申请注销（进入 7 天冷静期） |
+| POST | `/api/account/cancel-delete` | 撤销注销 |
 | GET | `/api/admin/users` | 用户管理（管理员） |
+| GET | `/api/health` | 健康检查 |
+
+> 所有 JSON 响应经统一信封 `{ code, message, requestId, ... }` 包裹（见 §14）；SSE 流式接口以 `data: { chunk | error | queued | done }` 事件下发。
 
 ## 6. LLM 调用层（`server/llm/llm.js`）
 
@@ -137,6 +156,8 @@ ecosystem.config.cjs          pm2 配置
 - **重试**：`LLM_MAX_RETRIES`，对限流 / 5xx / 超时可重试（`isRetryable`）。
 - **温度适配**：智谱 `temperature` 区间为 (0,1)，不支持 0，已做适配。
 - **OCR**：`ocrImage(dataUrl, signal, override)` 以 `image_url` 内容发起视觉模型请求，`temperature: 0`，专用 OCR 系统提示词，只回文字。
+- **推理模型思考链**：DeepSeek 等推理模型会先流式输出 `reasoning_content`（思维链），可能耗尽 `max_tokens` 使正文 `content` 为空。`thinkingParam(baseUrl)` 默认对 DeepSeek 注入 `thinking: { type: "disabled" }`（`LLM_THINKING=enabled` 可恢复）；6 处文本生成请求统一注入，OCR 视觉请求跳过。流式解析只取 `delta.content`。
+- **PDF 阅读顺序**：`server/core/pdfText.js` 用 `pdfjs-dist` 取文字块坐标，按 y 分行、x 排序重建视觉顺序（`parse.js` 文本型 PDF 走此路径，失败回退 `pdf-parse`；图片型走 OCR）。
 
 ## 7. 提示词设计（`server/llm/prompt.js`）
 
@@ -164,10 +185,11 @@ ecosystem.config.cjs          pm2 配置
 
 ## 10. 前端设计
 
-- **路由**（`App.tsx`）：`/login`、`/privacy` 公开；`/`、`/result/:id`、`/history`、`/builder`、`/compare`、`/interview`、`/directions`、`/admin` 受保护（`Protected` 包裹）。
+- **路由**（`App.tsx`）：`/login`、`/privacy` 公开；`/`、`/result/:id`、`/result/task/:taskId`、`/history`、`/builder`、`/compare`、`/interview`、`/directions`、`/admin` 受保护（`Protected` 包裹）。
 - **鉴权上下文**：`AuthProvider` 提供用户态；401 时自动跳登录页。
-- **报告渲染**：`lib/report.ts` 按 `【】` 解析 9 节；`parseMatchItems` 解析 `|` 对照行并识别 ✅/⚠️/❌；`matchRate` 计算匹配度；`reportToHtml` 生成导出用 HTML。
-- **模板**：`lib/resumeTemplate.ts` 生成简历 HTML（预览与 PDF 共用样式）。
+- **后台任务**：`lib/tasks.tsx` 的 `TaskProvider` 位于路由之上，长任务在其中运行（切换页面不中断、可并行）；`components/TaskDock.tsx` 悬浮展示，`pages/TaskRunner.tsx` 展示运行中进度，完成后自动跳结果页。
+- **报告渲染**：`lib/report/report.ts` 按 `【】` 解析 9 节；`parseMatchItems` 解析 `|` 对照行并识别 ✅/⚠️/❌；`matchRate` 计算匹配度；`reportToHtml` 生成导出用 HTML。
+- **模板**：`lib/resume/resumeTemplate.ts` 生成简历 HTML（预览与 PDF 共用样式）；`lib/resume/resumeSchema.ts` 做扁平表单 ↔ 结构化校验。
 - **PWA**：`manifest.webmanifest` + `sw.js`；`theme-init.js` 外置主题脚本（规避 CSP 内联限制）。
 
 ## 11. 部署架构
@@ -191,6 +213,12 @@ ecosystem.config.cjs          pm2 配置
 | 外置 `theme-init.js` | 适配严格 CSP；代价是多一个静态文件 |
 | 报告用固定文本格式（`【】` + `|`） | 简单、模型易遵循；代价是格式偏差需前端降级 |
 | OCR 走视觉模型 | 无需本地 OCR 依赖；代价是消耗 token、仅支持已配置的视觉模型 |
+| 确定性评分引擎（`server/scoring/`） | 可复现、可解释、零外部依赖；代价是启发式维度与 LLM 判断可能不一致（故两者并存互补） |
+| 结构化简历 Schema（Zod，`shared/`） | 契约明确、校验集中；代价是前后端以 `.js` + `.d.ts` 共用、新增依赖 |
+| 统一响应信封（中间件拦截 `res.json`） | 一处生效、向后兼容；代价是过渡期响应略冗余 |
+| 后台任务（Provider 位于路由之上） | 切换页面不中断、可并行；代价是内存态，刷新即丢 |
+| PDF 按坐标重建阅读顺序 | 通用修复设计型 PDF 乱序；代价是引入 `pdfjs-dist`、首次解析略慢 |
+| 默认关闭推理模型思考链 | 避免正文为空、更快；代价是可能牺牲部分推理质量（`LLM_THINKING=enabled` 可恢复） |
 
 ## 13. 已知技术债 / 改进方向
 
@@ -198,3 +226,18 @@ ecosystem.config.cjs          pm2 配置
 - 报告解析对模型格式依赖较强，可引入 JSON Schema / 结构化输出。
 - 无 HTTPS（受限于备案），可换香港服务器或补备案。
 - 缓存键与人物识别为轻量实现，重名 / 相似简历可能误合并。
+- PDF 阅读顺序按 y/x 单栏重建，复杂**双栏**版面可进一步做列切分。
+- 后台任务为内存态，页面刷新后运行中任务会丢失。
+
+## 14. 近期新增模块（2026-09-11 / 09-12）
+
+- **确定性评分引擎**（`server/scoring/`）：词典驱动，`matchRate = Σ(w·hit)/Σw` + 四维评分，输出 `objective` 与 LLM 报告并存（ADR-0001）。
+- **结构化简历 Schema**（`shared/resumeSchema.js` + `.d.ts`）：Zod 定义，写严读宽、未知字段丢弃，前后端共用（ADR-0002）。
+- **统一响应信封 + 错误码**（`server/http/`）：`{ code, message, requestId, ... }`，目录见 `docs/error-codes.md`（ADR-0003）。
+- **账号注销**（`routes/account.js` + `jobs/purge.js`）：7 天冷静期，到期物理删除（ADR-0004）。
+- **下载历史**（`routes/downloads.js`）（ADR-0005）。
+- **乐观并发**（`evaluations.revision`）：PUT 冲突返回 409 + `currentRevision`（ADR-0006）。
+- **后台任务**（`src/lib/tasks.tsx`）：跨页面、可并行。
+- **PDF 阅读顺序重建**（`server/core/pdfText.js`）。
+- **推理模型思考链处理**（`server/llm/llm.js` 的 `thinkingParam`）。
+- **文档与开源**：`docs/features/`（六类）、`docs/adr/`（六篇）、MIT `LICENSE`、独立仓库 `github.com/y0u41/resume-advisor`。
