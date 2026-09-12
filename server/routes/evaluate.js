@@ -3,6 +3,7 @@ import crypto from "crypto";
 import db from "../core/db.js";
 import { callLLM, callLLMStream, followUpStream, interviewStream, directionsStream } from "../llm/llm.js";
 import { evaluateResume } from "../scoring/index.js";
+import { getJdKeywords } from "../core/jdKeywords.js";
 import { parseResumeContent, contentToText, ResumeContentSchema } from "../../shared/resumeSchema.js";
 import { listProviders, defaultModel } from "../core/models.js";
 import { saveEvaluation, findCachedEvaluation } from "../core/store.js";
@@ -128,8 +129,12 @@ router.post("/evaluate", async (req, res) => {
   const stream = req.query.stream === "true";
   const cacheKey = computeCacheKey(resume, jobTitle, jobDescription || "", override);
 
-  // 确定性「客观分」：词典驱动、可解释、可复现，与 LLM 报告并存
-  const objective = evaluateResume(resume, { jdText: jobDescription || "" });
+  // 确定性「客观分」：关键词优先用 LLM 抽取（覆盖任意行业、按 JD 哈希缓存），
+  // 匹配过程仍是确定性、可解释的；抽取失败则回退内置词典。
+  const jdKeywords = jobDescription
+    ? await getJdKeywords(jobDescription, undefined, override)
+    : [];
+  const objective = evaluateResume(resume, { jdText: jobDescription || "", jdKeywords });
   const objectiveJson = JSON.stringify(objective);
 
   // 缓存命中：直接返回，不消耗额度、不占用并发

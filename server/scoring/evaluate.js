@@ -1,5 +1,35 @@
 import { matchTextToJD } from "./match.js";
+import { countOccurrences } from "./extract.js";
+import { normalizeText } from "./normalize.js";
 import { round2 } from "./round.js";
+
+// 把「LLM 抽取的关键词字符串」转成与词库同构的关键词对象。
+// 权重仍按「基础 + 位置加成 + 词频加成」计算，匹配过程仍是确定性、可解释的，
+// 只是关键词来源从内置词库换成了 LLM —— 从而覆盖任意行业。
+function keywordsFromList(list, jdText) {
+  const text = normalizeText(jdText);
+  const seen = new Set();
+  const out = [];
+  for (const raw of list || []) {
+    const canonical = String(raw || "").trim();
+    if (!canonical) continue;
+    const term = normalizeText(canonical);
+    if (!term || seen.has(term)) continue;
+    seen.add(term);
+    const idx = text.indexOf(term);
+    const count = countOccurrences(text, term);
+    const positionBoost = idx >= 0 && idx <= text.length * 0.3 ? 0.5 : 0;
+    const frequencyBoost = Math.min(Math.max(count - 1, 0), 2) * 0.25;
+    out.push({
+      canonical,
+      category: "llm",
+      weight: round2(3 + positionBoost + frequencyBoost),
+      count,
+      terms: [term],
+    });
+  }
+  return out;
+}
 
 // 基准权重；无 JD 时 keywordCoverage 会被剔除并对其余维度重新归一化。
 const BASE_WEIGHTS = {
@@ -200,7 +230,18 @@ function buildSuggestions(dimensions, missing) {
 // 本引擎面向纯文本简历，是确定性的「客观分」，与 LLM 生成的报告并存、互相印证。
 export function evaluateResume(resumeText, options = {}) {
   const hasJd = Boolean(options.jdText && options.jdText.trim());
-  const match = hasJd ? matchTextToJD(resumeText, options.jdText) : undefined;
+  // 优先使用外部（LLM 抽取）关键词；无则回退内置词典
+  const externalKeywords =
+    hasJd && Array.isArray(options.jdKeywords) && options.jdKeywords.length
+      ? keywordsFromList(options.jdKeywords, options.jdText)
+      : null;
+  const match = hasJd
+    ? matchTextToJD(
+        resumeText,
+        options.jdText,
+        externalKeywords ? { keywords: externalKeywords } : {}
+      )
+    : undefined;
 
   const raw = [scoreCompleteness(resumeText), scoreFormat(resumeText), scoreQuantification(resumeText)];
 

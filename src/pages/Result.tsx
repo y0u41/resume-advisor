@@ -161,11 +161,20 @@ function ReportView({ report }: { report: string }) {
   );
 }
 
-function ObjectiveCard({ objective }: { objective?: ObjectiveScore | null }) {
+function ObjectiveCard({
+  objective,
+  llmScore,
+}: {
+  objective?: ObjectiveScore | null;
+  llmScore?: number | null;
+}) {
   if (!objective) return null;
   const rate =
     typeof objective.matchRate === "number" ? Math.round(objective.matchRate * 100) : null;
   const missing = objective.missing || [];
+  // LLM 十分制换算成百分制，与算法客观分对比
+  const llm100 = llmScore != null ? Math.round(llmScore * 10) : null;
+  const disagree = llm100 != null && Math.abs(llm100 - objective.score) >= 20;
 
   return (
     <div className="card">
@@ -227,8 +236,13 @@ function ObjectiveCard({ objective }: { objective?: ObjectiveScore | null }) {
       )}
 
       <p className="hint">
-        该分数由内置算法（词典匹配 + 四维评分）确定性计算，与上方 AI 报告相互印证、可复现。
+        该分数由内置算法（关键词匹配 + 四维评分）确定性计算，与上方 AI 报告相互印证、可复现。
       </p>
+      {disagree && (
+        <p className="hint" style={{ marginTop: 6 }}>
+          AI 评分（{llmScore}/10）与算法客观分（{objective.score}/100）差异较大：AI 更侧重经历、表达等语义因素，算法更侧重关键词覆盖与量化等硬指标。建议以 AI 的改进建议为主，同时对照上方「缺失关键词」补齐短板。
+        </p>
+      )}
     </div>
   );
 }
@@ -523,7 +537,7 @@ export default function Result() {
         </div>
       </div>
 
-      <ObjectiveCard objective={data.objective} />
+      <ObjectiveCard objective={data.objective} llmScore={data.score} />
 
       {showEditor && (
         <div className="card">

@@ -575,3 +575,44 @@ export async function ocrImage(dataUrl, externalSignal, override) {
     cleanup();
   }
 }
+
+const JD_KEYWORDS_PROMPT = `你是招聘信息分析助手。请从用户提供的岗位描述（JD）中，抽取 15~30 个该岗位真正看重的关键词（技能、工具、行业术语、证书、软技能等，中英文均可）。覆盖岗位核心要求，忽略公司介绍、福利、广告等噪声。只输出一个 JSON 字符串数组，例如 ["Python","数据分析","沟通能力"]，不要输出任何其它文字。`;
+
+// 从 JD 抽取关键词（供确定性匹配使用，覆盖任意行业）。
+export async function extractJdKeywords(jdText, externalSignal, override) {
+  const { apiKey, baseUrl, model } = getConfig(override);
+  const { signal, cleanup } = withTimeout(externalSignal, LLM_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(`${baseUrl}/chat/completions`, {
+      method: "POST",
+      signal,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: "system", content: JD_KEYWORDS_PROMPT },
+          { role: "user", content: String(jdText || "").slice(0, 8000) },
+        ],
+        temperature: 0,
+        max_tokens: 800,
+        ...thinkingParam(baseUrl),
+      }),
+    });
+
+    await assertOk(response);
+    const data = await response.json();
+    const content = data?.choices?.[0]?.message?.content || "";
+    const match = content.match(/\[[\s\S]*\]/);
+    if (!match) return [];
+    const arr = JSON.parse(match[0]);
+    return Array.isArray(arr)
+      ? arr.map((x) => String(x).trim()).filter(Boolean).slice(0, 30)
+      : [];
+  } finally {
+    cleanup();
+  }
+}

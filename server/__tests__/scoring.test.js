@@ -74,4 +74,18 @@ describe("确定性评分引擎", () => {
   it("归一化：全角转半角、大小写统一、折叠空白", () => {
     expect(normalizeText("ＶＵＥ３　ＡＢＣ")).toBe("vue3 abc");
   });
+
+  it("外部关键词（LLM 抽取）：覆盖任意行业，匹配仍确定", () => {
+    const resume = "张三\n负责社群运营与用户增长，策划 3 场活动，拉新 2000 人\n技能：Excel、数据分析";
+    const jd = "岗位：社群运营。要求：社群运营、用户增长、活动策划、数据分析、Excel、短视频。";
+    const jdKeywords = ["社群运营", "用户增长", "活动策划", "数据分析", "Excel", "短视频"];
+    const r = evaluateResume(resume, { jdText: jd, jdKeywords });
+    expect(r.dimensions).toHaveLength(4);
+    const kws = r.keywords.map((k) => k.canonical);
+    expect(kws).toEqual(expect.arrayContaining(jdKeywords));
+    expect(r.missing.map((m) => m.canonical)).toContain("短视频");
+    expect(r.matchRate).toBeGreaterThan(0.5);
+    // 相同输入结果一致（确定性）
+    expect(evaluateResume(resume, { jdText: jd, jdKeywords })).toEqual(r);
+  });
 });

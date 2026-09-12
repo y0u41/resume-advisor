@@ -67,6 +67,15 @@ db.exec(`
 `);
 db.exec("CREATE INDEX IF NOT EXISTS idx_downloads_user ON downloads(user_id)");
 
+// JD 关键词缓存（LLM 抽取结果，按 JD 文本哈希去重，避免重复调用）
+db.exec(`
+  CREATE TABLE IF NOT EXISTS jd_keywords (
+    hash TEXT PRIMARY KEY,
+    keywords TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )
+`);
+
 // 兼容旧库：补上新增字段
 const columns = db.prepare("PRAGMA table_info(evaluations)").all().map((c) => c.name);
 if (!columns.includes("person_key")) db.exec("ALTER TABLE evaluations ADD COLUMN person_key TEXT");
