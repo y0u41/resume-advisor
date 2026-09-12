@@ -82,8 +82,6 @@ export function resumeDataToScope(d: ResumeData): RenderScope {
     .slice(0, 50);
 
   const projects = [...parseProjects(d.projects), ...parseProjects(d.campus)];
-  const summary =
-    (d.intention.trim() ? `求职意向：${d.intention.trim()}\n` : "") + d.summary.trim();
 
   return {
     basics: {
@@ -93,7 +91,8 @@ export function resumeDataToScope(d: ResumeData): RenderScope {
       city: d.city.trim(),
       links: [],
     },
-    summary,
+    summary: d.summary.trim(),
+    intention: d.intention.trim(),
     education: parseEducation(d.education),
     experience: parseExperience(d.experience),
     projects,

@@ -15,6 +15,7 @@ export const timeline02 = {
     {{#if basics.email}}<span>{{basics.email}}</span>{{/if}}
     {{#each basics.links}}<span>{{this}}</span>{{/each}}
   </p>
+  {{#if intention}}<div class="intention">求职意向：{{intention}}</div>{{/if}}
 </header>
 {{#if summary}}
 <section>

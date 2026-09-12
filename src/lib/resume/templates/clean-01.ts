@@ -7,14 +7,19 @@ export const clean01 = {
   sortOrder: 10,
   html: `<div class="page">
 <header class="hd">
-  {{#if photo}}<img class="tpl-photo" src="{{photo}}" alt="" />{{/if}}
-  <h1>{{basics.name}}</h1>
-  <p class="meta">
-    {{#if basics.city}}<span>{{basics.city}}</span>{{/if}}
-    {{#if basics.phone}}<span>{{basics.phone}}</span>{{/if}}
-    {{#if basics.email}}<span>{{basics.email}}</span>{{/if}}
-    {{#each basics.links}}<span>{{this}}</span>{{/each}}
-  </p>
+  <div class="hd-row">
+    <div class="hd-main">
+      <h1>{{basics.name}}</h1>
+      <p class="meta">
+        {{#if basics.city}}<span>{{basics.city}}</span>{{/if}}
+        {{#if basics.phone}}<span>{{basics.phone}}</span>{{/if}}
+        {{#if basics.email}}<span>{{basics.email}}</span>{{/if}}
+        {{#each basics.links}}<span>{{this}}</span>{{/each}}
+      </p>
+      {{#if intention}}<div class="intention">求职意向：{{intention}}</div>{{/if}}
+    </div>
+    {{#if photo}}<img class="tpl-photo" src="{{photo}}" alt="" />{{/if}}
+  </div>
 </header>
 {{#if summary}}
 <section>

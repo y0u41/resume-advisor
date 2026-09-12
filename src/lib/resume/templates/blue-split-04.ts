@@ -8,8 +8,11 @@ export const blueSplit04 = {
   html: `<div class="page">
   <aside class="side">
     <div class="avatar-name">
+      <div class="avatar-name-main">
+        <h1>{{basics.name}}</h1>
+        {{#if intention}}<div class="intention">求职意向：{{intention}}</div>{{/if}}
+      </div>
       {{#if photo}}<img class="tpl-photo-side" src="{{photo}}" alt="" />{{/if}}
-      <h1>{{basics.name}}</h1>
     </div>
     <div class="block">
       <h3>联系方式</h3>
