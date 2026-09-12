@@ -2,6 +2,7 @@ import { Router } from "express";
 import db from "../core/db.js";
 import { callLLM, callLLMStream } from "../llm/llm.js";
 import { evaluateResume } from "../scoring/index.js";
+import { getJdKeywords } from "../core/jdKeywords.js";
 import { withUsageContext } from "../core/usage.js";
 
 const router = Router();
@@ -116,7 +117,12 @@ router.post("/guest/evaluate", async (req, res) => {
     }
 
     const score = extractScore(fullText);
-    const objective = evaluateResume(resume, { jdText: jobDescription || "" });
+    // 与注册用户一致：关键词优先用 LLM 从 JD 抽取（按 JD 哈希缓存），
+    // 否则非技术岗会回退到技术词典、给出误导性的低客观分（首因效应）。
+    const jdKeywords = jobDescription
+      ? await getJdKeywords(jobDescription, controller.signal, { isStudent: false })
+      : [];
+    const objective = evaluateResume(resume, { jdText: jobDescription || "", jdKeywords });
     const preview = fullText.slice(0, GUEST_PREVIEW_CHARS);
 
     res.write(
