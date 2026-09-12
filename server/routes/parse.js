@@ -4,9 +4,13 @@ import { requireAuth } from "../core/auth.js";
 import { ocrImage } from "../llm/llm.js";
 import { getVisionOverride } from "../core/models.js";
 import { extractPdfTextOrdered } from "../core/pdfText.js";
+import { withUsageContext } from "../core/usage.js";
 
 const router = Router();
 router.use(requireAuth);
+router.use((req, res, next) =>
+  withUsageContext({ userId: req.user?.id, feature: "ocr" }, next)
+);
 
 const upload = multer({
   storage: multer.memoryStorage(),

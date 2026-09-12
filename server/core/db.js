@@ -116,6 +116,22 @@ db.exec(`
 `);
 db.exec("CREATE INDEX IF NOT EXISTS idx_feedback_kind ON feedback(kind, created_at)");
 
+// LLM 调用用量（token 消耗，用于成本看板）
+db.exec(`
+  CREATE TABLE IF NOT EXISTS llm_usage (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    feature TEXT NOT NULL DEFAULT 'unknown',
+    model TEXT DEFAULT '',
+    prompt_tokens INTEGER NOT NULL DEFAULT 0,
+    completion_tokens INTEGER NOT NULL DEFAULT 0,
+    total_tokens INTEGER NOT NULL DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )
+`);
+db.exec("CREATE INDEX IF NOT EXISTS idx_usage_feature ON llm_usage(feature, created_at)");
+db.exec("CREATE INDEX IF NOT EXISTS idx_usage_user ON llm_usage(user_id)");
+
 // 兼容旧库：补上新增字段
 const columns = db.prepare("PRAGMA table_info(evaluations)").all().map((c) => c.name);
 if (!columns.includes("person_key")) db.exec("ALTER TABLE evaluations ADD COLUMN person_key TEXT");

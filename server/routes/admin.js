@@ -3,6 +3,7 @@ import db from "../core/db.js";
 import { requireAuth, requireAdmin } from "../core/auth.js";
 import { getUsage, DAILY_LIMIT } from "../core/quota.js";
 import { eventCounts, recentEvents } from "../core/events.js";
+import { usageSummary } from "../core/usage.js";
 
 const router = Router();
 
@@ -41,6 +42,11 @@ router.get("/admin/feedback", (req, res) => {
     .prepare("SELECT rating, COUNT(*) AS count FROM feedback WHERE kind = 'vote' GROUP BY rating")
     .all();
   res.json({ recent, votes });
+});
+
+// 成本看板（管理员）：token 消耗与估算成本
+router.get("/admin/usage", (req, res) => {
+  res.json(usageSummary());
 });
 
 export default router;

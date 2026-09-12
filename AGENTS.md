@@ -63,6 +63,7 @@ docs/                 文档 + docs/adr + docs/features（按功能分类）
 19. **最小埋点**：`server/core/events.js`（`logEvent`/`hasEventToday`/`eventCounts`）+ `events` 表；白名单 6 事件 `register / first_evaluate / report_read / followup / download / return_7d`。服务端在注册 / 首次评估 / 7 日回访时记录，前端经 `POST /api/events` 上报（非白名单忽略），管理员 `GET /api/admin/events` 查看。
 20. **ATS 可解析性检测**：`server/scoring/ats.js` 的 `checkAts(resumeText)` 做确定性结构检查（姓名首行 / 联系方式 / 邮箱 / 板块标题 / 日期格式 / 要点符号），作为 `objective.ats` 返回并在结果页展示。改动需同步 `server/__tests__/scoring.test.js`。
 21. **反馈与投票**：`feedback` 表 + `POST /api/feedback`（登录、每天限流，`kind=vote|feedback`）；结果页底部「这份报告有帮助吗？」投票 + 反馈输入；管理员 `GET /api/admin/feedback` 查看。
+22. **成本看板**：`llm_usage` 表 + `server/core/usage.js`（AsyncLocalStorage 采集；`withUsageContext` 标记功能/用户，LLM 层自动记录 token）。管理员 `GET /api/admin/usage` 查看（按功能/模型/用户聚合 + 估算成本；单价可用 `LLM_PRICE_JSON` 覆盖）。流式请求已开启 `stream_options.include_usage`。
 
 ## 5. 数据与接口约定
 

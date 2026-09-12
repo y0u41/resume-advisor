@@ -8,6 +8,7 @@ import {
   DIRECTIONS_SYSTEM_PROMPT,
   buildDirectionsPrompt,
 } from "./prompt.js";
+import { recordUsage } from "../core/usage.js";
 
 const LLM_TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS || 180000);
 const STREAM_IDLE_MS = Number(process.env.LLM_STREAM_IDLE_MS || 60000);
@@ -133,6 +134,7 @@ export async function callLLM(resume, jobTitle, jobDescription, externalSignal, 
 
       await assertOk(response);
       const data = await response.json();
+    recordUsage(model, data.usage);
       const content = data?.choices?.[0]?.message?.content;
       if (typeof content !== "string") {
         throw new Error("LLM 返回格式异常：未找到回复内容");
@@ -179,6 +181,7 @@ export async function callLLMStream(resume, jobTitle, jobDescription, onChunk, e
         temperature: 0.3,
         max_tokens: 8192,
         stream: true,
+        stream_options: { include_usage: true },
       }),
     });
 
@@ -189,6 +192,7 @@ export async function callLLMStream(resume, jobTitle, jobDescription, onChunk, e
     const decoder = new TextDecoder();
     let buffer = "";
     let fullText = "";
+    let usage = null;
 
     while (true) {
       const { done, value } = await reader.read();
@@ -205,6 +209,7 @@ export async function callLLMStream(resume, jobTitle, jobDescription, onChunk, e
         if (data === "[DONE]") continue;
         try {
           const parsed = JSON.parse(data);
+          if (parsed.usage) usage = parsed.usage;
           const content = parsed.choices?.[0]?.delta?.content;
           if (content) {
             fullText += content;
@@ -216,6 +221,7 @@ export async function callLLMStream(resume, jobTitle, jobDescription, onChunk, e
       }
     }
 
+    recordUsage(model, usage);
     return fullText;
   } finally {
     clearTimeout(totalTimer);
@@ -275,6 +281,7 @@ export async function extractJobInfo(rawText, externalSignal, override) {
 
       await assertOk(response);
       const data = await response.json();
+    recordUsage(model, data.usage);
       const content = data?.choices?.[0]?.message?.content;
       if (typeof content !== "string" || !content.trim()) {
         throw new Error("LLM 未返回有效内容");
@@ -325,6 +332,7 @@ export async function followUpStream(params, onChunk, externalSignal, override) 
         temperature: 0.4,
         max_tokens: 4096,
         stream: true,
+        stream_options: { include_usage: true },
       }),
     });
 
@@ -335,6 +343,7 @@ export async function followUpStream(params, onChunk, externalSignal, override) 
     const decoder = new TextDecoder();
     let buffer = "";
     let fullText = "";
+    let usage = null;
 
     while (true) {
       const { done, value } = await reader.read();
@@ -351,6 +360,7 @@ export async function followUpStream(params, onChunk, externalSignal, override) 
         if (data === "[DONE]") continue;
         try {
           const parsed = JSON.parse(data);
+          if (parsed.usage) usage = parsed.usage;
           const content = parsed.choices?.[0]?.delta?.content;
           if (content) {
             fullText += content;
@@ -362,6 +372,7 @@ export async function followUpStream(params, onChunk, externalSignal, override) 
       }
     }
 
+    recordUsage(model, usage);
     return fullText;
   } finally {
     clearTimeout(totalTimer);
@@ -407,6 +418,7 @@ export async function interviewStream(params, onChunk, externalSignal, override)
         temperature: 0.5,
         max_tokens: 6000,
         stream: true,
+        stream_options: { include_usage: true },
       }),
     });
 
@@ -417,6 +429,7 @@ export async function interviewStream(params, onChunk, externalSignal, override)
     const decoder = new TextDecoder();
     let buffer = "";
     let fullText = "";
+    let usage = null;
 
     while (true) {
       const { done, value } = await reader.read();
@@ -433,6 +446,7 @@ export async function interviewStream(params, onChunk, externalSignal, override)
         if (data === "[DONE]") continue;
         try {
           const parsed = JSON.parse(data);
+          if (parsed.usage) usage = parsed.usage;
           const content = parsed.choices?.[0]?.delta?.content;
           if (content) {
             fullText += content;
@@ -444,6 +458,7 @@ export async function interviewStream(params, onChunk, externalSignal, override)
       }
     }
 
+    recordUsage(model, usage);
     return fullText;
   } finally {
     clearTimeout(totalTimer);
@@ -489,6 +504,7 @@ export async function directionsStream(params, onChunk, externalSignal, override
         temperature: 0.5,
         max_tokens: 3000,
         stream: true,
+        stream_options: { include_usage: true },
       }),
     });
 
@@ -499,6 +515,7 @@ export async function directionsStream(params, onChunk, externalSignal, override
     const decoder = new TextDecoder();
     let buffer = "";
     let fullText = "";
+    let usage = null;
 
     while (true) {
       const { done, value } = await reader.read();
@@ -515,6 +532,7 @@ export async function directionsStream(params, onChunk, externalSignal, override
         if (data === "[DONE]") continue;
         try {
           const parsed = JSON.parse(data);
+          if (parsed.usage) usage = parsed.usage;
           const content = parsed.choices?.[0]?.delta?.content;
           if (content) {
             fullText += content;
@@ -526,6 +544,7 @@ export async function directionsStream(params, onChunk, externalSignal, override
       }
     }
 
+    recordUsage(model, usage);
     return fullText;
   } finally {
     clearTimeout(totalTimer);
@@ -568,6 +587,7 @@ export async function ocrImage(dataUrl, externalSignal, override) {
 
     await assertOk(response);
     const data = await response.json();
+    recordUsage(model, data.usage);
     const content = data?.choices?.[0]?.message?.content;
     if (typeof content !== "string") throw new Error("OCR 未返回内容");
     return content.trim();
@@ -605,6 +625,7 @@ export async function extractJdKeywords(jdText, externalSignal, override) {
 
     await assertOk(response);
     const data = await response.json();
+    recordUsage(model, data.usage);
     const content = data?.choices?.[0]?.message?.content || "";
     const match = content.match(/\[[\s\S]*\]/);
     if (!match) return [];

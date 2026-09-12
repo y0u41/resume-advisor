@@ -5,6 +5,7 @@ import { callLLM, callLLMStream, followUpStream, interviewStream, directionsStre
 import { evaluateResume } from "../scoring/index.js";
 import { getJdKeywords } from "../core/jdKeywords.js";
 import { logEvent } from "../core/events.js";
+import { withUsageContext } from "../core/usage.js";
 import { parseResumeContent, contentToText, ResumeContentSchema } from "../../shared/resumeSchema.js";
 import { listProviders, defaultModel } from "../core/models.js";
 import { saveEvaluation, findCachedEvaluation } from "../core/store.js";
@@ -37,6 +38,18 @@ function computeCacheKey(resume, jobTitle, jobDescription, override) {
 
 // 所有评估相关接口都需要登录
 router.use(requireAuth);
+
+// 标记本次请求的「功能」，供 LLM 用量采集
+const FEATURE_BY_PATH = {
+  "/evaluate": "evaluate",
+  "/compare": "compare",
+  "/followup": "followup",
+  "/interview": "interview",
+  "/directions": "directions",
+};
+router.use((req, res, next) =>
+  withUsageContext({ userId: req.user?.id, feature: FEATURE_BY_PATH[req.path] || "evaluate" }, next)
+);
 
 // 已配置的提供商与可选模型
 router.get("/models", (req, res) => {

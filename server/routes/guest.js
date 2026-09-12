@@ -2,8 +2,14 @@ import { Router } from "express";
 import db from "../core/db.js";
 import { callLLM, callLLMStream } from "../llm/llm.js";
 import { evaluateResume } from "../scoring/index.js";
+import { withUsageContext } from "../core/usage.js";
 
 const router = Router();
+
+// 游客请求的 LLM 用量统一标记为 guest_evaluate
+router.use((req, res, next) =>
+  withUsageContext({ userId: null, feature: "guest_evaluate" }, next)
+);
 
 // 游客每天可免注册试用的次数（默认 1 次）
 const GUEST_LIMIT = Number(process.env.GUEST_LIMIT || 1);
