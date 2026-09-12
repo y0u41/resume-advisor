@@ -55,6 +55,7 @@ docs/                 文档 + docs/adr + docs/features（按功能分类）
 11. **结构化简历契约**：`shared/resumeSchema.js` 是单一事实来源，改字段要同步 `resumeSchema.d.ts` 与 `src/lib/resume/resumeSchema.ts`；写严读宽、未知字段丢弃。
 12. **乐观并发**：更新评估记录用 `revision`，冲突返回 409 + `details.currentRevision`；不要绕过该检查直接 UPDATE。
 13. **PDF 阅读顺序**：`server/core/pdfText.js` 用 pdfjs 按坐标重建「视觉阅读顺序」，修正设计型 PDF（z-index/position/transform）导致的文字层乱序；文本型 PDF 走此路径，图片型 PDF 走 OCR。改动需同步 `server/__tests__/pdfText.test.js`。
+14. **推理模型的思考链**：DeepSeek 等推理模型会先流式输出 `reasoning_content`（思维链），可能耗尽 `max_tokens` 导致正文 `content` 为空（偶发）。`server/llm/llm.js` 默认对 DeepSeek 注入 `thinking: { type: "disabled" }` 关闭思考（`LLM_THINKING=enabled` 可恢复）；新增 LLM 调用务必带上 `...thinkingParam(baseUrl)`，并注意区分 `delta.content` 与 `delta.reasoning_content`。
 
 ## 5. 数据与接口约定
 

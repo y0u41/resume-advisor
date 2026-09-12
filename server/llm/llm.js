@@ -40,6 +40,15 @@ function getConfig(override) {
   return { provider: "default", apiKey, baseUrl: baseUrl.replace(/\/+$/, ""), model };
 }
 
+// 推理模型（如 DeepSeek 新模型）会先输出大量思维链(reasoning_content)，可能耗尽
+// max_tokens 导致正文(content)为空。默认关闭「思考」；可用 LLM_THINKING=enabled 恢复。
+// 仅对已知支持该参数的 DeepSeek 生效，避免其它提供商报错。
+function thinkingParam(baseUrl) {
+  if (process.env.LLM_THINKING === "enabled") return {};
+  if (/deepseek/i.test(baseUrl || "")) return { thinking: { type: "disabled" } };
+  return {};
+}
+
 export function getProviderInfo(override) {
   const { provider, baseUrl, model } = getConfig(override);
   return { provider, baseUrl, model };
@@ -114,6 +123,8 @@ export async function callLLM(resume, jobTitle, jobDescription, externalSignal, 
         },
         body: JSON.stringify({
           model,
+
+          ...thinkingParam(baseUrl),
           messages: buildMessages(resume, jobTitle, jobDescription, override),
           temperature: 0.3,
           max_tokens: 8192,
@@ -162,6 +173,8 @@ export async function callLLMStream(resume, jobTitle, jobDescription, onChunk, e
       },
       body: JSON.stringify({
         model,
+
+        ...thinkingParam(baseUrl),
         messages: buildMessages(resume, jobTitle, jobDescription, override),
         temperature: 0.3,
         max_tokens: 8192,
@@ -249,6 +262,8 @@ export async function extractJobInfo(rawText, externalSignal, override) {
         },
         body: JSON.stringify({
           model,
+
+          ...thinkingParam(baseUrl),
           messages: [
             { role: "system", content: JD_EXTRACT_PROMPT },
             { role: "user", content: rawText },
@@ -301,6 +316,8 @@ export async function followUpStream(params, onChunk, externalSignal, override) 
       },
       body: JSON.stringify({
         model,
+
+        ...thinkingParam(baseUrl),
         messages: [
           { role: "system", content: FOLLOWUP_SYSTEM_PROMPT },
           { role: "user", content: buildFollowupPrompt(params) },
@@ -381,6 +398,8 @@ export async function interviewStream(params, onChunk, externalSignal, override)
       },
       body: JSON.stringify({
         model,
+
+        ...thinkingParam(baseUrl),
         messages: [
           { role: "system", content: INTERVIEW_SYSTEM_PROMPT },
           { role: "user", content: buildInterviewPrompt(params) },
@@ -461,6 +480,8 @@ export async function directionsStream(params, onChunk, externalSignal, override
       },
       body: JSON.stringify({
         model,
+
+        ...thinkingParam(baseUrl),
         messages: [
           { role: "system", content: DIRECTIONS_SYSTEM_PROMPT },
           { role: "user", content: buildDirectionsPrompt(params) },
