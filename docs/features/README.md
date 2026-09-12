@@ -11,6 +11,7 @@
 | 4 | 模拟面试 | [模拟面试.md](./模拟面试.md) | `/interview` |
 | 5 | 岗位推荐 | [岗位推荐.md](./岗位推荐.md) | `/directions` |
 | 6 | 历史记录 | [历史记录.md](./历史记录.md) | `/history` |
+| 7 | 岗位关键词库 | [岗位关键词库.md](./岗位关键词库.md) | `/keywords`（服务端渲染公开页） |
 
 ## 贯穿性机制（跨模块）
 
@@ -19,7 +20,8 @@
 - **确定性客观分**：`server/scoring/`（关键词优先由 LLM 从 JD 抽取、按 JD 哈希缓存，再走确定性匹配），与 LLM 报告并存。
 - **结构化简历 Schema**：`shared/resumeSchema.js`（前后端共用）。
 - **并发/缓存/额度**：`server/core/queue.js`、`server/core/store.js`、`server/core/quota.js`。
-- **游客试用**：未登录也可按 IP 试用 1 次（`server/routes/guest.js`，结果打码、不落库）；注册后解锁完整报告 / 下载 / 历史。
+- **游客试用**：未登录也可按 IP 试用（`server/routes/guest.js`，结果打码、不落库）；注册后解锁完整报告 / 下载 / 历史。
+- **岗位关键词库（数据资产）**：评估时沉淀的 JD 关键词（`jd_keywords`）聚合为公开的「岗位关键词库」，服务端渲染 SEO 页 `/keywords`、`/keywords/:slug` + `robots.txt`/`sitemap.xml`，见 [岗位关键词库.md](./岗位关键词库.md)。
 - **分享报告**：`POST /api/evaluations/:id/share` 生成只读链接；公开页 `/share/:token`（带水印、可选隐藏联系方式）。**简历原文默认不分享**、token 默认 30 天过期、`noindex`。
 - **最小埋点**：`events` 表 + 事件（注册 / 首次评估 / 报告读完 / 追问 / 下载 / 7 日回访 / **游客试用 / 试用后注册**），管理员 `GET /api/admin/events` 查看。
 - **反馈与投票**：`POST /api/feedback`（结果页「有帮助吗」投票 + 文字反馈），管理员 `GET /api/admin/feedback` 查看。

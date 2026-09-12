@@ -97,13 +97,26 @@ db.exec(`
 db.exec("CREATE INDEX IF NOT EXISTS idx_downloads_user ON downloads(user_id)");
 
 // JD 关键词缓存（LLM 抽取结果，按 JD 文本哈希去重，避免重复调用）
+// 同时沉淀「岗位名 + 关键词」，作为可公开的岗位关键词库数据资产（见 core/keywordLibrary.js）
 db.exec(`
   CREATE TABLE IF NOT EXISTS jd_keywords (
     hash TEXT PRIMARY KEY,
     keywords TEXT NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    job_title TEXT DEFAULT '',
+    hits INTEGER NOT NULL DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME
   )
 `);
+{
+  const jdCols = db.prepare("PRAGMA table_info(jd_keywords)").all().map((c) => c.name);
+  if (!jdCols.includes("job_title"))
+    db.exec("ALTER TABLE jd_keywords ADD COLUMN job_title TEXT DEFAULT ''");
+  if (!jdCols.includes("hits"))
+    db.exec("ALTER TABLE jd_keywords ADD COLUMN hits INTEGER NOT NULL DEFAULT 0");
+  if (!jdCols.includes("updated_at"))
+    db.exec("ALTER TABLE jd_keywords ADD COLUMN updated_at DATETIME");
+}
 
 // 游客试用额度（按 IP + 天 计数，注册前可免注册试用 N 次）
 db.exec(`

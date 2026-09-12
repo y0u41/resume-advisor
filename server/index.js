@@ -148,6 +148,7 @@ const API_PREFIXES = [
   "/share",
   "/events",
   "/feedback",
+  "/keywords",
   "/health",
 ];
 app.use("/api", (req, res, next) => {
@@ -167,12 +168,14 @@ import guestRoutes from "./routes/guest.js";
 import shareRoutes from "./routes/share.js";
 import eventsRoutes from "./routes/events.js";
 import feedbackRoutes from "./routes/feedback.js";
+import keywordsRoutes from "./routes/keywords.js";
 import { getProviderInfo } from "./llm/llm.js";
 import { startPurgeJob } from "./jobs/purge.js";
 app.use("/api", authRoutes);
-// 游客与分享路由需在 evaluateRoutes（含全局 requireAuth）之前挂载，否则会被拦成 401
+// 游客/分享/关键词库路由需在 evaluateRoutes（含全局 requireAuth）之前挂载，否则会被拦成 401
 app.use("/api", guestRoutes);
 app.use("/api", shareRoutes);
+app.use("/api", keywordsRoutes);
 app.use("/api", evaluateRoutes);
 app.use("/api", parseRoutes);
 app.use("/api", fetchRoutes);
@@ -185,6 +188,34 @@ app.use("/api", feedbackRoutes);
 // 未匹配的 API 返回 JSON 404，避免被前端静态兜底吞掉
 app.use("/api", (req, res) => {
   res.status(404).json({ error: "接口不存在" });
+});
+
+// 公开 SEO 页（服务端渲染，便于搜索引擎索引；SPA 是客户端渲染）
+import { buildLibrary } from "./core/keywordLibrary.js";
+import {
+  renderKeywordsIndex,
+  renderCategoryPage,
+  renderNotFound,
+  renderRobots,
+  renderSitemap,
+} from "./seo/keywordPages.js";
+
+app.get("/keywords", (req, res) => {
+  res.setHeader("Cache-Control", "public, max-age=3600");
+  res.type("html").send(renderKeywordsIndex(buildLibrary()));
+});
+app.get("/keywords/:slug", (req, res) => {
+  const lib = buildLibrary();
+  const cat = lib.categories.find((c) => c.slug === req.params.slug);
+  if (!cat) return res.status(404).type("html").send(renderNotFound());
+  res.setHeader("Cache-Control", "public, max-age=3600");
+  res.type("html").send(renderCategoryPage(cat));
+});
+app.get("/robots.txt", (req, res) => {
+  res.type("text/plain").send(renderRobots());
+});
+app.get("/sitemap.xml", (req, res) => {
+  res.type("application/xml").send(renderSitemap(buildLibrary()));
 });
 
 // 生产模式：服务前端静态文件（仅当已构建时）

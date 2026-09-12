@@ -23,6 +23,8 @@ export default function Nav({ onNavigate, children }: Props) {
           {l.label}
         </Link>
       ))}
+      {/* 岗位关键词库是服务端渲染的公开 SEO 页，须用原生 a 触发整页加载 */}
+      <a href="/keywords">岗位关键词库</a>
       {children}
     </nav>
   );

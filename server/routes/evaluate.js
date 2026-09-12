@@ -247,7 +247,7 @@ router.post("/evaluate", async (req, res) => {
     // 客观分：仅在缓存未命中、真正要评估时计算；放在并发槽位内，避免绕过队列。
     // 关键词优先用 LLM 抽取（覆盖任意行业、按 JD 哈希缓存），匹配仍是确定性可解释的。
     const jdKeywords = jobDescription
-      ? await getJdKeywords(jobDescription, controller.signal, override)
+      ? await getJdKeywords(jobDescription, controller.signal, override, jobTitle)
       : [];
     const objective = evaluateResume(resume, { jdText: jobDescription || "", jdKeywords });
     const objectiveJson = JSON.stringify(objective);
@@ -452,7 +452,9 @@ router.post("/compare", async (req, res) => {
       const conclusion = extractConclusion(report);
 
       // 客观分（与结果页一致）：关键词优先 LLM 抽取，匹配度采用算法口径
-      const jdKeywords = job.jd ? await getJdKeywords(job.jd, controller.signal, override) : [];
+      const jdKeywords = job.jd
+        ? await getJdKeywords(job.jd, controller.signal, override, job.title)
+        : [];
       const objective = evaluateResume(resume, { jdText: job.jd || "", jdKeywords });
       const matchRate =
         objective.matchRate != null ? Math.round(objective.matchRate * 100) : computeMatchRate(report);

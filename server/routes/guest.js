@@ -144,7 +144,7 @@ router.post("/guest/evaluate", async (req, res) => {
     // 并传入同一 override（含应届生模式）；否则非技术岗会回退到技术词典、
     // 给出误导性的低客观分（首因效应），使游客与注册后的结果不一致。
     const jdKeywords = jobDescription
-      ? await getJdKeywords(jobDescription, controller.signal, guestOverride)
+      ? await getJdKeywords(jobDescription, controller.signal, guestOverride, jobTitle)
       : [];
     const objective = evaluateResume(resume, { jdText: jobDescription || "", jdKeywords });
     const preview = fullText.slice(0, GUEST_PREVIEW_CHARS);
