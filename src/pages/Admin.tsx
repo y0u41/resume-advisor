@@ -97,6 +97,7 @@ interface UsageDistribution {
   userDays: number;
   users: number;
   days: number;
+  proExcluded: number;
   minSample: number;
   enoughSamples: boolean;
   percentiles: { p50: number; p75: number; p90: number; p95: number; p99: number; max: number };
@@ -558,7 +559,9 @@ export default function Admin() {
           </div>
           <p className="hint" style={{ marginBottom: 8 }}>
             样本 {usageDist.userDays} 用户×天 · {usageDist.users} 用户 · {usageDist.days} 天
-            （含 PRO 用户，会略微拉高上尾）
+            （已排除 PRO 用户
+            {usageDist.proExcluded > 0 ? ` ${usageDist.proExcluded} 条` : ""}
+            ）
           </p>
           {!usageDist.enoughSamples && (
             <p className="hint" style={{ color: "#b45309", marginBottom: 8 }}>

@@ -156,11 +156,20 @@ const round10 = (n) => Math.round(n / 10) * 10;
 
 // days：0=全部，N=近 N 天（含今日）
 export function usageDistribution(days = 30) {
-  const where = days > 0 ? `AND day >= date('now', '-${days - 1} days')` : "";
+  const where = days > 0 ? `AND qc.day >= date('now', '-${days - 1} days')` : "";
+  // 只统计「免费档」用户：PRO 日额度 500，混进来会把 P90 抬高 → 反推的免费额度偏大（校正方向正好相反）。
+  // 注：按用户**当前**套餐过滤（历史套餐未记录）；用户升级 PRO 后，其历史免费用量也会被排除。
   const rows = db
-    .prepare(`SELECT user_id, day, count FROM quota_counters WHERE kind = 'total' ${where}`)
+    .prepare(
+      `SELECT qc.user_id, qc.day, qc.count, COALESCE(u.plan, 'free') AS plan
+       FROM quota_counters qc
+       LEFT JOIN users u ON u.id = qc.user_id
+       WHERE qc.kind = 'total' ${where}`
+    )
     .all();
-  const counts = rows.map((r) => Number(r.count) || 0).sort((a, b) => a - b);
+  const freeRows = rows.filter((r) => r.plan !== "pro");
+  const proExcluded = rows.length - freeRows.length;
+  const counts = freeRows.map((r) => Number(r.count) || 0).sort((a, b) => a - b);
   const n = counts.length;
   const p90 = percentile(counts, 90);
 
@@ -181,8 +190,9 @@ export function usageDistribution(days = 30) {
   return {
     windowDays: days,
     userDays: n,
-    users: new Set(rows.map((r) => r.user_id)).size,
-    days: new Set(rows.map((r) => r.day)).size,
+    users: new Set(freeRows.map((r) => r.user_id)).size,
+    days: new Set(freeRows.map((r) => r.day)).size,
+    proExcluded,
     minSample: DIST_MIN_SAMPLE,
     enoughSamples: n >= DIST_MIN_SAMPLE,
     percentiles: {

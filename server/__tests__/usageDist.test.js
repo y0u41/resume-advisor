@@ -14,6 +14,7 @@ beforeAll(async () => {
 
 beforeEach(() => {
   db.prepare("DELETE FROM quota_counters").run();
+  db.prepare("DELETE FROM users").run();
 });
 
 describe("免费额度校准：用量分布", () => {
@@ -60,5 +61,27 @@ describe("免费额度校准：用量分布", () => {
     expect(d.percentiles.p90).toBe(0);
     expect(d.hitWarnPct).toBe(0);
     expect(d.enoughSamples).toBe(false);
+  });
+
+  it("排除 PRO 用户：PRO 的高用量不参与分位（否则 P90 被抬高、免费额度被高估）", () => {
+    const insU = db.prepare(
+      "INSERT INTO users (email, password_hash, plan) VALUES (?, 'x', ?)"
+    );
+    const freeId = insU.run("free@test.local", "free").lastInsertRowid;
+    const proId = insU.run("pro@test.local", "pro").lastInsertRowid;
+    // PK 是 (user_id, day, kind)：同一用户同一天只能一行，故用不同日期造多天样本
+    const ins = db.prepare(
+      "INSERT INTO quota_counters (user_id, day, kind, count) VALUES (?, ?, 'total', ?)"
+    );
+    const day = (i) => `2026-01-${String(i).padStart(2, "0")}`;
+    for (let i = 1; i <= 10; i++) ins.run(freeId, day(i), i); // 免费用户 1..10
+    for (let i = 1; i <= 10; i++) ins.run(proId, day(i), i * 100); // PRO 用户 100..1000
+
+    const d = usageDistribution(0);
+    expect(d.userDays).toBe(10);
+    expect(d.users).toBe(1);
+    expect(d.proExcluded).toBe(10);
+    expect(d.percentiles.max).toBe(10); // 不被 PRO 的 1000 拉高
+    expect(d.percentiles.p90).toBe(9);
   });
 });
