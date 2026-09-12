@@ -168,6 +168,8 @@ app.use("/api", (req, res, next) => {
 
 import authRoutes from "./routes/auth.js";
 import evaluateRoutes from "./routes/evaluate.js";
+import historyRoutes from "./routes/history.js";
+import metaRoutes from "./routes/meta.js";
 import parseRoutes from "./routes/parse.js";
 import fetchRoutes from "./routes/fetch.js";
 import adminRoutes from "./routes/admin.js";
@@ -188,6 +190,8 @@ app.use("/api", shareRoutes);
 app.use("/api", keywordsRoutes);
 app.use("/api", proRoutes);
 app.use("/api", evaluateRoutes);
+app.use("/api", historyRoutes);
+app.use("/api", metaRoutes);
 app.use("/api", parseRoutes);
 app.use("/api", fetchRoutes);
 app.use("/api", adminRoutes);

@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { userMessage } from "../http/userMessages.js";
+import { createSseConn } from "../http/stream.js";
 import db from "../core/db.js";
 import { callLLM, callLLMStream } from "../llm/llm.js";
 import { evaluateResume } from "../scoring/index.js";
@@ -92,18 +93,15 @@ router.post("/guest/evaluate", async (req, res) => {
     });
   }
 
-  res.setHeader("Content-Type", "text/event-stream");
-  res.setHeader("Cache-Control", "no-cache");
-  res.setHeader("Connection", "keep-alive");
-
   const controller = new AbortController();
   let completed = false;
   let anyOutput = false;
-  res.on("close", () => {
+  const conn = createSseConn(res, () => {
     // 未完成且未产出任何内容 → 退还额度（移动端刷新很常见）
     if (!completed && !anyOutput) refundGuestQuota(req.ip);
     if (!res.writableEnded) controller.abort(new Error("客户端已断开"));
   });
+  conn.start();
 
   try {
     let fullText = "";
@@ -115,7 +113,7 @@ router.post("/guest/evaluate", async (req, res) => {
         (chunk) => {
           fullText += chunk;
           anyOutput = true;
-          res.write(`data: ${JSON.stringify({ chunk, done: false })}\n\n`);
+          conn.write({ chunk, done: false });
         },
         controller.signal,
         guestOverride
@@ -129,12 +127,11 @@ router.post("/guest/evaluate", async (req, res) => {
     }
 
     if (controller.signal.aborted) {
-      if (!res.writableEnded) res.end();
+      conn.end();
       return;
     }
     if (!fullText.trim()) {
-      res.write(`data: ${JSON.stringify({ error: "评估结果为空，请重试", done: true })}\n\n`);
-      res.end();
+      conn.error("评估结果为空，请重试");
       return;
     }
 
@@ -157,27 +154,24 @@ router.post("/guest/evaluate", async (req, res) => {
     const preview = fullText.slice(0, variant.preview);
     completed = true;
 
-    res.write(
-      `data: ${JSON.stringify({
-        chunk: "",
-        done: true,
-        guest: true,
-        score,
-        objective,
-        report: preview,
-        truncated: fullText.length > variant.preview,
-        totalLength: fullText.length,
-      })}\n\n`
-    );
-    res.end();
+    conn.write({
+      chunk: "",
+      done: true,
+      guest: true,
+      score,
+      objective,
+      report: preview,
+      truncated: fullText.length > variant.preview,
+      totalLength: fullText.length,
+    });
+    conn.end();
   } catch (error) {
     if (controller.signal.aborted) {
-      if (!res.writableEnded) res.end();
+      conn.end();
       return;
     }
     console.error("游客评估失败:", error);
-    res.write(`data: ${JSON.stringify({ error: userMessage(error), done: true })}\n\n`);
-    res.end();
+    conn.error(userMessage(error));
   }
 });
 

@@ -1,42 +1,33 @@
 import { Router } from "express";
-import crypto from "crypto";
-import db from "../core/db.js";
-import { callLLM, callLLMStream, followUpStream, interviewStream, directionsStream, getProviderInfo } from "../llm/llm.js";
+import { callLLM, followUpStream, interviewStream, directionsStream } from "../llm/llm.js";
 import { evaluateResume } from "../scoring/index.js";
 import { getJdKeywords } from "../core/jdKeywords.js";
-import { logEvent } from "../core/events.js";
 import { withUsageContext } from "../core/usage.js";
-import { parseResumeContent, contentToText, ResumeContentSchema } from "../../shared/resumeSchema.js";
-import { listProviders, defaultModel } from "../core/models.js";
-import { saveEvaluation, findCachedEvaluation } from "../core/store.js";
-import { getPersonKey, getPersonName } from "../core/person.js";
+import { parseResumeContent, contentToText } from "../../shared/resumeSchema.js";
+import { findCachedEvaluation } from "../core/store.js";
 import { requireAuth } from "../core/auth.js";
 import { withQuota, hasQuotaFor, getUsage } from "../core/quota.js";
-import { normalizePlan, dailyLimitFor, defaultModelFor, isPremiumModel } from "../core/plans.js";
+import { normalizePlan, dailyLimitFor, isPremiumModel } from "../core/plans.js";
 import { acquire } from "../core/queue.js";
 import { userMessage } from "../http/userMessages.js";
+import { createSseConn } from "../http/stream.js";
+import {
+  computeCacheKey,
+  resolveOverride,
+  effectiveModel,
+  extractScore,
+  computeMatchRate,
+  extractConclusion,
+  validateInput,
+  saveReport,
+  streamReportWithFallback,
+  MAX_RESUME,
+} from "./evaluateHelpers.js";
 
 const router = Router();
 
 const CACHE_ENABLED = process.env.CACHE_ENABLED !== "false";
 const CACHE_TTL_HOURS = Number(process.env.CACHE_TTL_HOURS || 24);
-
-function computeCacheKey(resume, jobTitle, jobDescription, override) {
-  return crypto
-    .createHash("sha256")
-    .update(
-      JSON.stringify({
-        resume,
-        jobTitle,
-        jobDescription,
-        provider: override?.provider || "",
-        model: override?.model || "",
-        student: override?.isStudent ? 1 : 0,
-      })
-    )
-    .digest("hex")
-    .slice(0, 32);
-}
 
 // 所有评估相关接口都需要登录
 router.use(requireAuth);
@@ -52,101 +43,6 @@ const FEATURE_BY_PATH = {
 router.use((req, res, next) =>
   withUsageContext({ userId: req.user?.id, feature: FEATURE_BY_PATH[req.path] || "evaluate" }, next)
 );
-
-// 已配置的提供商与可选模型
-router.get("/models", (req, res) => {
-  const providers = listProviders();
-  const preferred = (process.env.LLM_PROVIDER || "").trim().toLowerCase();
-  const pref = providers.find((p) => p.provider === preferred) || providers[0];
-  const def = pref
-    ? { provider: pref.provider, model: defaultModel(pref.provider) || pref.models[0].id }
-    : null;
-  res.json({ providers, default: def });
-});
-
-// 校验结构化简历（结构化 Schema：写严读宽）
-router.post("/resume/validate", (req, res) => {
-  const result = ResumeContentSchema.safeParse(req.body?.resumeContent);
-  if (result.success) {
-    return res.json({ ok: true, content: result.data, errors: [] });
-  }
-  res.json({
-    ok: false,
-    errors: (result.error?.issues || []).map((i) => ({ path: i.path, message: i.message })),
-  });
-});
-
-// 解析请求中的 provider/model 与候选人类型；未指定则按套餐选默认模型
-function resolveOverride(body, plan = "free") {
-  const isStudent = body?.candidateType === "student" || body?.isStudent === true;
-  const provider = body?.provider;
-  if (!provider) {
-    const fallback = defaultModelFor(plan);
-    return fallback
-      ? { provider: fallback.provider, model: fallback.model, isStudent }
-      : { isStudent };
-  }
-  const group = listProviders().find((p) => p.provider === provider);
-  if (!group) return { isStudent };
-  const model =
-    body?.model && group.models.some((m) => m.id === body.model)
-      ? body.model
-      : defaultModel(provider);
-  return { provider, model, isStudent };
-}
-
-// 本次请求实际使用的模型（用于判断是否高级模型）
-function effectiveModel(override) {
-  try {
-    return getProviderInfo(override).model || "";
-  } catch {
-    return "";
-  }
-}
-
-const MAX_RESUME = 40000;
-const MAX_JD = 40000;
-const MAX_TITLE = 200;
-const MAX_URL = 2000;
-
-function extractScore(report) {
-  const match = report.match(/【总分】\s*(\d+(?:\.\d+)?)\s*\/\s*10/);
-  return match ? parseFloat(match[1]) : null;
-}
-
-// 从报告里统计岗位匹配度（✅=1 分、⚠️=0.5 分）
-function computeMatchRate(report) {
-  const ok = (report.match(/✅/g) || []).length;
-  const partial = (report.match(/⚠/g) || []).length;
-  const miss = (report.match(/❌/g) || []).length;
-  const total = ok + partial + miss;
-  if (!total) return null;
-  return Math.round(((ok + partial * 0.5) / total) * 100);
-}
-
-function extractConclusion(report) {
-  const m = report.match(/【一句话结论】\s*([\s\S]*?)(?=\s*【|$)/);
-  return m ? m[1].trim().slice(0, 120) : "";
-}
-
-function validateInput({ resume, jobTitle, jobDescription, jobUrl }) {  if (!resume || !jobTitle) return "请提供简历全文和应聘岗位";
-  if (typeof resume !== "string" || typeof jobTitle !== "string") return "参数类型错误";
-  if (resume.length > MAX_RESUME) return `简历过长（上限 ${MAX_RESUME} 字）`;
-  if (jobTitle.length > MAX_TITLE) return `岗位名称过长（上限 ${MAX_TITLE} 字）`;
-  if (jobDescription && jobDescription.length > MAX_JD) return `JD 过长（上限 ${MAX_JD} 字）`;
-  if (jobUrl && jobUrl.length > MAX_URL) return `链接过长`;
-  return null;
-}
-
-// 首次评估埋点
-function maybeLogFirstEvaluate(userId) {
-  try {
-    const count = db.prepare("SELECT COUNT(*) c FROM evaluations WHERE user_id = ?").get(userId).c;
-    if (count === 1) logEvent(userId, "first_evaluate");
-  } catch {
-    // 忽略
-  }
-}
 
 router.post("/evaluate", async (req, res) => {
   let { resume, jobTitle, jobDescription, jobUrl, resumeContent } = req.body || {};
@@ -169,66 +65,43 @@ router.post("/evaluate", async (req, res) => {
   const stream = req.query.stream === "true";
   const cacheKey = computeCacheKey(resume, jobTitle, jobDescription || "", override);
 
+  // 客户端断开（刷新/关闭）时不中止 LLM：让评估在服务端跑完并落库，刷新后可在历史记录查看
+  const controller = new AbortController();
+  const conn = createSseConn(res);
+  if (stream) conn.start();
+
   // 缓存命中：直接返回，不消耗额度、不占用并发、也不做关键词抽取
   if (CACHE_ENABLED) {
     const cached = findCachedEvaluation(req.user.id, cacheKey, CACHE_TTL_HOURS);
     if (cached) {
+      const payload = {
+        id: cached.id,
+        score: cached.score,
+        report: cached.report,
+        objective: cached.objective_json ? JSON.parse(cached.objective_json) : null,
+        revision: cached.revision,
+        cached: true,
+      };
       if (stream) {
-        res.setHeader("Content-Type", "text/event-stream");
-        res.setHeader("Cache-Control", "no-cache");
-        res.write(`data: ${JSON.stringify({ chunk: cached.report, done: false })}\n\n`);
-        res.write(
-          `data: ${JSON.stringify({ chunk: "", done: true, id: cached.id, score: cached.score, report: cached.report, objective: cached.objective_json ? JSON.parse(cached.objective_json) : null, revision: cached.revision, cached: true })}\n\n`
-        );
-        res.end();
+        conn.write({ chunk: cached.report, done: false });
+        conn.write({ chunk: "", done: true, ...payload });
+        conn.end();
       } else {
-        res.json({
-          id: cached.id,
-          score: cached.score,
-          report: cached.report,
-          objective: cached.objective_json ? JSON.parse(cached.objective_json) : null,
-          revision: cached.revision,
-          cached: true,
-        });
+        res.json(payload);
       }
       return;
     }
-  }
-
-  // 客户端断开（刷新/关闭）时不中止 LLM：让评估在服务端跑完并落库，刷新后可在历史记录查看
-  const controller = new AbortController();
-  let clientClosed = false;
-  res.on("close", () => {
-    clientClosed = true;
-  });
-  const safeWrite = (line) => {
-    if (clientClosed || res.writableEnded) return;
-    try {
-      res.write(line);
-    } catch {
-      // 连接已关闭，忽略
-    }
-  };
-
-  if (stream) {
-    res.setHeader("Content-Type", "text/event-stream");
-    res.setHeader("Cache-Control", "no-cache");
-    res.setHeader("Connection", "keep-alive");
   }
 
   // 获取并发槽位，超出则排队
   let release;
   try {
     release = await acquire((position) => {
-      if (stream) safeWrite(`data: ${JSON.stringify({ queued: true, position })}\n\n`);
+      if (stream) conn.write({ queued: true, position });
     });
   } catch (error) {
-    if (stream) {
-      safeWrite(`data: ${JSON.stringify({ error: userMessage(error), done: true })}\n\n`);
-      res.end();
-    } else {
-      res.status(503).json({ error: userMessage(error) });
-    }
+    if (stream) conn.error(userMessage(error));
+    else res.status(503).json({ error: userMessage(error) });
     return;
   }
 
@@ -247,85 +120,50 @@ router.post("/evaluate", async (req, res) => {
       const objectiveJson = JSON.stringify(objective);
 
       if (stream) {
-        let fullText = "";
-        try {
-          await callLLMStream(
-            resume,
-            jobTitle,
-            jobDescription || "",
-            (chunk) => {
-              fullText += chunk;
-              safeWrite(`data: ${JSON.stringify({ chunk, done: false })}\n\n`);
-            },
-            controller.signal,
-            override
-          );
-        } catch (error) {
-          if (controller.signal.aborted) throw error;
-          console.warn("流式评估失败，回退非流式:", error.message);
-        }
-
-        // 流式无内容（停滞/为空）时回退非流式，保证有结果
-        if (!fullText.trim() && !controller.signal.aborted) {
-          const report = await callLLM(
-            resume,
-            jobTitle,
-            jobDescription || "",
-            controller.signal,
-            override
-          );
-          fullText = report;
-          safeWrite(`data: ${JSON.stringify({ chunk: report, done: false })}\n\n`);
-        }
-
+        const fullText = await streamReportWithFallback({
+          resume,
+          jobTitle,
+          jobDescription: jobDescription || "",
+          override,
+          signal: controller.signal,
+          onChunk: (chunk) => conn.write({ chunk, done: false }),
+        });
         if (!fullText.trim()) throw new Error("评估结果为空，请重试");
 
         const score = extractScore(fullText);
-        const id = saveEvaluation(
-          req.user.id,
+        const id = saveReport(req.user.id, {
           resume,
           jobTitle,
-          jobDescription || "",
+          jobDescription: jobDescription || "",
           score,
-          fullText,
-          jobUrl || "",
+          report: fullText,
+          jobUrl,
           cacheKey,
-          override.isStudent ? "student" : "general",
-          objectiveJson
-        );
-        maybeLogFirstEvaluate(req.user.id);
+          candidateType: override.isStudent ? "student" : "general",
+          objectiveJson,
+        });
         return { id, score, report: fullText, objective };
       }
 
-      const report = await callLLM(
-        resume,
-        jobTitle,
-        jobDescription || "",
-        controller.signal,
-        override
-      );
+      const report = await callLLM(resume, jobTitle, jobDescription || "", controller.signal, override);
       const score = extractScore(report);
-      const id = saveEvaluation(
-        req.user.id,
+      const id = saveReport(req.user.id, {
         resume,
         jobTitle,
-        jobDescription || "",
+        jobDescription: jobDescription || "",
         score,
         report,
-        jobUrl || "",
+        jobUrl,
         cacheKey,
-        override.isStudent ? "student" : "general",
-        objectiveJson
-      );
-      maybeLogFirstEvaluate(req.user.id);
+        candidateType: override.isStudent ? "student" : "general",
+        objectiveJson,
+      });
       return { id, score, report, objective };
     });
 
     if (stream) {
-      safeWrite(
-        `data: ${JSON.stringify({ chunk: "", done: true, id: result.id, score: result.score, report: result.report, objective: result.objective, revision: 1 })}\n\n`
-      );
-      res.end();
+      conn.write({ chunk: "", done: true, id: result.id, score: result.score, report: result.report, objective: result.objective, revision: 1 });
+      conn.end();
     } else {
       res.json({
         id: result.id,
@@ -337,25 +175,17 @@ router.post("/evaluate", async (req, res) => {
     }
   } catch (error) {
     if (controller.signal.aborted) {
-      if (!res.writableEnded) res.end();
+      conn.end();
       return;
     }
     if (error.code === 3001) {
-      if (stream) {
-        safeWrite(`data: ${JSON.stringify({ error: userMessage(error), done: true })}\n\n`);
-        res.end();
-      } else {
-        res.status(429).json({ code: 3001, error: userMessage(error) });
-      }
+      if (stream) conn.error(userMessage(error));
+      else res.status(429).json({ code: 3001, error: userMessage(error) });
       return;
     }
     console.error("评估失败:", error);
-    if (stream) {
-      safeWrite(`data: ${JSON.stringify({ error: userMessage(error), done: true })}\n\n`);
-      res.end();
-    } else {
-      res.status(500).json({ error: userMessage(error) });
-    }
+    if (stream) conn.error(userMessage(error));
+    else res.status(500).json({ error: userMessage(error) });
   } finally {
     if (release) release();
   }
@@ -382,61 +212,31 @@ router.post("/compare", async (req, res) => {
 
   const override = resolveOverride(req.body, normalizePlan(req.user));
 
-  res.setHeader("Content-Type", "text/event-stream");
-  res.setHeader("Cache-Control", "no-cache");
-  res.setHeader("Connection", "keep-alive");
-
   const controller = new AbortController();
-  let clientClosed = false;
-  res.on("close", () => {
-    clientClosed = true;
-  });
-  const safeWrite = (line) => {
-    if (clientClosed || res.writableEnded) return;
-    try {
-      res.write(line);
-    } catch {
-      // 连接已关闭，忽略
-    }
-  };
+  const conn = createSseConn(res);
+  conn.start();
 
   // 提前反馈（不消耗）：额度不够跑完 N 个岗位时直接告知，避免跑到一半才失败
   if (!hasQuotaFor(req.user, jobs.length)) {
     const limit = dailyLimitFor(normalizePlan(req.user));
     const used = getUsage(req.user.id);
-    safeWrite(
-      `data: ${JSON.stringify({
-        error: `今日额度不足（需 ${jobs.length} 次，剩余 ${Math.max(0, limit - used)} 次）`,
-        done: true,
-      })}\n\n`
-    );
-    res.end();
+    conn.error(`今日额度不足（需 ${jobs.length} 次，剩余 ${Math.max(0, limit - used)} 次）`);
     return;
   }
 
-  let release;
-  try {
-    release = await acquire((position) => {
-      safeWrite(`data: ${JSON.stringify({ queued: true, position })}\n\n`);
-    });
-  } catch (error) {
-    safeWrite(`data: ${JSON.stringify({ error: userMessage(error), done: true })}\n\n`);
-    res.end();
-    return;
-  }
+  const release = await conn.queue();
+  if (!release) return;
 
   const isPremium = isPremiumModel(effectiveModel(override));
   try {
     const results = [];
     for (let i = 0; i < jobs.length; i++) {
       if (controller.signal.aborted) {
-        if (!res.writableEnded) res.end();
+        conn.end();
         return;
       }
       const job = jobs[i];
-      safeWrite(
-        `data: ${JSON.stringify({ progress: { index: i, total: jobs.length, title: job.title } })}\n\n`
-      );
+      conn.write({ progress: { index: i, total: jobs.length, title: job.title } });
 
       // 每个岗位单独计费：该岗 LLM 成功并落库后才计费，失败自动退还
       const { result } = await withQuota(req.user, { isPremium }, async () => {
@@ -454,19 +254,16 @@ router.post("/compare", async (req, res) => {
             ? Math.round(objective.matchRate * 100)
             : computeMatchRate(report);
 
-        const id = saveEvaluation(
-          req.user.id,
+        const id = saveReport(req.user.id, {
           resume,
-          job.title,
-          job.jd || "",
+          jobTitle: job.title,
+          jobDescription: job.jd || "",
           score,
           report,
-          "",
-          computeCacheKey(resume, job.title, job.jd || "", override),
-          override.isStudent ? "student" : "general",
-          JSON.stringify(objective)
-        );
-
+          cacheKey: computeCacheKey(resume, job.title, job.jd || "", override),
+          candidateType: override.isStudent ? "student" : "general",
+          objectiveJson: JSON.stringify(objective),
+        });
         return { id, title: job.title, score, matchRate, conclusion };
       });
 
@@ -474,23 +271,22 @@ router.post("/compare", async (req, res) => {
     }
 
     if (controller.signal.aborted) {
-      if (!res.writableEnded) res.end();
+      conn.end();
       return;
     }
 
     results.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
-    safeWrite(`data: ${JSON.stringify({ done: true, results })}\n\n`);
-    res.end();
+    conn.write({ done: true, results });
+    conn.end();
   } catch (error) {
     if (controller.signal.aborted) {
-      if (!res.writableEnded) res.end();
+      conn.end();
       return;
     }
     console.error("对比失败:", error);
-    safeWrite(`data: ${JSON.stringify({ error: userMessage(error), done: true })}\n\n`);
-    res.end();
+    conn.error(userMessage(error));
   } finally {
-    if (release) release();
+    release();
   }
 });
 
@@ -507,37 +303,15 @@ router.post("/followup", async (req, res) => {
   const override = resolveOverride(req.body, normalizePlan(req.user));
 
   const controller = new AbortController();
-  let clientClosed = false;
-  res.on("close", () => {
-    clientClosed = true;
-  });
-  const safeWrite = (line) => {
-    if (clientClosed || res.writableEnded) return;
-    try {
-      res.write(line);
-    } catch {
-      // 连接已关闭，忽略
-    }
-  };
+  const conn = createSseConn(res);
+  conn.start();
 
-  let release;
-  try {
-    release = await acquire((position) => {
-      safeWrite(`data: ${JSON.stringify({ queued: true, position })}\n\n`);
-    });
-  } catch (error) {
-    safeWrite(`data: ${JSON.stringify({ error: userMessage(error), done: true })}\n\n`);
-    res.end();
-    return;
-  }
+  const release = await conn.queue();
+  if (!release) return;
 
   const isPremium = isPremiumModel(effectiveModel(override));
   try {
-    res.setHeader("Content-Type", "text/event-stream");
-    res.setHeader("Cache-Control", "no-cache");
-    res.setHeader("Connection", "keep-alive");
-
-    // 追问开始计入每日额度（与评估一致：失败自动退还）
+    // 追问计入每日额度（与评估一致：失败自动退还）
     const { result } = await withQuota(req.user, { isPremium }, async () => {
       let fullText = "";
       await followUpStream(
@@ -551,7 +325,7 @@ router.post("/followup", async (req, res) => {
         },
         (chunk) => {
           fullText += chunk;
-          safeWrite(`data: ${JSON.stringify({ chunk, done: false })}\n\n`);
+          conn.write({ chunk, done: false });
         },
         controller.signal,
         override
@@ -560,29 +334,21 @@ router.post("/followup", async (req, res) => {
     });
 
     if (controller.signal.aborted) {
-      if (!res.writableEnded) res.end();
+      conn.end();
       return;
     }
 
-    safeWrite(`data: ${JSON.stringify({ chunk: "", done: true, answer: result.answer })}\n\n`);
-    res.end();
+    conn.write({ chunk: "", done: true, answer: result.answer });
+    conn.end();
   } catch (error) {
     if (controller.signal.aborted) {
-      if (!res.writableEnded) res.end();
+      conn.end();
       return;
     }
-    if (error.code === 3001) {
-      safeWrite(`data: ${JSON.stringify({ error: userMessage(error), done: true })}\n\n`);
-      res.end();
-      return;
-    }
-    console.error("追问失败:", error);
-    if (!res.writableEnded) {
-      safeWrite(`data: ${JSON.stringify({ error: userMessage(error), done: true })}\n\n`);
-      res.end();
-    }
+    if (error.code !== 3001) console.error("追问失败:", error);
+    conn.error(userMessage(error));
   } finally {
-    if (release) release();
+    release();
   }
 });
 
@@ -599,37 +365,14 @@ router.post("/interview", async (req, res) => {
 
   const override = resolveOverride(req.body, normalizePlan(req.user));
 
-  res.setHeader("Content-Type", "text/event-stream");
-  res.setHeader("Cache-Control", "no-cache");
-  res.setHeader("Connection", "keep-alive");
-
   const controller = new AbortController();
-  let clientClosed = false;
-  res.on("close", () => {
-    clientClosed = true;
-  });
-  const safeWrite = (line) => {
-    if (clientClosed || res.writableEnded) return;
-    try {
-      res.write(line);
-    } catch {
-      // 连接已关闭，忽略
-    }
-  };
+  const conn = createSseConn(res);
+  conn.start();
+
+  const release = await conn.queue();
+  if (!release) return;
 
   const isPremium = isPremiumModel(effectiveModel(override));
-
-  let release;
-  try {
-    release = await acquire((position) => {
-      safeWrite(`data: ${JSON.stringify({ queued: true, position })}\n\n`);
-    });
-  } catch (error) {
-    safeWrite(`data: ${JSON.stringify({ error: userMessage(error), done: true })}\n\n`);
-    res.end();
-    return;
-  }
-
   try {
     // 计费唯一入口：生成成功并落库后才计费，失败/空结果自动退还
     const { result } = await withQuota(req.user, { isPremium }, async () => {
@@ -643,7 +386,7 @@ router.post("/interview", async (req, res) => {
         },
         (chunk) => {
           fullText += chunk;
-          safeWrite(`data: ${JSON.stringify({ chunk, done: false })}\n\n`);
+          conn.write({ chunk, done: false });
         },
         controller.signal,
         override
@@ -653,43 +396,33 @@ router.post("/interview", async (req, res) => {
       if (!fullText.trim()) throw new Error("生成结果为空，请重试");
 
       // 落库，断线后也可在历史/结果页回看（与主评估一致）
-      const id = saveEvaluation(
-        req.user.id,
+      const id = saveReport(req.user.id, {
         resume,
         jobTitle,
-        jobDescription || "",
-        null,
-        fullText,
-        "",
-        null,
-        override.isStudent ? "student" : "general",
-        null
-      );
+        jobDescription: jobDescription || "",
+        score: null,
+        report: fullText,
+        candidateType: override.isStudent ? "student" : "general",
+      });
       return { id, text: fullText };
     });
 
     if (controller.signal.aborted) {
-      if (!res.writableEnded) res.end();
+      conn.end();
       return;
     }
 
-    safeWrite(`data: ${JSON.stringify({ chunk: "", done: true, id: result.id, text: result.text })}\n\n`);
-    res.end();
+    conn.write({ chunk: "", done: true, id: result.id, text: result.text });
+    conn.end();
   } catch (error) {
     if (controller.signal.aborted) {
-      if (!res.writableEnded) res.end();
+      conn.end();
       return;
     }
-    if (error.code === 3001) {
-      safeWrite(`data: ${JSON.stringify({ error: userMessage(error), done: true })}\n\n`);
-      res.end();
-      return;
-    }
-    console.error("面试准备失败:", error);
-    safeWrite(`data: ${JSON.stringify({ error: userMessage(error), done: true })}\n\n`);
-    res.end();
+    if (error.code !== 3001) console.error("面试准备失败:", error);
+    conn.error(userMessage(error));
   } finally {
-    if (release) release();
+    release();
   }
 });
 
@@ -706,37 +439,14 @@ router.post("/directions", async (req, res) => {
 
   const override = resolveOverride(req.body, normalizePlan(req.user));
 
-  res.setHeader("Content-Type", "text/event-stream");
-  res.setHeader("Cache-Control", "no-cache");
-  res.setHeader("Connection", "keep-alive");
-
   const controller = new AbortController();
-  let clientClosed = false;
-  res.on("close", () => {
-    clientClosed = true;
-  });
-  const safeWrite = (line) => {
-    if (clientClosed || res.writableEnded) return;
-    try {
-      res.write(line);
-    } catch {
-      // 连接已关闭，忽略
-    }
-  };
+  const conn = createSseConn(res);
+  conn.start();
+
+  const release = await conn.queue();
+  if (!release) return;
 
   const isPremium = isPremiumModel(effectiveModel(override));
-
-  let release;
-  try {
-    release = await acquire((position) => {
-      safeWrite(`data: ${JSON.stringify({ queued: true, position })}\n\n`);
-    });
-  } catch (error) {
-    safeWrite(`data: ${JSON.stringify({ error: userMessage(error), done: true })}\n\n`);
-    res.end();
-    return;
-  }
-
   try {
     // 计费唯一入口：生成成功并落库后才计费，失败/空结果自动退还
     const { result } = await withQuota(req.user, { isPremium }, async () => {
@@ -745,7 +455,7 @@ router.post("/directions", async (req, res) => {
         { resume, isStudent: override.isStudent },
         (chunk) => {
           fullText += chunk;
-          safeWrite(`data: ${JSON.stringify({ chunk, done: false })}\n\n`);
+          conn.write({ chunk, done: false });
         },
         controller.signal,
         override
@@ -755,213 +465,34 @@ router.post("/directions", async (req, res) => {
       if (!fullText.trim()) throw new Error("生成结果为空，请重试");
 
       // 落库，断线后也可在历史/结果页回看（与主评估一致）
-      const id = saveEvaluation(
-        req.user.id,
+      const id = saveReport(req.user.id, {
         resume,
-        "岗位方向推荐",
-        "",
-        null,
-        fullText,
-        "",
-        null,
-        override.isStudent ? "student" : "general",
-        null
-      );
+        jobTitle: "岗位方向推荐",
+        jobDescription: "",
+        score: null,
+        report: fullText,
+        candidateType: override.isStudent ? "student" : "general",
+      });
       return { id, text: fullText };
     });
 
     if (controller.signal.aborted) {
-      if (!res.writableEnded) res.end();
+      conn.end();
       return;
     }
 
-    safeWrite(`data: ${JSON.stringify({ chunk: "", done: true, id: result.id, text: result.text })}\n\n`);
-    res.end();
+    conn.write({ chunk: "", done: true, id: result.id, text: result.text });
+    conn.end();
   } catch (error) {
     if (controller.signal.aborted) {
-      if (!res.writableEnded) res.end();
+      conn.end();
       return;
     }
-    if (error.code === 3001) {
-      safeWrite(`data: ${JSON.stringify({ error: userMessage(error), done: true })}\n\n`);
-      res.end();
-      return;
-    }
-    console.error("方向推荐失败:", error);
-    safeWrite(`data: ${JSON.stringify({ error: userMessage(error), done: true })}\n\n`);
-    res.end();
+    if (error.code !== 3001) console.error("方向推荐失败:", error);
+    conn.error(userMessage(error));
   } finally {
-    if (release) release();
+    release();
   }
-});
-
-router.get("/evaluations", (req, res) => {
-  const rows = db
-    .prepare(
-      `SELECT id, job_title, score, person_name, person_key, favorite, created_at
-       FROM evaluations WHERE user_id = ? ORDER BY favorite DESC, id DESC LIMIT 300`
-    )
-    .all(req.user.id);
-  const plan = normalizePlan(req.user);
-  const limit = dailyLimitFor(plan);
-  res.json({
-    records: rows,
-    usage: { used: getUsage(req.user.id), limit: Number.isFinite(limit) ? limit : -1, plan },
-  });
-});
-
-router.get("/evaluations/:id", (req, res) => {
-  const row = db
-    .prepare("SELECT * FROM evaluations WHERE id = ? AND user_id = ?")
-    .get(req.params.id, req.user.id);
-  if (!row) return res.status(404).json({ error: "记录不存在" });
-  if (row.objective_json) {
-    try {
-      row.objective = JSON.parse(row.objective_json);
-    } catch {
-      row.objective = null;
-    }
-  }
-  // 改进轨迹：同一人（person_key）上一次的分数与差值
-  if (row.person_key) {
-    const prev = db
-      .prepare(
-        `SELECT score FROM evaluations
-         WHERE user_id = ? AND person_key = ? AND id < ? AND score IS NOT NULL
-         ORDER BY id DESC LIMIT 1`
-      )
-      .get(row.user_id, row.person_key, row.id);
-    row.previousScore = prev?.score ?? null;
-    row.scoreDelta =
-      prev && row.score != null ? Math.round((row.score - prev.score) * 10) / 10 : null;
-  } else {
-    row.previousScore = null;
-    row.scoreDelta = null;
-  }
-  res.json(row);
-});
-
-router.put("/evaluations/:id", (req, res) => {
-  const row = db
-    .prepare("SELECT * FROM evaluations WHERE id = ? AND user_id = ?")
-    .get(req.params.id, req.user.id);
-  if (!row) return res.status(404).json({ error: "记录不存在" });
-
-  // 乐观并发：客户端带 revision 时校验，不匹配则返回 409
-  const clientRevision = Number(req.body?.revision);
-  if (Number.isInteger(clientRevision) && clientRevision !== row.revision) {
-    return res.status(409).json({
-      code: 1005,
-      error: "记录已被修改，请刷新后重试",
-      details: { currentRevision: row.revision },
-    });
-  }
-
-  const { report, score, resume, job_title, job_description, job_url } = req.body || {};
-
-  const next = {
-    report: typeof report === "string" ? report : row.report,
-    score: score === undefined || score === null ? row.score : score,
-    resume: typeof resume === "string" ? resume : row.resume,
-    job_title: typeof job_title === "string" ? job_title : row.job_title,
-    job_description:
-      typeof job_description === "string" ? job_description : row.job_description,
-    job_url: typeof job_url === "string" ? job_url : row.job_url,
-  };
-
-  if (next.resume.length > MAX_RESUME || next.job_description.length > MAX_JD) {
-    return res.status(400).json({ error: "内容过长" });
-  }
-
-  let personKey = row.person_key;
-  let personName = row.person_name;
-  if (typeof resume === "string" && resume !== row.resume) {
-    personKey = getPersonKey(resume);
-    personName = getPersonName(resume);
-  }
-
-  db.prepare(
-    `UPDATE evaluations
-     SET report = ?, score = ?, resume = ?, job_title = ?, job_description = ?,
-         job_url = ?, person_key = ?, person_name = ?, revision = revision + 1
-     WHERE id = ? AND user_id = ? AND revision = ?`
-  ).run(
-    next.report,
-    next.score,
-    next.resume,
-    next.job_title,
-    next.job_description,
-    next.job_url,
-    personKey,
-    personName,
-    req.params.id,
-    req.user.id,
-    row.revision
-  );
-
-  const updated = db
-    .prepare("SELECT * FROM evaluations WHERE id = ? AND user_id = ?")
-    .get(req.params.id, req.user.id);
-  res.json(updated);
-});
-
-router.delete("/evaluations/:id", (req, res) => {
-  db.prepare("DELETE FROM evaluations WHERE id = ? AND user_id = ?").run(
-    req.params.id,
-    req.user.id
-  );
-  res.json({ ok: true });
-});
-
-// 收藏 / 取消收藏（收藏的记录不会被自动清理）
-router.put("/evaluations/:id/favorite", (req, res) => {
-  const favorite = req.body?.favorite ? 1 : 0;
-  const info = db
-    .prepare("UPDATE evaluations SET favorite = ? WHERE id = ? AND user_id = ?")
-    .run(favorite, req.params.id, req.user.id);
-  if (info.changes === 0) return res.status(404).json({ error: "记录不存在" });
-  res.json({ ok: true, favorite: !!favorite });
-});
-
-// 生成 / 更新只读分享链接
-router.post("/evaluations/:id/share", (req, res) => {
-  const row = db
-    .prepare("SELECT * FROM evaluations WHERE id = ? AND user_id = ?")
-    .get(req.params.id, req.user.id);
-  if (!row) return res.status(404).json({ error: "记录不存在" });
-  const hideContact = req.body?.hideContact ? 1 : 0;
-  // 简历原文默认不分享，需显式勾选（避免过度暴露教育/项目经历）
-  const includeResume = req.body?.includeResume ? 1 : 0;
-  const hideName = req.body?.hideName ? 1 : 0;
-  const ttlDays = Number(process.env.SHARE_TTL_DAYS || 30);
-  const token = row.share_token || crypto.randomBytes(12).toString("hex");
-  db.prepare(
-    `UPDATE evaluations
-     SET share_token = ?, share_hide_contact = ?, share_include_resume = ?, share_hide_name = ?,
-         share_expires_at = datetime('now', ?)
-     WHERE id = ? AND user_id = ?`
-  ).run(token, hideContact, includeResume, hideName, `+${ttlDays} days`, req.params.id, req.user.id);
-
-  const expiresAt = db
-    .prepare("SELECT share_expires_at FROM evaluations WHERE id = ?")
-    .get(req.params.id)?.share_expires_at;
-  res.json({
-    ok: true,
-    token,
-    hideContact: !!hideContact,
-    includeResume: !!includeResume,
-    hideName: !!hideName,
-    expiresAt,
-  });
-});
-
-// 取消分享
-router.delete("/evaluations/:id/share", (req, res) => {
-  const info = db
-    .prepare("UPDATE evaluations SET share_token = NULL WHERE id = ? AND user_id = ?")
-    .run(req.params.id, req.user.id);
-  if (info.changes === 0) return res.status(404).json({ error: "记录不存在" });
-  res.json({ ok: true });
 });
 
 export default router;
