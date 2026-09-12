@@ -11,7 +11,7 @@ import { listProviders, defaultModel } from "../core/models.js";
 import { saveEvaluation, findCachedEvaluation } from "../core/store.js";
 import { getPersonKey, getPersonName } from "../core/person.js";
 import { requireAuth } from "../core/auth.js";
-import { consumeQuota, refundQuota, getUsage, quotaMessage } from "../core/quota.js";
+import { withQuota, hasQuotaFor, getUsage } from "../core/quota.js";
 import { normalizePlan, dailyLimitFor, defaultModelFor, isPremiumModel } from "../core/plans.js";
 import { acquire } from "../core/queue.js";
 
@@ -232,57 +232,40 @@ router.post("/evaluate", async (req, res) => {
   }
 
   const isPremium = isPremiumModel(effectiveModel(override));
-  let consumed = false;
-  let success = false;
 
   try {
-    const quota = consumeQuota(req.user, { isPremium });
-    if (!quota.allowed) {
-      const msg = quotaMessage(quota);
+    // 计费唯一入口：把「关键词抽取 + 客观分 + LLM 生成 + 落库」整段包进 work，
+    // 任一环节失败都会自动退还额度（见 core/quota.js 的 withQuota）。
+    const { result } = await withQuota(req.user, { isPremium }, async () => {
+      // 客观分：仅在缓存未命中、真正要评估时计算；放在并发槽位内，避免绕过队列。
+      // 关键词优先用 LLM 抽取（覆盖任意行业、按 JD 哈希缓存），匹配仍是确定性可解释的。
+      const jdKeywords = jobDescription
+        ? await getJdKeywords(jobDescription, controller.signal, override, jobTitle)
+        : [];
+      const objective = evaluateResume(resume, { jdText: jobDescription || "", jdKeywords });
+      const objectiveJson = JSON.stringify(objective);
+
       if (stream) {
-        safeWrite(`data: ${JSON.stringify({ error: msg, done: true })}\n\n`);
-        res.end();
-      } else {
-        res.status(429).json({ code: 3001, error: msg });
-      }
-      return;
-    }
-    consumed = true;
-
-    // 客观分：仅在缓存未命中、真正要评估时计算；放在并发槽位内，避免绕过队列。
-    // 关键词优先用 LLM 抽取（覆盖任意行业、按 JD 哈希缓存），匹配仍是确定性可解释的。
-    const jdKeywords = jobDescription
-      ? await getJdKeywords(jobDescription, controller.signal, override, jobTitle)
-      : [];
-    const objective = evaluateResume(resume, { jdText: jobDescription || "", jdKeywords });
-    const objectiveJson = JSON.stringify(objective);
-
-    if (stream) {
-      let fullText = "";
-
-      try {
-        await callLLMStream(
-          resume,
-          jobTitle,
-          jobDescription || "",
-          (chunk) => {
-            fullText += chunk;
-            safeWrite(`data: ${JSON.stringify({ chunk, done: false })}\n\n`);
-          },
-          controller.signal,
-          override
-        );
-      } catch (error) {
-        if (controller.signal.aborted) {
-          if (!res.writableEnded) res.end();
-          return;
-        }
-        console.warn("流式评估失败，回退非流式:", error.message);
-      }
-
-      // 流式无内容（停滞/为空）时回退非流式，保证有结果
-      if (!fullText.trim() && !controller.signal.aborted) {
+        let fullText = "";
         try {
+          await callLLMStream(
+            resume,
+            jobTitle,
+            jobDescription || "",
+            (chunk) => {
+              fullText += chunk;
+              safeWrite(`data: ${JSON.stringify({ chunk, done: false })}\n\n`);
+            },
+            controller.signal,
+            override
+          );
+        } catch (error) {
+          if (controller.signal.aborted) throw error;
+          console.warn("流式评估失败，回退非流式:", error.message);
+        }
+
+        // 流式无内容（停滞/为空）时回退非流式，保证有结果
+        if (!fullText.trim() && !controller.signal.aborted) {
           const report = await callLLM(
             resume,
             jobTitle,
@@ -292,50 +275,27 @@ router.post("/evaluate", async (req, res) => {
           );
           fullText = report;
           safeWrite(`data: ${JSON.stringify({ chunk: report, done: false })}\n\n`);
-        } catch (error) {
-          if (controller.signal.aborted) {
-            if (!res.writableEnded) res.end();
-            return;
-          }
-          safeWrite(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
-          res.end();
-          return;
         }
+
+        if (!fullText.trim()) throw new Error("评估结果为空，请重试");
+
+        const score = extractScore(fullText);
+        const id = saveEvaluation(
+          req.user.id,
+          resume,
+          jobTitle,
+          jobDescription || "",
+          score,
+          fullText,
+          jobUrl || "",
+          cacheKey,
+          override.isStudent ? "student" : "general",
+          objectiveJson
+        );
+        maybeLogFirstEvaluate(req.user.id);
+        return { id, score, report: fullText, objective };
       }
 
-      if (controller.signal.aborted) {
-        if (!res.writableEnded) res.end();
-        return;
-      }
-
-      if (!fullText.trim()) {
-        safeWrite(`data: ${JSON.stringify({ error: "评估结果为空，请重试", done: true })}\n\n`);
-        res.end();
-        return;
-      }
-
-      const score = extractScore(fullText);
-      const id = saveEvaluation(
-        req.user.id,
-        resume,
-        jobTitle,
-        jobDescription || "",
-        score,
-        fullText,
-        jobUrl || "",
-        cacheKey,
-        override.isStudent ? "student" : "general",
-        objectiveJson
-      );
-
-      success = true;
-      maybeLogFirstEvaluate(req.user.id);
-
-      safeWrite(
-        `data: ${JSON.stringify({ chunk: "", done: true, id, score, report: fullText, objective, revision: 1 })}\n\n`
-      );
-      res.end();
-    } else {
       const report = await callLLM(
         resume,
         jobTitle,
@@ -356,14 +316,36 @@ router.post("/evaluate", async (req, res) => {
         override.isStudent ? "student" : "general",
         objectiveJson
       );
-
-      success = true;
       maybeLogFirstEvaluate(req.user.id);
-      res.json({ id, score, report, objective, revision: 1 });
+      return { id, score, report, objective };
+    });
+
+    if (stream) {
+      safeWrite(
+        `data: ${JSON.stringify({ chunk: "", done: true, id: result.id, score: result.score, report: result.report, objective: result.objective, revision: 1 })}\n\n`
+      );
+      res.end();
+    } else {
+      res.json({
+        id: result.id,
+        score: result.score,
+        report: result.report,
+        objective: result.objective,
+        revision: 1,
+      });
     }
   } catch (error) {
     if (controller.signal.aborted) {
       if (!res.writableEnded) res.end();
+      return;
+    }
+    if (error.code === 3001) {
+      if (stream) {
+        safeWrite(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
+        res.end();
+      } else {
+        res.status(429).json({ code: 3001, error: error.message });
+      }
       return;
     }
     console.error("评估失败:", error);
@@ -374,8 +356,6 @@ router.post("/evaluate", async (req, res) => {
       res.status(500).json({ error: error.message });
     }
   } finally {
-    // 失败 / 空结果 / 中断：退还本次额度（管理员不计数，refundQuota 内部已跳过）
-    if (consumed && !success) refundQuota(req.user, { isPremium });
     if (release) release();
   }
 });
@@ -419,10 +399,10 @@ router.post("/compare", async (req, res) => {
     }
   };
 
-  const plan = normalizePlan(req.user);
-  const limit = dailyLimitFor(plan);
-  const used = getUsage(req.user.id);
-  if (plan !== "admin" && used + jobs.length > limit) {
+  // 提前反馈（不消耗）：额度不够跑完 N 个岗位时直接告知，避免跑到一半才失败
+  if (!hasQuotaFor(req.user, jobs.length)) {
+    const limit = dailyLimitFor(normalizePlan(req.user));
+    const used = getUsage(req.user.id);
     safeWrite(
       `data: ${JSON.stringify({
         error: `今日额度不足（需 ${jobs.length} 次，剩余 ${Math.max(0, limit - used)} 次）`,
@@ -444,6 +424,7 @@ router.post("/compare", async (req, res) => {
     return;
   }
 
+  const isPremium = isPremiumModel(effectiveModel(override));
   try {
     const results = [];
     for (let i = 0; i < jobs.length; i++) {
@@ -456,34 +437,39 @@ router.post("/compare", async (req, res) => {
         `data: ${JSON.stringify({ progress: { index: i, total: jobs.length, title: job.title } })}\n\n`
       );
 
-      const report = await callLLM(resume, job.title, job.jd || "", controller.signal, override);
-      const score = extractScore(report);
-      const conclusion = extractConclusion(report);
+      // 每个岗位单独计费：该岗 LLM 成功并落库后才计费，失败自动退还
+      const { result } = await withQuota(req.user, { isPremium }, async () => {
+        const report = await callLLM(resume, job.title, job.jd || "", controller.signal, override);
+        const score = extractScore(report);
+        const conclusion = extractConclusion(report);
 
-      // 客观分（与结果页一致）：关键词优先 LLM 抽取，匹配度采用算法口径
-      const jdKeywords = job.jd
-        ? await getJdKeywords(job.jd, controller.signal, override, job.title)
-        : [];
-      const objective = evaluateResume(resume, { jdText: job.jd || "", jdKeywords });
-      const matchRate =
-        objective.matchRate != null ? Math.round(objective.matchRate * 100) : computeMatchRate(report);
+        // 客观分（与结果页一致）：关键词优先 LLM 抽取，匹配度采用算法口径
+        const jdKeywords = job.jd
+          ? await getJdKeywords(job.jd, controller.signal, override, job.title)
+          : [];
+        const objective = evaluateResume(resume, { jdText: job.jd || "", jdKeywords });
+        const matchRate =
+          objective.matchRate != null
+            ? Math.round(objective.matchRate * 100)
+            : computeMatchRate(report);
 
-      consumeQuota(req.user, { isPremium: isPremiumModel(effectiveModel(override)) });
+        const id = saveEvaluation(
+          req.user.id,
+          resume,
+          job.title,
+          job.jd || "",
+          score,
+          report,
+          "",
+          computeCacheKey(resume, job.title, job.jd || "", override),
+          override.isStudent ? "student" : "general",
+          JSON.stringify(objective)
+        );
 
-      const id = saveEvaluation(
-        req.user.id,
-        resume,
-        job.title,
-        job.jd || "",
-        score,
-        report,
-        "",
-        computeCacheKey(resume, job.title, job.jd || "", override),
-        override.isStudent ? "student" : "general",
-        JSON.stringify(objective)
-      );
+        return { id, title: job.title, score, matchRate, conclusion };
+      });
 
-      results.push({ id, title: job.title, score, matchRate, conclusion });
+      results.push(result);
     }
 
     if (controller.signal.aborted) {
@@ -544,13 +530,15 @@ router.post("/followup", async (req, res) => {
     return;
   }
 
+  const isPremium = isPremiumModel(effectiveModel(override));
   try {
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
 
-    let fullText = "";
-    try {
+    // 追问开始计入每日额度（与评估一致：失败自动退还）
+    const { result } = await withQuota(req.user, { isPremium }, async () => {
+      let fullText = "";
       await followUpStream(
         {
           resume,
@@ -567,24 +555,26 @@ router.post("/followup", async (req, res) => {
         controller.signal,
         override
       );
-    } catch (error) {
-      if (controller.signal.aborted) {
-        if (!res.writableEnded) res.end();
-        return;
-      }
-      safeWrite(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
-      res.end();
-      return;
-    }
+      return { answer: fullText };
+    });
 
     if (controller.signal.aborted) {
       if (!res.writableEnded) res.end();
       return;
     }
 
-    safeWrite(`data: ${JSON.stringify({ chunk: "", done: true, answer: fullText })}\n\n`);
+    safeWrite(`data: ${JSON.stringify({ chunk: "", done: true, answer: result.answer })}\n\n`);
     res.end();
   } catch (error) {
+    if (controller.signal.aborted) {
+      if (!res.writableEnded) res.end();
+      return;
+    }
+    if (error.code === 3001) {
+      safeWrite(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
+      res.end();
+      return;
+    }
     console.error("追问失败:", error);
     if (!res.writableEnded) {
       safeWrite(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
@@ -627,22 +617,6 @@ router.post("/interview", async (req, res) => {
   };
 
   const isPremium = isPremiumModel(effectiveModel(override));
-  let consumed = false;
-  let success = false;
-  let refunded = false;
-  const refundOnce = () => {
-    if (!consumed || success || refunded) return;
-    refunded = true;
-    refundQuota(req.user, { isPremium });
-  };
-
-  const quota = consumeQuota(req.user, { isPremium });
-  if (!quota.allowed) {
-    safeWrite(`data: ${JSON.stringify({ error: quotaMessage(quota), done: true })}\n\n`);
-    res.end();
-    return;
-  }
-  consumed = true;
 
   let release;
   try {
@@ -650,67 +624,70 @@ router.post("/interview", async (req, res) => {
       safeWrite(`data: ${JSON.stringify({ queued: true, position })}\n\n`);
     });
   } catch (error) {
-    refundOnce(); // 已扣额度但没能排上队
     safeWrite(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
     res.end();
     return;
   }
 
   try {
-    let fullText = "";
-    await interviewStream(
-      {
+    // 计费唯一入口：生成成功并落库后才计费，失败/空结果自动退还
+    const { result } = await withQuota(req.user, { isPremium }, async () => {
+      let fullText = "";
+      await interviewStream(
+        {
+          resume,
+          jobTitle,
+          jobDescription: jobDescription || "",
+          isStudent: override.isStudent,
+        },
+        (chunk) => {
+          fullText += chunk;
+          safeWrite(`data: ${JSON.stringify({ chunk, done: false })}\n\n`);
+        },
+        controller.signal,
+        override
+      );
+
+      // 流式偶发返回空（限流/超时/模型异常）时，明确报错而不是发空的「成功」
+      if (!fullText.trim()) throw new Error("生成结果为空，请重试");
+
+      // 落库，断线后也可在历史/结果页回看（与主评估一致）
+      const id = saveEvaluation(
+        req.user.id,
         resume,
         jobTitle,
-        jobDescription: jobDescription || "",
-        isStudent: override.isStudent,
-      },
-      (chunk) => {
-        fullText += chunk;
-        safeWrite(`data: ${JSON.stringify({ chunk, done: false })}\n\n`);
-      },
-      controller.signal,
-      override
-    );
+        jobDescription || "",
+        null,
+        fullText,
+        "",
+        null,
+        override.isStudent ? "student" : "general",
+        null
+      );
+      return { id, text: fullText };
+    });
 
     if (controller.signal.aborted) {
       if (!res.writableEnded) res.end();
       return;
     }
 
-    // 流式偶发返回空（限流/超时/模型异常）时，明确报错而不是发空的「成功」
-    if (!fullText.trim()) {
-      safeWrite(`data: ${JSON.stringify({ error: "生成结果为空，请重试", done: true })}\n\n`);
-      res.end();
-      return;
-    }
-
-    // 落库，断线后也可在历史/结果页回看（与主评估一致）
-    const id = saveEvaluation(
-      req.user.id,
-      resume,
-      jobTitle,
-      jobDescription || "",
-      null,
-      fullText,
-      "",
-      null,
-      override.isStudent ? "student" : "general",
-      null
-    );
-    success = true;
-    safeWrite(`data: ${JSON.stringify({ chunk: "", done: true, id, text: fullText })}\n\n`);
+    safeWrite(`data: ${JSON.stringify({ chunk: "", done: true, id: result.id, text: result.text })}\n\n`);
     res.end();
   } catch (error) {
     if (controller.signal.aborted) {
       if (!res.writableEnded) res.end();
       return;
     }
+    if (error.code === 3001) {
+      safeWrite(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
+      res.end();
+      return;
+    }
     console.error("面试准备失败:", error);
     safeWrite(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
     res.end();
   } finally {
-    refundOnce();
     if (release) release();
   }
 });
@@ -747,22 +724,6 @@ router.post("/directions", async (req, res) => {
   };
 
   const isPremium = isPremiumModel(effectiveModel(override));
-  let consumed = false;
-  let success = false;
-  let refunded = false;
-  const refundOnce = () => {
-    if (!consumed || success || refunded) return;
-    refunded = true;
-    refundQuota(req.user, { isPremium });
-  };
-
-  const quota = consumeQuota(req.user, { isPremium });
-  if (!quota.allowed) {
-    safeWrite(`data: ${JSON.stringify({ error: quotaMessage(quota), done: true })}\n\n`);
-    res.end();
-    return;
-  }
-  consumed = true;
 
   let release;
   try {
@@ -770,62 +731,65 @@ router.post("/directions", async (req, res) => {
       safeWrite(`data: ${JSON.stringify({ queued: true, position })}\n\n`);
     });
   } catch (error) {
-    refundOnce(); // 已扣额度但没能排上队
     safeWrite(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
     res.end();
     return;
   }
 
   try {
-    let fullText = "";
-    await directionsStream(
-      { resume, isStudent: override.isStudent },
-      (chunk) => {
-        fullText += chunk;
-        safeWrite(`data: ${JSON.stringify({ chunk, done: false })}\n\n`);
-      },
-      controller.signal,
-      override
-    );
+    // 计费唯一入口：生成成功并落库后才计费，失败/空结果自动退还
+    const { result } = await withQuota(req.user, { isPremium }, async () => {
+      let fullText = "";
+      await directionsStream(
+        { resume, isStudent: override.isStudent },
+        (chunk) => {
+          fullText += chunk;
+          safeWrite(`data: ${JSON.stringify({ chunk, done: false })}\n\n`);
+        },
+        controller.signal,
+        override
+      );
+
+      // 流式偶发返回空（限流/超时/模型异常）时，明确报错而不是发空的「成功」
+      if (!fullText.trim()) throw new Error("生成结果为空，请重试");
+
+      // 落库，断线后也可在历史/结果页回看（与主评估一致）
+      const id = saveEvaluation(
+        req.user.id,
+        resume,
+        "岗位方向推荐",
+        "",
+        null,
+        fullText,
+        "",
+        null,
+        override.isStudent ? "student" : "general",
+        null
+      );
+      return { id, text: fullText };
+    });
 
     if (controller.signal.aborted) {
       if (!res.writableEnded) res.end();
       return;
     }
 
-    // 流式偶发返回空（限流/超时/模型异常）时，明确报错而不是发空的「成功」
-    if (!fullText.trim()) {
-      safeWrite(`data: ${JSON.stringify({ error: "生成结果为空，请重试", done: true })}\n\n`);
-      res.end();
-      return;
-    }
-
-    // 落库，断线后也可在历史/结果页回看（与主评估一致）
-    const id = saveEvaluation(
-      req.user.id,
-      resume,
-      "岗位方向推荐",
-      "",
-      null,
-      fullText,
-      "",
-      null,
-      override.isStudent ? "student" : "general",
-      null
-    );
-    success = true;
-    safeWrite(`data: ${JSON.stringify({ chunk: "", done: true, id, text: fullText })}\n\n`);
+    safeWrite(`data: ${JSON.stringify({ chunk: "", done: true, id: result.id, text: result.text })}\n\n`);
     res.end();
   } catch (error) {
     if (controller.signal.aborted) {
       if (!res.writableEnded) res.end();
       return;
     }
+    if (error.code === 3001) {
+      safeWrite(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
+      res.end();
+      return;
+    }
     console.error("方向推荐失败:", error);
     safeWrite(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
     res.end();
   } finally {
-    refundOnce();
     if (release) release();
   }
 });

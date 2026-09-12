@@ -81,22 +81,47 @@ export function consumeQuota(user, { isPremium = false, isOcr = false } = {}) {
   };
 }
 
-// 退还一次额度：评估/生成失败（网络、模型故障、空结果、中断）时调用，
-// 避免"评估失败了，次数却少了"——这是最伤付费意愿的一类体验。
-// total 必退；premium / ocr 按当时是否计入退；不会退成负数。管理员不受限、不计数 → 直接跳过。
-export function refundQuota(user, { isPremium = false, isOcr = false } = {}) {
-  if (!user?.id) return;
-  if (isUnlimited(normalizePlan(user))) return;
+// 退还一次额度：`withQuota` 在 work 抛错时调用；也可直接调用。
+// total 必退；premium / ocr 按当时是否计入退；MAX(count-1,0) 防止退成负数。
+// 管理员不受限、不计数 → 没有计数行，UPDATE 命中 0 行，天然 no-op（无需特判）。
+export function refundQuota(userId, { isPremium = false, isOcr = false } = {}) {
+  if (!userId) return;
+  const kinds = ["total", ...(isPremium ? ["premium"] : []), ...(isOcr ? ["ocr"] : [])];
   try {
     const dec = db.prepare(
       "UPDATE quota_counters SET count = MAX(count - 1, 0) WHERE user_id = ? AND day = ? AND kind = ?"
     );
-    dec.run(user.id, today(), "total");
-    if (isPremium) dec.run(user.id, today(), "premium");
-    if (isOcr) dec.run(user.id, today(), "ocr");
+    for (const kind of kinds) dec.run(userId, today(), kind);
   } catch (error) {
     console.warn("额度退还失败:", error.message);
   }
+}
+
+// 计费唯一入口：work() 成功 → 计费；work() 抛错 → 自动退还（"先扣后退"）。
+// 路由层不再直接调用 consumeQuota，避免"扣了不退 / 各处顺序不一致"。
+// 额度不足时抛出 code=3001 的错误（路由层按现有 429 / 流式 error 事件处理）。
+export async function withQuota(user, { isPremium = false, isOcr = false } = {}, work) {
+  const quota = consumeQuota(user, { isPremium, isOcr });
+  if (!quota.allowed) {
+    const error = new Error(quotaMessage(quota));
+    error.code = 3001;
+    error.quota = quota;
+    throw error;
+  }
+  try {
+    const result = await work();
+    return { result, quota };
+  } catch (error) {
+    refundQuota(user.id, { isPremium, isOcr });
+    throw error;
+  }
+}
+
+// 只读预检查：当前用户是否还有 n 次总额度（用于多岗对比的提前反馈，不消耗）
+export function hasQuotaFor(user, n) {
+  const plan = normalizePlan(user);
+  if (isUnlimited(plan)) return true;
+  return getUsage(user.id) + n <= dailyLimitFor(plan);
 }
 
 // 只读快照：当前套餐的用量/额度（不消耗），用于前端「额度即将用完」预警

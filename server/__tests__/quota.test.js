@@ -71,26 +71,26 @@ describe("额度退还（评估失败时，避免「失败了次数却少了」�
     consumeQuota(free, { isPremium: true });
     expect(getUsage(1)).toBe(1);
     expect(getPremiumUsage(1)).toBe(1);
-    refundQuota(free, { isPremium: true });
+    refundQuota(free.id, { isPremium: true });
     expect(getUsage(1)).toBe(0);
     expect(getPremiumUsage(1)).toBe(0);
   });
 
   it("退还后额度可再次使用（不会卡住）", () => {
     consumeQuota(free);
-    refundQuota(free);
+    refundQuota(free.id);
     expect(consumeQuota(free).allowed).toBe(true);
     expect(getUsage(1)).toBe(1);
   });
 
   it("不会退成负数", () => {
-    refundQuota(free);
+    refundQuota(free.id);
     expect(getUsage(1)).toBe(0);
   });
 
   it("管理员不计数，退还也是 no-op", () => {
     consumeQuota(admin);
-    refundQuota(admin);
+    refundQuota(admin.id);
     expect(getUsage(3)).toBe(0);
   });
 });

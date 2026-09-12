@@ -11,5 +11,6 @@
 | [0005](./0005-download-history.md) | 记录下载/导出历史 |
 | [0006](./0006-optimistic-concurrency.md) | 评估记录更新采用乐观并发（revision） |
 | [0007](./0007-report-format-stays-text.md) | 报告保持文本格式，暂不做 JSON 结构化输出 |
+| [0008](./0008-quota-charged-on-success.md) | 额度按「成功后计费 + 失败自动退还」，`withQuota` 为唯一入口 |
 
 > 参考来源：resume-workshop 的相关设计（MIT License）经裁剪后移植。
