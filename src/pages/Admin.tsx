@@ -222,6 +222,11 @@ export default function Admin() {
   const expiringSoon = users.filter(
     (u) => u.plan === "pro" && !u.expired && typeof u.daysLeft === "number" && u.daysLeft <= 7
   ).length;
+  // PRO 申请超时：pending 且提交超过 24 小时（人工对账最大的失败模式是漏单）
+  const PRO_OVERDUE_MS = 24 * 60 * 60 * 1000;
+  const isProOverdue = (r: ProRequest) =>
+    r.status === "pending" && Date.now() - new Date(r.created_at).getTime() > PRO_OVERDUE_MS;
+  const overdueProCount = proRequests.filter(isProOverdue).length;
 
   if (user && user.role !== "admin") {
     return <Navigate to="/" replace />;
@@ -348,6 +353,15 @@ export default function Admin() {
                 : 0}
               %
             </strong>
+            {overdueProCount > 0 && (
+              <>
+                {" "}
+                ·{" "}
+                <strong style={{ color: "#b45309" }}>
+                  {overdueProCount} 条申请超过 24 小时未处理
+                </strong>
+              </>
+            )}
           </p>
           <table className="admin-table">
             <thead>
@@ -363,14 +377,23 @@ export default function Admin() {
             </thead>
             <tbody>
               {proRequests.map((r) => (
-                <tr key={r.id}>
+                <tr
+                  key={r.id}
+                  style={
+                    isProOverdue(r)
+                      ? { borderLeft: "3px solid #b45309", background: "rgba(180, 83, 9, 0.06)" }
+                      : undefined
+                  }
+                >
                   <td>{r.id}</td>
                   <td>{r.username || r.email || r.user_id}</td>
                   <td>{r.pay_email || "—"}</td>
                   <td>{r.note || "—"}</td>
                   <td>
                     {r.status === "pending"
-                      ? "待处理"
+                      ? isProOverdue(r)
+                        ? "⚠ 超过 24 小时未处理"
+                        : "待处理"
                       : r.status === "approved"
                         ? `已开通${r.plan_expires_at ? ` · 至 ${String(r.plan_expires_at).slice(0, 10)}` : ""}`
                         : "已驳回"}
