@@ -224,9 +224,13 @@ pm2 restart resume-evaluator
 
 **数据库备份**（SQLite 单文件）：
 ```bash
-cp data/app.db ~/backup-$(date +%F).db
+# 实时库在 server/data/app.db（db.js: path.join(__dirname,"..","data","app.db")，__dirname = server/core）
+cp server/data/app.db ~/backup-$(date +%F).db
+# 若还残留旧路径 data/app.db，一并备份（存在才备，不存在不报错）
+[ -f data/app.db ] && cp data/app.db ~/backup-legacy-$(date +%F).db || true
 # 或定时备份（crontab）
 ```
+> 两个文件可以共存（独立的 SQLite 文件），但**只有 `server/data/app.db` 是服务实际读写的库**；`data/app.db` 仅作历史兜底。
 
 ---
 
