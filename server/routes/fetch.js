@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { userMessage } from "../http/userMessages.js";
 import * as cheerio from "cheerio";
 import dns from "dns/promises";
 import net from "net";
@@ -208,7 +209,7 @@ router.post("/fetch-url", async (req, res) => {
     }
     html = await resp.text();
   } catch (error) {
-    const msg = error.name === "AbortError" ? "请求超时" : error.message;
+    const msg = error.name === "AbortError" ? "请求超时" : userMessage(error);
     return res.status(400).json({ error: "抓取失败：" + msg + "，请手动复制内容" });
   } finally {
     clearTimeout(timer);

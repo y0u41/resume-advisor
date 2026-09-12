@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { userMessage } from "../http/userMessages.js";
 import multer from "multer";
 import { requireAuth } from "../core/auth.js";
 import { ocrImage } from "../llm/llm.js";
@@ -141,7 +142,7 @@ router.post("/parse-file", upload.single("file"), async (req, res) => {
     res.json({ filename: originalname, text, length: text.length, ocr: usedOcr });
   } catch (error) {
     console.error("文件解析失败:", error);
-    res.status(500).json({ error: "文件解析失败：" + error.message });
+    res.status(500).json({ error: "文件解析失败：" + userMessage(error) });
   }
 });
 

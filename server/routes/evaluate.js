@@ -14,6 +14,7 @@ import { requireAuth } from "../core/auth.js";
 import { withQuota, hasQuotaFor, getUsage } from "../core/quota.js";
 import { normalizePlan, dailyLimitFor, defaultModelFor, isPremiumModel } from "../core/plans.js";
 import { acquire } from "../core/queue.js";
+import { userMessage } from "../http/userMessages.js";
 
 const router = Router();
 
@@ -223,10 +224,10 @@ router.post("/evaluate", async (req, res) => {
     });
   } catch (error) {
     if (stream) {
-      safeWrite(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
+      safeWrite(`data: ${JSON.stringify({ error: userMessage(error), done: true })}\n\n`);
       res.end();
     } else {
-      res.status(503).json({ error: error.message });
+      res.status(503).json({ error: userMessage(error) });
     }
     return;
   }
@@ -341,19 +342,19 @@ router.post("/evaluate", async (req, res) => {
     }
     if (error.code === 3001) {
       if (stream) {
-        safeWrite(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
+        safeWrite(`data: ${JSON.stringify({ error: userMessage(error), done: true })}\n\n`);
         res.end();
       } else {
-        res.status(429).json({ code: 3001, error: error.message });
+        res.status(429).json({ code: 3001, error: userMessage(error) });
       }
       return;
     }
     console.error("评估失败:", error);
     if (stream) {
-      safeWrite(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
+      safeWrite(`data: ${JSON.stringify({ error: userMessage(error), done: true })}\n\n`);
       res.end();
     } else {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: userMessage(error) });
     }
   } finally {
     if (release) release();
@@ -419,7 +420,7 @@ router.post("/compare", async (req, res) => {
       safeWrite(`data: ${JSON.stringify({ queued: true, position })}\n\n`);
     });
   } catch (error) {
-    safeWrite(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
+    safeWrite(`data: ${JSON.stringify({ error: userMessage(error), done: true })}\n\n`);
     res.end();
     return;
   }
@@ -486,7 +487,7 @@ router.post("/compare", async (req, res) => {
       return;
     }
     console.error("对比失败:", error);
-    safeWrite(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
+    safeWrite(`data: ${JSON.stringify({ error: userMessage(error), done: true })}\n\n`);
     res.end();
   } finally {
     if (release) release();
@@ -525,7 +526,7 @@ router.post("/followup", async (req, res) => {
       safeWrite(`data: ${JSON.stringify({ queued: true, position })}\n\n`);
     });
   } catch (error) {
-    safeWrite(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
+    safeWrite(`data: ${JSON.stringify({ error: userMessage(error), done: true })}\n\n`);
     res.end();
     return;
   }
@@ -571,13 +572,13 @@ router.post("/followup", async (req, res) => {
       return;
     }
     if (error.code === 3001) {
-      safeWrite(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
+      safeWrite(`data: ${JSON.stringify({ error: userMessage(error), done: true })}\n\n`);
       res.end();
       return;
     }
     console.error("追问失败:", error);
     if (!res.writableEnded) {
-      safeWrite(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
+      safeWrite(`data: ${JSON.stringify({ error: userMessage(error), done: true })}\n\n`);
       res.end();
     }
   } finally {
@@ -624,7 +625,7 @@ router.post("/interview", async (req, res) => {
       safeWrite(`data: ${JSON.stringify({ queued: true, position })}\n\n`);
     });
   } catch (error) {
-    safeWrite(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
+    safeWrite(`data: ${JSON.stringify({ error: userMessage(error), done: true })}\n\n`);
     res.end();
     return;
   }
@@ -680,12 +681,12 @@ router.post("/interview", async (req, res) => {
       return;
     }
     if (error.code === 3001) {
-      safeWrite(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
+      safeWrite(`data: ${JSON.stringify({ error: userMessage(error), done: true })}\n\n`);
       res.end();
       return;
     }
     console.error("面试准备失败:", error);
-    safeWrite(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
+    safeWrite(`data: ${JSON.stringify({ error: userMessage(error), done: true })}\n\n`);
     res.end();
   } finally {
     if (release) release();
@@ -731,7 +732,7 @@ router.post("/directions", async (req, res) => {
       safeWrite(`data: ${JSON.stringify({ queued: true, position })}\n\n`);
     });
   } catch (error) {
-    safeWrite(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
+    safeWrite(`data: ${JSON.stringify({ error: userMessage(error), done: true })}\n\n`);
     res.end();
     return;
   }
@@ -782,12 +783,12 @@ router.post("/directions", async (req, res) => {
       return;
     }
     if (error.code === 3001) {
-      safeWrite(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
+      safeWrite(`data: ${JSON.stringify({ error: userMessage(error), done: true })}\n\n`);
       res.end();
       return;
     }
     console.error("方向推荐失败:", error);
-    safeWrite(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
+    safeWrite(`data: ${JSON.stringify({ error: userMessage(error), done: true })}\n\n`);
     res.end();
   } finally {
     if (release) release();

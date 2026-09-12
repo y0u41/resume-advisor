@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { userMessage } from "../http/userMessages.js";
 import db from "../core/db.js";
 import { callLLM, callLLMStream } from "../llm/llm.js";
 import { evaluateResume } from "../scoring/index.js";
@@ -175,7 +176,7 @@ router.post("/guest/evaluate", async (req, res) => {
       return;
     }
     console.error("游客评估失败:", error);
-    res.write(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
+    res.write(`data: ${JSON.stringify({ error: userMessage(error), done: true })}\n\n`);
     res.end();
   }
 });
