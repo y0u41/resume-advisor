@@ -355,7 +355,7 @@ export async function fetchGuestQuota(): Promise<GuestQuota> {
 }
 
 export function guestEvaluateStream(
-  payload: { resume: string; jobTitle: string; jobDescription: string },
+  payload: { resume: string; jobTitle: string; jobDescription: string; candidateType?: string },
   onChunk: (textSoFar: string) => void,
   onDone: (data: any) => void,
   onError: (message: string) => void,

@@ -94,6 +94,7 @@ export default function Login() {
   const [quota, setQuota] = useState<GuestQuota | null>(null);
   const [guestResume, setGuestResume] = useState("");
   const [guestJob, setGuestJob] = useState("");
+  const [guestStudent, setGuestStudent] = useState(false);
   const [guestLoading, setGuestLoading] = useState(false);
   const [guestText, setGuestText] = useState("");
   const [guestResult, setGuestResult] = useState<any>(null);
@@ -114,7 +115,12 @@ export default function Login() {
     setGuestResult(null);
     try {
       await guestEvaluateStream(
-        { resume: guestResume.trim(), jobTitle: guestJob.trim(), jobDescription: "" },
+        {
+          resume: guestResume.trim(),
+          jobTitle: guestJob.trim(),
+          jobDescription: "",
+          candidateType: guestStudent ? "student" : "general",
+        },
         (t) => setGuestText(t),
         (data) => {
           setGuestResult(data);
@@ -355,6 +361,14 @@ export default function Login() {
                   onChange={(e) => setGuestJob(e.target.value)}
                 />
               </div>
+              <label className="switch-row">
+                <input
+                  type="checkbox"
+                  checked={guestStudent}
+                  onChange={(e) => setGuestStudent(e.target.checked)}
+                />
+                <span>我是应届生 / 暂无工作经历</span>
+              </label>
               {guestError && <p className="auth-error">{guestError}</p>}
               <button
                 type="button"

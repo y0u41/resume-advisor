@@ -55,7 +55,8 @@ function extractScore(report) {
 
 // 游客试用评估：无需登录，按 IP 限流，结果打码预览、不落库
 router.post("/guest/evaluate", async (req, res) => {
-  const { resume, jobTitle, jobDescription } = req.body || {};
+  const { resume, jobTitle, jobDescription, candidateType } = req.body || {};
+  const isStudent = candidateType === "student";
 
   if (!resume || !jobTitle || typeof resume !== "string" || typeof jobTitle !== "string") {
     return res.status(400).json({ code: 1001, error: "请提供简历全文和应聘岗位" });
@@ -94,7 +95,7 @@ router.post("/guest/evaluate", async (req, res) => {
           res.write(`data: ${JSON.stringify({ chunk, done: false })}\n\n`);
         },
         controller.signal,
-        { isStudent: false }
+        { isStudent }
       );
     } catch (error) {
       if (!controller.signal.aborted) console.warn("游客流式评估失败，回退非流式:", error.message);
@@ -102,7 +103,7 @@ router.post("/guest/evaluate", async (req, res) => {
 
     if (!fullText.trim() && !controller.signal.aborted) {
       fullText = await callLLM(resume, jobTitle, jobDescription || "", controller.signal, {
-        isStudent: false,
+        isStudent,
       });
     }
 
