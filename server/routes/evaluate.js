@@ -566,6 +566,13 @@ router.post("/interview", async (req, res) => {
       return;
     }
 
+    // 流式偶发返回空（限流/超时/模型异常）时，明确报错而不是发空的「成功」
+    if (!fullText.trim()) {
+      res.write(`data: ${JSON.stringify({ error: "生成结果为空，请重试", done: true })}\n\n`);
+      res.end();
+      return;
+    }
+
     res.write(`data: ${JSON.stringify({ chunk: "", done: true, text: fullText })}\n\n`);
     res.end();
   } catch (error) {
@@ -637,6 +644,13 @@ router.post("/directions", async (req, res) => {
 
     if (controller.signal.aborted) {
       if (!res.writableEnded) res.end();
+      return;
+    }
+
+    // 流式偶发返回空（限流/超时/模型异常）时，明确报错而不是发空的「成功」
+    if (!fullText.trim()) {
+      res.write(`data: ${JSON.stringify({ error: "生成结果为空，请重试", done: true })}\n\n`);
+      res.end();
       return;
     }
 

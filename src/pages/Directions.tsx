@@ -97,13 +97,15 @@ export default function Directions() {
         </button>
       </div>
 
-      {(text || running) && (
+      {(text || running || task?.status === "error") && (
         <div className="card">
           <h2 className="section-title">
             <span className="section-icon">🎯</span>
             推荐结果
           </h2>
-          {text ? (
+          {task?.status === "error" ? (
+            <p className="auth-error">{task.error || "生成失败，请重试"}</p>
+          ) : text ? (
             <div className="report">{text}</div>
           ) : (
             <div className="skeleton-lines">
@@ -114,7 +116,7 @@ export default function Directions() {
             </div>
           )}
 
-          {text && !running && (
+          {text && !running && task?.status !== "error" && (
             <div className="builder-download" style={{ marginTop: 16 }}>
               <select
                 className="format-select"
