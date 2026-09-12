@@ -226,7 +226,44 @@ pm2 restart resume-evaluator
 > 压缩包**不含** `.env` / `data/` / `node_modules`，不会覆盖你的配置与数据库。
 > 完成后同样执行 `npm ci && npm run build && pm2 restart resume-evaluator`。
 
-**数据库备份**（SQLite 单文件）：
+### 9.1 ⚠️ 从旧版本升级：数据库路径变了（不迁移会「数据消失」）
+
+- **旧版本**（`server/db.js` 时期）：库在 **`data/app.db`**（`__dirname = server`，`../data/app.db`）。
+- **当前版本**（`server/core/db.js`）：库在 **`server/data/app.db`**（`__dirname = server/core`，`../data/app.db`）。
+
+路径变了，**文件不会自己搬**。若直接 `git pull` + 重启，新代码会在 `server/data/app.db` **新建一个空库**，看起来「所有用户和历史都没了」——其实数据还完好地躺在 `data/app.db` 里。
+
+**迁移（旧库 → 新路径，只需做一次）：**
+
+```bash
+cd /opt/git/resume-evaluator
+sudo pm2 stop resume-evaluator                 # ① 先停服，保证 WAL 一致
+
+mkdir -p ~/re-backups
+cp -a data/app.db data/app.db-wal data/app.db-shm ~/re-backups/   # ② 先备份
+
+mkdir -p server/data
+cp -a data/app.db data/app.db-wal data/app.db-shm server/data/    # ③ 搬到新路径（-wal/-shm 一起搬，SQLite 打开时自动恢复）
+
+sudo pm2 start resume-evaluator                # ④ 启动时自动跑 user_version 迁移（旧库 0 → 最新）
+```
+
+**验证**（`sqlite3` 未安装时用 node 版）：
+
+```bash
+sqlite3 server/data/app.db "PRAGMA user_version; SELECT COUNT(*) FROM users;"
+# 或用项目自带的 better-sqlite3：
+node -e "const D=require('better-sqlite3');const db=new D('server/data/app.db');console.log('user_version',db.pragma('user_version',{simple:true}),'users',db.prepare('SELECT COUNT(*) c FROM users').get().c);db.close()"
+```
+
+`user_version` 应等于最新迁移号（当前 **13**），且用户/评估条数与旧库一致。
+
+> **必须停服再 `cp`**：运行中的 WAL 直接复制可能得到不一致状态。
+> 迁移后 `data/app.db` 可保留作历史兜底——新服务只读写 `server/data/app.db`（见 9.2 说明）。
+
+### 9.2 数据库备份与恢复
+
+> 库文件路径见 **9.1**：当前版本是 `server/data/app.db`（旧版是 `data/app.db`）。
 
 服务**内置每日自动备份**：启动时 + 每 24 小时，用 better-sqlite3 在线备份到 `backups/app-YYYY-MM-DD.db`（保留最近 7 份，可用 `BACKUP_DIR` / `BACKUP_KEEP` 调整），**无需停服**。
 
@@ -248,7 +285,7 @@ rm -f server/data/app.db-wal server/data/app.db-shm
 pm2 start resume-evaluator
 ```
 
-> 两个库文件可以共存（独立的 SQLite 文件），但**只有 `server/data/app.db` 是服务实际读写的库**；`data/app.db` 仅作历史兜底。
+> 两个库文件可以共存（独立的 SQLite 文件），但**只有 `server/data/app.db` 是服务实际读写的库**；`data/app.db` 仅作历史兜底（从旧版本升级时的迁移见 **9.1**）。
 > `backups/` 已在 `.gitignore`，切勿提交。
 
 ---
@@ -262,6 +299,7 @@ pm2 start resume-evaluator
 | `pm2 restart` 报 `Process or Namespace ... not found` | pm2 按用户隔离，用启动它的同一用户重启：`sudo -i pm2 restart resume-evaluator`（见第 5 节） |
 | 评估很久没响应 | 大模型较慢，可调大 `LLM_TIMEOUT_MS`；或用 `*-flash` 快速模型 |
 | 偶发 429 | 免费模型过载，稍等重试；或改用付费模型 |
+| 升级后「用户/历史都不见了」 | 数据库路径变了（旧 `data/app.db` → 新 `server/data/app.db`），按 **9.1** 迁移即可恢复 |
 | 页面能开但接口 401 | 检查 `COOKIE_SECURE=true` 是否与 HTTPS 匹配 |
 | 想限制注册 | `.env` 设 `REGISTRATION_OPEN=false` |
 
