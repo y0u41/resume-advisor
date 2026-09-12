@@ -158,6 +158,14 @@ async function main() {
   const unauth = await fetch(`${BASE}/api/models`);
   check("未认证 code=1002", unauth.status === 401 && (await unauth.json()).code === 1002);
 
+  // 10. 游客试用额度（免登录）
+  const gq = await fetch(`${BASE}/api/guest/quota`);
+  const gqB = await gq.json();
+  check(
+    "游客额度接口可用（免登录）",
+    gq.status === 200 && gqB.code === 0 && typeof gqB.remaining === "number"
+  );
+
   console.log(`\n结果：${passed} 通过 / ${failed} 失败`);
   server.kill();
   try {

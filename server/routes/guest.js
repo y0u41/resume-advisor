@@ -1,0 +1,140 @@
+import { Router } from "express";
+import db from "../core/db.js";
+import { callLLM, callLLMStream } from "../llm/llm.js";
+import { evaluateResume } from "../scoring/index.js";
+
+const router = Router();
+
+// 游客每天可免注册试用的次数（默认 1 次）
+const GUEST_LIMIT = Number(process.env.GUEST_LIMIT || 1);
+// 游客可见的报告字符数（超出部分打码，注册后解锁）
+const GUEST_PREVIEW_CHARS = Number(process.env.GUEST_PREVIEW_CHARS || 800);
+
+const MAX_RESUME = 40000;
+const MAX_TITLE = 200;
+const MAX_JD = 40000;
+
+function today() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function getGuestUsed(ip) {
+  const row = db
+    .prepare("SELECT count FROM guest_trials WHERE ip = ? AND day = ?")
+    .get(ip, today());
+  return row?.count || 0;
+}
+
+function consumeGuestQuota(ip) {
+  const used = getGuestUsed(ip);
+  if (used >= GUEST_LIMIT) return { allowed: false, used, limit: GUEST_LIMIT };
+  db.prepare(
+    `INSERT INTO guest_trials (ip, day, count) VALUES (?, ?, 1)
+     ON CONFLICT(ip, day) DO UPDATE SET count = count + 1`
+  ).run(ip, today());
+  return { allowed: true, used: used + 1, limit: GUEST_LIMIT };
+}
+
+// 剩余试用次数（前端展示）
+router.get("/guest/quota", (req, res) => {
+  const used = getGuestUsed(req.ip);
+  res.json({ used, limit: GUEST_LIMIT, remaining: Math.max(0, GUEST_LIMIT - used) });
+});
+
+function extractScore(report) {
+  const match = report.match(/【总分】\s*(\d+(?:\.\d+)?)\s*\/\s*10/);
+  return match ? parseFloat(match[1]) : null;
+}
+
+// 游客试用评估：无需登录，按 IP 限流，结果打码预览、不落库
+router.post("/guest/evaluate", async (req, res) => {
+  const { resume, jobTitle, jobDescription } = req.body || {};
+
+  if (!resume || !jobTitle || typeof resume !== "string" || typeof jobTitle !== "string") {
+    return res.status(400).json({ code: 1001, error: "请提供简历全文和应聘岗位" });
+  }
+  if (resume.length > MAX_RESUME) return res.status(400).json({ code: 1006, error: "简历过长" });
+  if (jobTitle.length > MAX_TITLE) return res.status(400).json({ code: 1006, error: "岗位名称过长" });
+  if (jobDescription && jobDescription.length > MAX_JD)
+    return res.status(400).json({ code: 1006, error: "JD 过长" });
+
+  const quota = consumeGuestQuota(req.ip);
+  if (!quota.allowed) {
+    return res.status(429).json({
+      code: 3001,
+      error: "免费试用次数已用完，注册后可无限使用完整功能",
+    });
+  }
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+
+  const controller = new AbortController();
+  res.on("close", () => {
+    if (!res.writableEnded) controller.abort(new Error("客户端已断开"));
+  });
+
+  try {
+    let fullText = "";
+    try {
+      await callLLMStream(
+        resume,
+        jobTitle,
+        jobDescription || "",
+        (chunk) => {
+          fullText += chunk;
+          res.write(`data: ${JSON.stringify({ chunk, done: false })}\n\n`);
+        },
+        controller.signal,
+        { isStudent: false }
+      );
+    } catch (error) {
+      if (!controller.signal.aborted) console.warn("游客流式评估失败，回退非流式:", error.message);
+    }
+
+    if (!fullText.trim() && !controller.signal.aborted) {
+      fullText = await callLLM(resume, jobTitle, jobDescription || "", controller.signal, {
+        isStudent: false,
+      });
+    }
+
+    if (controller.signal.aborted) {
+      if (!res.writableEnded) res.end();
+      return;
+    }
+    if (!fullText.trim()) {
+      res.write(`data: ${JSON.stringify({ error: "评估结果为空，请重试", done: true })}\n\n`);
+      res.end();
+      return;
+    }
+
+    const score = extractScore(fullText);
+    const objective = evaluateResume(resume, { jdText: jobDescription || "" });
+    const preview = fullText.slice(0, GUEST_PREVIEW_CHARS);
+
+    res.write(
+      `data: ${JSON.stringify({
+        chunk: "",
+        done: true,
+        guest: true,
+        score,
+        objective,
+        report: preview,
+        truncated: fullText.length > GUEST_PREVIEW_CHARS,
+        totalLength: fullText.length,
+      })}\n\n`
+    );
+    res.end();
+  } catch (error) {
+    if (controller.signal.aborted) {
+      if (!res.writableEnded) res.end();
+      return;
+    }
+    console.error("游客评估失败:", error);
+    res.write(`data: ${JSON.stringify({ error: error.message, done: true })}\n\n`);
+    res.end();
+  }
+});
+
+export default router;

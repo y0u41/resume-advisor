@@ -76,6 +76,16 @@ db.exec(`
   )
 `);
 
+// 游客试用额度（按 IP + 天 计数，注册前可免注册试用 N 次）
+db.exec(`
+  CREATE TABLE IF NOT EXISTS guest_trials (
+    ip TEXT NOT NULL,
+    day TEXT NOT NULL,
+    count INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (ip, day)
+  )
+`);
+
 // 兼容旧库：补上新增字段
 const columns = db.prepare("PRAGMA table_info(evaluations)").all().map((c) => c.name);
 if (!columns.includes("person_key")) db.exec("ALTER TABLE evaluations ADD COLUMN person_key TEXT");

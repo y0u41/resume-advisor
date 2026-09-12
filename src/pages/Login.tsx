@@ -1,8 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, Navigate, Link } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import Logo from "../components/Logo";
 import ThemeToggle from "../components/ThemeToggle";
+import { guestEvaluateStream, fetchGuestQuota, type GuestQuota } from "../lib/api";
+
+const GUEST_PREVIEW = 800;
 
 const STATS = [
   { num: "9", label: "大报告模块" },
@@ -86,6 +89,48 @@ export default function Login() {
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // 游客免注册试用
+  const [quota, setQuota] = useState<GuestQuota | null>(null);
+  const [guestResume, setGuestResume] = useState("");
+  const [guestJob, setGuestJob] = useState("");
+  const [guestLoading, setGuestLoading] = useState(false);
+  const [guestText, setGuestText] = useState("");
+  const [guestResult, setGuestResult] = useState<any>(null);
+  const [guestError, setGuestError] = useState("");
+
+  useEffect(() => {
+    fetchGuestQuota().then(setQuota).catch(() => {});
+  }, []);
+
+  const handleGuestTry = async () => {
+    setGuestError("");
+    if (!guestResume.trim() || !guestJob.trim()) {
+      setGuestError("请填写简历全文和应聘岗位");
+      return;
+    }
+    setGuestLoading(true);
+    setGuestText("");
+    setGuestResult(null);
+    try {
+      await guestEvaluateStream(
+        { resume: guestResume.trim(), jobTitle: guestJob.trim(), jobDescription: "" },
+        (t) => setGuestText(t),
+        (data) => {
+          setGuestResult(data);
+          setGuestText(data.report || "");
+          setQuota((q) =>
+            q ? { ...q, remaining: Math.max(0, q.remaining - 1), used: q.used + 1 } : q
+          );
+        },
+        (msg) => setGuestError(msg)
+      );
+    } catch (e: any) {
+      setGuestError(e.message || "试用失败");
+    } finally {
+      setGuestLoading(false);
+    }
+  };
 
   if (user) {
     return <Navigate to="/" replace />;
@@ -278,6 +323,68 @@ export default function Login() {
               {mode === "register" ? "去登录" : "去注册"}
             </button>
           </p>
+        </div>
+
+        <div className="card" style={{ marginTop: 16 }}>
+          <h2 className="section-title" style={{ fontSize: "1rem" }}>
+            <span className="section-icon">🚀</span>
+            免费试用一次（无需注册）
+          </h2>
+
+          {quota && quota.remaining <= 0 && !guestResult ? (
+            <p className="hint">
+              本机今日的免费试用次数已用完。<strong>注册后可无限使用完整功能</strong>。
+            </p>
+          ) : (
+            <>
+              <div className="form-group">
+                <label>简历全文</label>
+                <textarea
+                  rows={5}
+                  placeholder="粘贴简历全文..."
+                  value={guestResume}
+                  onChange={(e) => setGuestResume(e.target.value)}
+                />
+              </div>
+              <div className="form-group">
+                <label>应聘岗位</label>
+                <input
+                  type="text"
+                  placeholder="例如：新媒体运营"
+                  value={guestJob}
+                  onChange={(e) => setGuestJob(e.target.value)}
+                />
+              </div>
+              {guestError && <p className="auth-error">{guestError}</p>}
+              <button
+                type="button"
+                className="btn btn-secondary"
+                style={{ width: "100%" }}
+                disabled={guestLoading}
+                onClick={handleGuestTry}
+              >
+                {guestLoading ? (
+                  <>
+                    <span className="spinner" /> 评估中...
+                  </>
+                ) : (
+                  "免费试用"
+                )}
+              </button>
+            </>
+          )}
+
+          {guestText && (
+            <div style={{ marginTop: 12 }}>
+              <div className="report">{guestText.slice(0, GUEST_PREVIEW)}</div>
+              {(guestResult?.truncated || guestText.length > GUEST_PREVIEW) && (
+                <p className="hint" style={{ marginTop: 8 }}>
+                  ……以上为预览（报告共约 {guestResult?.totalLength || guestText.length} 字）。
+                  <strong>注册后解锁完整报告、下载与历史记录</strong>。
+                </p>
+              )}
+            </div>
+          )}
         </div>
       </section>
     </div>

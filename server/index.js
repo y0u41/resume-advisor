@@ -94,12 +94,20 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: "尝试过于频繁，请稍后再试" },
 });
+const guestLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "操作过于频繁，请稍后再试" },
+});
 
 app.use("/api", generalLimiter);
 app.use("/api/auth", authLimiter);
 app.use("/api/evaluate", heavyLimiter);
 app.use("/api/fetch-url", heavyLimiter);
 app.use("/api/parse-file", heavyLimiter);
+app.use("/api/guest", guestLimiter);
 
 // 健康检查（供冒烟/验收与探活使用）
 app.get("/api/health", (req, res) => {
@@ -123,6 +131,7 @@ const API_PREFIXES = [
   "/account",
   "/downloads",
   "/resume",
+  "/guest",
   "/health",
 ];
 app.use("/api", (req, res, next) => {
@@ -138,9 +147,12 @@ import fetchRoutes from "./routes/fetch.js";
 import adminRoutes from "./routes/admin.js";
 import accountRoutes from "./routes/account.js";
 import downloadsRoutes from "./routes/downloads.js";
+import guestRoutes from "./routes/guest.js";
 import { getProviderInfo } from "./llm/llm.js";
 import { startPurgeJob } from "./jobs/purge.js";
 app.use("/api", authRoutes);
+// 游客路由需在 evaluateRoutes（含全局 requireAuth）之前挂载，否则会被拦截为 401
+app.use("/api", guestRoutes);
 app.use("/api", evaluateRoutes);
 app.use("/api", parseRoutes);
 app.use("/api", fetchRoutes);

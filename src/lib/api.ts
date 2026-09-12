@@ -276,3 +276,39 @@ export async function recordDownload(
     // 忽略
   }
 }
+
+// ===== 游客试用（免注册）=====
+export interface GuestQuota {
+  used: number;
+  limit: number;
+  remaining: number;
+}
+
+export async function fetchGuestQuota(): Promise<GuestQuota> {
+  try {
+    const r = await fetch("/api/guest/quota");
+    if (!r.ok) throw new Error();
+    return await r.json();
+  } catch {
+    return { used: 0, limit: 1, remaining: 1 };
+  }
+}
+
+export function guestEvaluateStream(
+  payload: { resume: string; jobTitle: string; jobDescription: string },
+  onChunk: (textSoFar: string) => void,
+  onDone: (data: any) => void,
+  onError: (message: string) => void,
+  signal?: AbortSignal
+): Promise<void> {
+  return postStream(
+    "/api/guest/evaluate",
+    payload,
+    {
+      onChunk,
+      onError,
+      onDone: (data, fullText) => onDone({ ...data, report: data.report ?? fullText }),
+    },
+    signal
+  );
+}
