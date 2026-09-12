@@ -1891,6 +1891,430 @@ body,
   margin-bottom: 18px;
 }
 
+/* ---------- 4 套视觉模板（版式移植自 resume-workshop，MIT License） ---------- */
+.rtpl {
+  font-family: "Microsoft YaHei", "PingFang SC", -apple-system, BlinkMacSystemFont, sans-serif;
+  color: #22262b;
+  text-align: left;
+  line-height: 1.6;
+  font-size: 14px;
+}
+.rtpl *,
+.rtpl *::before,
+.rtpl *::after {
+  box-sizing: border-box;
+}
+.rtpl .page {
+  width: 100%;
+  min-height: auto;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+}
+.rtpl .tpl-photo {
+  float: right;
+  width: 84px;
+  height: 108px;
+  object-fit: cover;
+  border-radius: 6px;
+  margin: 0 0 8px 14px;
+}
+.rtpl .pre {
+  white-space: pre-line;
+}
+
+/* clean-01 · 简洁单栏 */
+.rtpl-clean-01 .hd {
+  border-bottom: 1.5px solid #1f6feb;
+  padding-bottom: 10px;
+  margin-bottom: 16px;
+}
+.rtpl-clean-01 h1 {
+  margin: 0 0 6px;
+  font-size: 26px;
+  letter-spacing: 1px;
+  font-weight: 700;
+}
+.rtpl-clean-01 .meta {
+  margin: 0;
+  color: #5b6470;
+  font-size: 13px;
+}
+.rtpl-clean-01 .meta span + span::before {
+  content: " · ";
+  color: #b9bfc7;
+}
+.rtpl-clean-01 section {
+  margin-bottom: 16px;
+}
+.rtpl-clean-01 h2 {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #1f6feb;
+  border-left: 4px solid #1f6feb;
+  padding-left: 8px;
+}
+.rtpl-clean-01 .item {
+  margin-bottom: 10px;
+}
+.rtpl-clean-01 .row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+.rtpl-clean-01 .strong {
+  font-weight: 700;
+  font-size: 15px;
+}
+.rtpl-clean-01 .date {
+  color: #6b7280;
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+.rtpl-clean-01 .sub {
+  color: #4b5563;
+  font-size: 13px;
+}
+.rtpl-clean-01 .desc {
+  margin: 4px 0;
+  color: #374151;
+}
+.rtpl-clean-01 ul {
+  margin: 5px 0 0;
+  padding-left: 20px;
+}
+.rtpl-clean-01 li {
+  margin-bottom: 3px;
+}
+.rtpl-clean-01 .summary {
+  margin: 0;
+  color: #374151;
+}
+.rtpl-clean-01 .tags {
+  margin: 0;
+}
+.rtpl-clean-01 .tag {
+  display: inline-block;
+  margin: 0 6px 6px 0;
+  padding: 2px 8px;
+  border: 1px solid #d6dae0;
+  border-radius: 4px;
+  font-size: 12.5px;
+  color: #374151;
+}
+
+/* timeline-02 · 时间轴 */
+.rtpl-timeline-02 .hd {
+  text-align: center;
+  margin-bottom: 18px;
+}
+.rtpl-timeline-02 .tpl-photo {
+  float: none;
+  display: block;
+  margin: 0 auto 10px;
+}
+.rtpl-timeline-02 h1 {
+  margin: 0 0 6px;
+  font-size: 25px;
+  font-weight: 700;
+  letter-spacing: 2px;
+}
+.rtpl-timeline-02 .meta {
+  margin: 0;
+  color: #5f6b72;
+  font-size: 13px;
+}
+.rtpl-timeline-02 .meta span + span::before {
+  content: " | ";
+  color: #c3cbd1;
+}
+.rtpl-timeline-02 section {
+  margin-bottom: 18px;
+}
+.rtpl-timeline-02 h2 {
+  margin: 0 0 10px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #0f766e;
+  text-align: center;
+}
+.rtpl-timeline-02 h2::after {
+  content: "";
+  display: block;
+  width: 48px;
+  height: 2px;
+  margin: 5px auto 0;
+  background: #0f766e;
+}
+.rtpl-timeline-02 .timeline {
+  border-left: 1.5px solid #cfd8dc;
+  padding-left: 20px;
+}
+.rtpl-timeline-02 .node {
+  position: relative;
+  margin-bottom: 12px;
+  display: flex;
+  gap: 12px;
+}
+.rtpl-timeline-02 .node::before {
+  content: "";
+  position: absolute;
+  left: -26px;
+  top: 5px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid #0f766e;
+}
+.rtpl-timeline-02 .when {
+  width: 88px;
+  flex: none;
+  color: #6b7a80;
+  font-size: 12.5px;
+  text-align: right;
+  line-height: 1.5;
+}
+.rtpl-timeline-02 .body {
+  flex: 1;
+}
+.rtpl-timeline-02 .strong {
+  font-weight: 700;
+  font-size: 15px;
+}
+.rtpl-timeline-02 .sub {
+  color: #54646c;
+  font-size: 13px;
+}
+.rtpl-timeline-02 .desc {
+  margin: 3px 0;
+}
+.rtpl-timeline-02 ul {
+  margin: 5px 0 0;
+  padding-left: 18px;
+}
+.rtpl-timeline-02 li {
+  margin-bottom: 3px;
+}
+.rtpl-timeline-02 .summary {
+  margin: 0;
+  color: #37474f;
+}
+.rtpl-timeline-02 .tags {
+  margin: 0;
+}
+.rtpl-timeline-02 .tag {
+  display: inline-block;
+  margin: 0 6px 6px 0;
+  padding: 2px 9px;
+  border-radius: 8px;
+  background: #e6f4f1;
+  color: #0f766e;
+  font-size: 12.5px;
+}
+
+/* mono-line-03 · 黑色极简线条 */
+.rtpl-mono-line-03 {
+  color: #111;
+}
+.rtpl-mono-line-03 .hd {
+  margin-bottom: 18px;
+}
+.rtpl-mono-line-03 h1 {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: 3px;
+}
+.rtpl-mono-line-03 .rule {
+  height: 3px;
+  background: #111;
+  margin: 8px 0;
+}
+.rtpl-mono-line-03 .meta {
+  margin: 0;
+  color: #333;
+  font-size: 13px;
+}
+.rtpl-mono-line-03 .meta span + span::before {
+  content: " / ";
+  color: #999;
+}
+.rtpl-mono-line-03 section {
+  margin-bottom: 16px;
+}
+.rtpl-mono-line-03 h2 {
+  margin: 0 0 8px;
+  padding-top: 6px;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  border-top: 1.5px solid #111;
+}
+.rtpl-mono-line-03 .item {
+  margin-bottom: 10px;
+}
+.rtpl-mono-line-03 .row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+.rtpl-mono-line-03 .strong {
+  font-weight: 700;
+}
+.rtpl-mono-line-03 .date {
+  font-size: 12.5px;
+  color: #444;
+  white-space: nowrap;
+}
+.rtpl-mono-line-03 .sub {
+  font-size: 13px;
+  color: #333;
+}
+.rtpl-mono-line-03 .desc {
+  margin: 4px 0;
+}
+.rtpl-mono-line-03 ul {
+  margin: 5px 0 0;
+  padding-left: 18px;
+}
+.rtpl-mono-line-03 li {
+  margin-bottom: 3px;
+}
+.rtpl-mono-line-03 .summary {
+  margin: 0;
+}
+.rtpl-mono-line-03 .tags {
+  margin: 0;
+}
+.rtpl-mono-line-03 .tag {
+  display: inline-block;
+  margin: 0 6px 6px 0;
+  padding: 2px 8px;
+  border: 1px solid #111;
+  font-size: 12.5px;
+}
+
+/* blue-split-04 · 蓝色左右分栏 */
+.rtpl-blue-split-04 .page {
+  display: flex;
+  align-items: stretch;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.rtpl-blue-split-04 .side {
+  width: 210px;
+  flex: none;
+  background: #22406e;
+  color: #eaf0f8;
+  padding: 28px 18px;
+}
+.rtpl-blue-split-04 .tpl-photo-side {
+  width: 92px;
+  height: 118px;
+  object-fit: cover;
+  border-radius: 6px;
+  display: block;
+  margin: 0 auto 14px;
+}
+.rtpl-blue-split-04 .main {
+  flex: 1;
+  min-width: 0;
+  padding: 28px 24px 28px 20px;
+}
+.rtpl-blue-split-04 h1 {
+  margin: 0 0 18px;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  line-height: 1.3;
+}
+.rtpl-blue-split-04 .side h3 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  padding-bottom: 5px;
+  border-bottom: 1.5px solid rgba(255, 255, 255, 0.45);
+}
+.rtpl-blue-split-04 .block {
+  margin-bottom: 20px;
+}
+.rtpl-blue-split-04 .contact {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 12.5px;
+}
+.rtpl-blue-split-04 .contact li {
+  margin-bottom: 5px;
+  word-break: break-all;
+}
+.rtpl-blue-split-04 .link {
+  opacity: 0.9;
+}
+.rtpl-blue-split-04 .tags {
+  margin: 0;
+}
+.rtpl-blue-split-04 .side .tag {
+  display: inline-block;
+  margin: 0 5px 6px 0;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.16);
+  font-size: 12px;
+}
+.rtpl-blue-split-04 section {
+  margin-bottom: 16px;
+}
+.rtpl-blue-split-04 h2 {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #22406e;
+  border-bottom: 1.5px solid #22406e;
+  padding-bottom: 4px;
+}
+.rtpl-blue-split-04 .item {
+  margin-bottom: 11px;
+}
+.rtpl-blue-split-04 .row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+}
+.rtpl-blue-split-04 .strong {
+  font-weight: 700;
+  font-size: 15px;
+}
+.rtpl-blue-split-04 .date {
+  font-size: 12.5px;
+  color: #6b7684;
+  white-space: nowrap;
+}
+.rtpl-blue-split-04 .role {
+  font-size: 13px;
+  color: #4a5765;
+}
+.rtpl-blue-split-04 .desc {
+  margin: 4px 0;
+}
+.rtpl-blue-split-04 ul {
+  margin: 5px 0 0;
+  padding-left: 18px;
+}
+.rtpl-blue-split-04 li {
+  margin-bottom: 3px;
+}
+.rtpl-blue-split-04 .summary {
+  margin: 0;
+  color: #374151;
+}
+
 /* ---------- 报告排版（PDF 导出） ---------- */
 .report-doc {
   font-family: "Microsoft YaHei", "PingFang SC", -apple-system, BlinkMacSystemFont, sans-serif;

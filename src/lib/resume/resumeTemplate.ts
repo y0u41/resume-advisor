@@ -1,3 +1,5 @@
+import { renderWorkshopResume } from "./workshopRender";
+
 export type ResumeStyle = "classic" | "project" | "student";
 
 export interface ResumeData {
@@ -87,12 +89,34 @@ const LABELS: Record<keyof ResumeData, string> = {
   photo: "照片",
 };
 
-export type ResumeLayout = "single" | "sidebar";
+export type ResumeLayout =
+  | "single"
+  | "sidebar"
+  | "clean-01"
+  | "timeline-02"
+  | "mono-line-03"
+  | "blue-split-04";
 
 export const LAYOUT_LABELS: Record<ResumeLayout, string> = {
   single: "单栏经典",
   sidebar: "左右分栏",
+  "clean-01": "简洁单栏",
+  "timeline-02": "时间轴",
+  "mono-line-03": "黑色极简线条",
+  "blue-split-04": "蓝色左右分栏",
 };
+
+// 4 套移植自 resume-workshop 的视觉模板（各自固定章节顺序）
+export const WORKSHOP_LAYOUTS: ResumeLayout[] = [
+  "clean-01",
+  "timeline-02",
+  "mono-line-03",
+  "blue-split-04",
+];
+
+export function isWorkshopLayout(layout: ResumeLayout): boolean {
+  return WORKSHOP_LAYOUTS.includes(layout);
+}
 
 function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -193,6 +217,9 @@ export function resumeToHtml(
   style: ResumeStyle,
   layout: ResumeLayout = "single"
 ): string {
+  if (isWorkshopLayout(layout)) {
+    return `<div class="rtpl rtpl-${layout}">${renderWorkshopResume(d, layout)}</div>`;
+  }
   return layout === "sidebar" ? sidebarHtml(d, style) : singleHtml(d, style);
 }
 

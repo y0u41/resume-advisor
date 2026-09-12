@@ -79,6 +79,8 @@ docs/                 文档 + docs/adr + docs/features（按功能分类）
 34. **额度"先扣后用"，失败必须退还**：`consumeQuota` 在 LLM 调用**之前**扣额度，所以评估/生成失败（网络、模型故障、空结果、中断）时**必须退还**，否则会出现"评估失败了，次数却少了"——最伤付费意愿的一类体验。统一做法：路由内 `const isPremium = isPremiumModel(effectiveModel(override)); let consumed = false; let success = false;`，成功产出并落库后置 `success = true`，在 `finally` 里 `if (consumed && !success) refundQuota(req.user, { isPremium })`（**`finally` 覆盖所有提前 return**；`refundQuota` 内部对管理员跳过、且不会退成负数）。若 `consumeQuota` 在 `acquire()` 之前（如 `/interview`、`/directions`），`acquire` 的 catch 里也要退还（用幂等的 `refundOnce()`）。`/compare` 是"用成功才扣"（每岗 LLM 成功后再 `consumeQuota`），无需退还。新增任何 `consumeQuota` 调用点都必须配对退还逻辑，并在 `__tests__/quota.test.js` 覆盖。
 35. **改数据库表结构的唯一方式**：往 `server/core/db.js` 的 **`MIGRATIONS` 数组尾部**追加 `{ v: 上一个 v + 1, up: ... }`，启动时按 `PRAGMA user_version` 顺序回放、只跑未执行的。**不要修改历史迁移**（已上线的库不会重放它），**不要**在数组外写裸 `CREATE TABLE` / `ALTER TABLE`。新增列用 `columnExists(table, col)` 守卫（对老库幂等）。老库兼容：已有库（含全部列）跑 migrate 时守卫全跳过、`user_version` 从 0 一次性推进到最新，数据完好——无需探测当前版本的逻辑。迁移同步执行（better-sqlite3 同步），不要 async。见 `__tests__/migrations.test.js`。
 
+36. **简历模板（Builder）**：`src/lib/resume/resumeTemplate.ts` 提供 6 种「视觉模板」——`single`/`sidebar`（走 `style` 内容顺序，字符串排版）+ 4 套移植自 resume-workshop（MIT）的结构化模板（`clean-01`/`timeline-02`/`mono-line-03`/`blue-split-04`，各自固定章节顺序）。结构化模板经 `src/lib/resume/render.ts`（受限 Mustache：仅 `{{path}}`/`{{#each}}`/`{{#if}}`，默认 HTML 转义、未知路径渲染为空）+ `templates/*.ts` 渲染；数据由 `workshopRender.ts` 把扁平表单「首行 ｜ 分隔字段 + 后续行要点」解析成结构化条目（教育首行=学校｜专业｜学历｜起止，其余行进 `extra` 且用 `white-space: pre-line` 显示）。**模板 CSS 只加在 `App.css` 的 `.rtpl-*` 作用域下**（预览与 PDF 共用同一份 HTML，PDF 走 html2canvas；故不得用 `@page`/`body` 等全局样式，照片仅接受 `data:image/*`）。
+
 ## 5. 数据与接口约定
 
 - 除注册/登录外**所有 `/api/*` 需登录**（`requireAuth`）；管理员接口加 `requireAdmin`。

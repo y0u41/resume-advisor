@@ -10,6 +10,8 @@ import {
   resumeToHtml,
   STYLE_LABELS,
   LAYOUT_LABELS,
+  WORKSHOP_LAYOUTS,
+  isWorkshopLayout,
   type ResumeData,
   type ResumeStyle,
   type ResumeLayout,
@@ -57,7 +59,7 @@ const AREA_FIELDS: { key: keyof ResumeData; label: string; placeholder: string; 
 ];
 
 const STYLES: ResumeStyle[] = ["student", "classic", "project"];
-const LAYOUTS: ResumeLayout[] = ["single", "sidebar"];
+const LAYOUTS: ResumeLayout[] = ["single", "sidebar", ...WORKSHOP_LAYOUTS];
 const DRAFT_KEY = "resume_builder_draft";
 const VERSIONS_KEY = "resume_builder_versions";
 // 预览按与 PDF 导出同一版心宽度（760px，含 32px 内边距）渲染后整体等比缩放，
@@ -266,12 +268,18 @@ export default function Builder() {
                 <button
                   key={s}
                   type="button"
-                  className={`chip ${style === s ? "chip-active" : ""}`}
+                  className={`chip ${style === s && !isWorkshopLayout(layout) ? "chip-active" : ""}`}
+                  disabled={isWorkshopLayout(layout)}
                   onClick={() => setStyle(s)}
                 >
                   {STYLE_LABELS[s]}
                 </button>
               ))}
+              {isWorkshopLayout(layout) && (
+                <span className="hint" style={{ marginLeft: 8 }}>
+                  该模板使用固定章节顺序
+                </span>
+              )}
             </div>
           </div>
 
