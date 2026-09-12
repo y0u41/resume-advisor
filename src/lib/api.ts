@@ -277,6 +277,35 @@ export async function recordDownload(
   }
 }
 
+// ===== 分享（只读链接）=====
+export async function shareEvaluation(
+  id: number,
+  hideContact: boolean
+): Promise<{ token: string; hideContact: boolean }> {
+  const res = await fetch(`/api/evaluations/${id}/share`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ hideContact }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || "生成分享链接失败");
+  return data;
+}
+
+export async function unshareEvaluation(id: number): Promise<void> {
+  try {
+    await fetch(`/api/evaluations/${id}/share`, { method: "DELETE" });
+  } catch {
+    // 忽略
+  }
+}
+
+export async function fetchShared(token: string): Promise<any> {
+  const res = await fetch(`/api/share/${encodeURIComponent(token)}`);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || "分享不存在或已取消");
+  return data;
+}
 // ===== 游客试用（免注册）=====
 export interface GuestQuota {
   used: number;

@@ -797,4 +797,27 @@ router.put("/evaluations/:id/favorite", (req, res) => {
   res.json({ ok: true, favorite: !!favorite });
 });
 
+// 生成 / 更新只读分享链接
+router.post("/evaluations/:id/share", (req, res) => {
+  const row = db
+    .prepare("SELECT * FROM evaluations WHERE id = ? AND user_id = ?")
+    .get(req.params.id, req.user.id);
+  if (!row) return res.status(404).json({ error: "记录不存在" });
+  const hideContact = req.body?.hideContact ? 1 : 0;
+  const token = row.share_token || crypto.randomBytes(12).toString("hex");
+  db.prepare(
+    "UPDATE evaluations SET share_token = ?, share_hide_contact = ? WHERE id = ? AND user_id = ?"
+  ).run(token, hideContact, req.params.id, req.user.id);
+  res.json({ ok: true, token, hideContact: !!hideContact });
+});
+
+// 取消分享
+router.delete("/evaluations/:id/share", (req, res) => {
+  const info = db
+    .prepare("UPDATE evaluations SET share_token = NULL WHERE id = ? AND user_id = ?")
+    .run(req.params.id, req.user.id);
+  if (info.changes === 0) return res.status(404).json({ error: "记录不存在" });
+  res.json({ ok: true });
+});
+
 export default router;

@@ -59,6 +59,7 @@ docs/                 文档 + docs/adr + docs/features（按功能分类）
 15. **客观分的行业覆盖**：确定性评分的关键词**优先由 LLM 从 JD 抽取**（`extractJdKeywords` + `core/jdKeywords.js` 按 JD 哈希缓存），再走确定性匹配，以覆盖非技术岗；抽取失败回退内置词典。匹配算法本身不发起网络请求（见 ADR-0001 更新）。
 16. **游客试用**：`server/routes/guest.js` 提供免登录的 `/api/guest/evaluate`（按 IP 限流 `GUEST_LIMIT`、结果打码 `GUEST_PREVIEW_CHARS`、不落库）。**该路由必须在 `evaluateRoutes`（含全局 `requireAuth`）之前挂载**，否则会被拦成 401。
 17. **改进轨迹与保留策略**：同一人（`person_key`）最多保留 `MAX_PER_PERSON`（30）条；清理时**跳过 `favorite=1` 与最高分记录**。结果页趋势由 `GET /evaluations/:id` 返回的 `previousScore`/`scoreDelta` 计算；收藏切换用 `PUT /evaluations/:id/favorite`。
+18. **分享报告**：`server/routes/share.js` 提供免登录的 `GET /api/share/:token`（只读、带水印、可选联系方式打码）；生成 / 取消用 `POST`/`DELETE /api/evaluations/:id/share`。分享路由同样必须在 `evaluateRoutes` 之前挂载。
 
 ## 5. 数据与接口约定
 

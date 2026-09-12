@@ -2325,6 +2325,37 @@ body,
   margin-bottom: 8px;
 }
 
+/* ---------- 分享报告页 ---------- */
+.share-page {
+  position: relative;
+}
+
+.share-watermark {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 0;
+  font-size: 2.2rem;
+  font-weight: 800;
+  color: rgba(24, 24, 27, 0.05);
+  transform: rotate(-24deg);
+  white-space: nowrap;
+  user-select: none;
+}
+
+:root[data-theme="dark"] .share-watermark {
+  color: rgba(255, 255, 255, 0.05);
+}
+
+.share-page .card,
+.share-page .header {
+  position: relative;
+  z-index: 1;
+}
+
 /* ---------- 后台任务悬浮栏 ---------- */
 .task-dock {
   position: fixed;

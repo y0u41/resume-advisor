@@ -132,6 +132,7 @@ const API_PREFIXES = [
   "/downloads",
   "/resume",
   "/guest",
+  "/share",
   "/health",
 ];
 app.use("/api", (req, res, next) => {
@@ -148,11 +149,13 @@ import adminRoutes from "./routes/admin.js";
 import accountRoutes from "./routes/account.js";
 import downloadsRoutes from "./routes/downloads.js";
 import guestRoutes from "./routes/guest.js";
+import shareRoutes from "./routes/share.js";
 import { getProviderInfo } from "./llm/llm.js";
 import { startPurgeJob } from "./jobs/purge.js";
 app.use("/api", authRoutes);
-// 游客路由需在 evaluateRoutes（含全局 requireAuth）之前挂载，否则会被拦截为 401
+// 游客与分享路由需在 evaluateRoutes（含全局 requireAuth）之前挂载，否则会被拦成 401
 app.use("/api", guestRoutes);
+app.use("/api", shareRoutes);
 app.use("/api", evaluateRoutes);
 app.use("/api", parseRoutes);
 app.use("/api", fetchRoutes);

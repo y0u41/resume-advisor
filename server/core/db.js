@@ -43,6 +43,8 @@ db.exec(`
     objective_json TEXT,
     revision INTEGER NOT NULL DEFAULT 1,
     favorite INTEGER NOT NULL DEFAULT 0,
+    share_token TEXT,
+    share_hide_contact INTEGER NOT NULL DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )
 `);
@@ -106,10 +108,17 @@ if (!columns.includes("revision")) {
 if (!columns.includes("favorite")) {
   db.exec("ALTER TABLE evaluations ADD COLUMN favorite INTEGER NOT NULL DEFAULT 0");
 }
+if (!columns.includes("share_token")) {
+  db.exec("ALTER TABLE evaluations ADD COLUMN share_token TEXT");
+}
+if (!columns.includes("share_hide_contact")) {
+  db.exec("ALTER TABLE evaluations ADD COLUMN share_hide_contact INTEGER NOT NULL DEFAULT 0");
+}
 
 db.exec("CREATE INDEX IF NOT EXISTS idx_eval_person ON evaluations(person_key)");
 db.exec("CREATE INDEX IF NOT EXISTS idx_eval_user ON evaluations(user_id)");
 db.exec("CREATE INDEX IF NOT EXISTS idx_eval_cache ON evaluations(user_id, cache_key)");
+db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_eval_share ON evaluations(share_token) WHERE share_token IS NOT NULL");
 
 // 兼容旧库：users 补上 username / role
 const userColumns = db.prepare("PRAGMA table_info(users)").all().map((c) => c.name);

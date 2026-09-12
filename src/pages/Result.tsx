@@ -5,7 +5,7 @@ import UserBar from "../components/UserBar";
 import ModelSelect from "../components/ModelSelect";
 import Logo from "../components/Logo";
 import Nav from "../components/Nav";
-import { followUpStream, recordDownload } from "../lib/api";
+import { followUpStream, recordDownload, shareEvaluation } from "../lib/api";
 import { downloadReport, type DownloadFormat } from "../lib/report/download";
 import { useToast } from "../lib/ui/toast";
 import { useTasks } from "../lib/tasks";
@@ -269,6 +269,9 @@ export default function Result() {
   const [saveMsg, setSaveMsg] = useState("");
   const [downloadFormat, setDownloadFormat] = useState<DownloadFormat>("pdf");
   const [downloading, setDownloading] = useState(false);
+  const [shareHideContact, setShareHideContact] = useState(false);
+  const [shareUrl, setShareUrl] = useState("");
+  const [sharing, setSharing] = useState(false);
   const [followupQ, setFollowupQ] = useState("");
   const [followupAnswer, setFollowupAnswer] = useState("");
   const [followupLoading, setFollowupLoading] = useState(false);
@@ -406,6 +409,26 @@ export default function Result() {
     }
   };
 
+  const handleShare = async () => {
+    if (!data?.id) return;
+    setSharing(true);
+    try {
+      const r = await shareEvaluation(data.id, shareHideContact);
+      const url = `${window.location.origin}/share/${r.token}`;
+      setShareUrl(url);
+      try {
+        await navigator.clipboard.writeText(url);
+        toast("分享链接已复制到剪贴板", "success");
+      } catch {
+        toast("已生成分享链接", "success");
+      }
+    } catch (err: any) {
+      toast("生成分享链接失败：" + err.message, "error");
+    } finally {
+      setSharing(false);
+    }
+  };
+
   const runFollowup = async (q: string) => {
     const question = q.trim();
     if (!question || !data) return;
@@ -523,6 +546,14 @@ export default function Result() {
             {showEditor ? "收起编辑" : "📝 编辑简历"}
           </button>
 
+          <button
+            className="btn btn-secondary btn-sm"
+            onClick={handleShare}
+            disabled={sharing || !data.id}
+          >
+            {sharing ? "生成中..." : "🔗 分享"}
+          </button>
+
           <div className="download-group">
             <select
               className="format-select"
@@ -552,6 +583,35 @@ export default function Result() {
 
           {saveMsg && !showEditor && <span className="save-msg">{saveMsg}</span>}
         </div>
+
+        {shareUrl && (
+          <div
+            style={{
+              marginTop: 12,
+              padding: 12,
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius-sm)",
+            }}
+          >
+            <label className="switch-row" style={{ marginBottom: 8 }}>
+              <input
+                type="checkbox"
+                checked={shareHideContact}
+                onChange={(e) => setShareHideContact(e.target.checked)}
+              />
+              <span>隐藏联系方式（手机号 / 邮箱打码）</span>
+            </label>
+            <input
+              readOnly
+              value={shareUrl}
+              onFocus={(e) => e.target.select()}
+              style={{ width: "100%" }}
+            />
+            <p className="hint" style={{ marginTop: 6 }}>
+              任何人可通过此链接查看只读报告（带水印）。改动勾选后请再点「🔗 分享」重新生成。
+            </p>
+          </div>
+        )}
       </div>
 
       <ObjectiveCard objective={data.objective} llmScore={data.score} />

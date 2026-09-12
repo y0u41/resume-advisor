@@ -15,6 +15,7 @@ import Compare from "./pages/Compare";
 import Interview from "./pages/Interview";
 import Directions from "./pages/Directions";
 import TaskRunner from "./pages/TaskRunner";
+import ShareView from "./pages/ShareView";
 
 function Protected({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
@@ -44,6 +45,7 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/privacy" element={<Privacy />} />
+          <Route path="/share/:token" element={<ShareView />} />
           <Route
             path="/"
             element={
