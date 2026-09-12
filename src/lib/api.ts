@@ -311,12 +311,13 @@ export async function submitFeedback(payload: {
 // ===== 分享（只读链接）=====
 export async function shareEvaluation(
   id: number,
-  hideContact: boolean
-): Promise<{ token: string; hideContact: boolean }> {
+  hideContact: boolean,
+  includeResume: boolean
+): Promise<{ token: string; hideContact: boolean; includeResume: boolean; expiresAt: string | null }> {
   const res = await fetch(`/api/evaluations/${id}/share`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ hideContact }),
+    body: JSON.stringify({ hideContact, includeResume }),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || "生成分享链接失败");

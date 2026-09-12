@@ -845,11 +845,21 @@ router.post("/evaluations/:id/share", (req, res) => {
     .get(req.params.id, req.user.id);
   if (!row) return res.status(404).json({ error: "记录不存在" });
   const hideContact = req.body?.hideContact ? 1 : 0;
+  // 简历原文默认不分享，需显式勾选（避免过度暴露教育/项目经历）
+  const includeResume = req.body?.includeResume ? 1 : 0;
+  const ttlDays = Number(process.env.SHARE_TTL_DAYS || 30);
   const token = row.share_token || crypto.randomBytes(12).toString("hex");
   db.prepare(
-    "UPDATE evaluations SET share_token = ?, share_hide_contact = ? WHERE id = ? AND user_id = ?"
-  ).run(token, hideContact, req.params.id, req.user.id);
-  res.json({ ok: true, token, hideContact: !!hideContact });
+    `UPDATE evaluations
+     SET share_token = ?, share_hide_contact = ?, share_include_resume = ?,
+         share_expires_at = datetime('now', ?)
+     WHERE id = ? AND user_id = ?`
+  ).run(token, hideContact, includeResume, `+${ttlDays} days`, req.params.id, req.user.id);
+
+  const expiresAt = db
+    .prepare("SELECT share_expires_at FROM evaluations WHERE id = ?")
+    .get(req.params.id)?.share_expires_at;
+  res.json({ ok: true, token, hideContact: !!hideContact, includeResume: !!includeResume, expiresAt });
 });
 
 // 取消分享

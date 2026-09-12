@@ -45,6 +45,8 @@ db.exec(`
     favorite INTEGER NOT NULL DEFAULT 0,
     share_token TEXT,
     share_hide_contact INTEGER NOT NULL DEFAULT 0,
+    share_include_resume INTEGER NOT NULL DEFAULT 0,
+    share_expires_at DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )
 `);
@@ -156,6 +158,12 @@ if (!columns.includes("share_token")) {
 }
 if (!columns.includes("share_hide_contact")) {
   db.exec("ALTER TABLE evaluations ADD COLUMN share_hide_contact INTEGER NOT NULL DEFAULT 0");
+}
+if (!columns.includes("share_include_resume")) {
+  db.exec("ALTER TABLE evaluations ADD COLUMN share_include_resume INTEGER NOT NULL DEFAULT 0");
+}
+if (!columns.includes("share_expires_at")) {
+  db.exec("ALTER TABLE evaluations ADD COLUMN share_expires_at DATETIME");
 }
 
 db.exec("CREATE INDEX IF NOT EXISTS idx_eval_person ON evaluations(person_key)");

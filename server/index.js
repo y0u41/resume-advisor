@@ -196,6 +196,8 @@ if (fs.existsSync(distPath)) {
   );
   app.get("/{*path}", (req, res) => {
     res.setHeader("Cache-Control", "no-cache");
+    // 分享页不参与搜索引擎索引
+    if (req.path.startsWith("/share/")) res.setHeader("X-Robots-Tag", "noindex, nofollow");
     res.sendFile(path.join(distPath, "index.html"));
   });
 }

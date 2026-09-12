@@ -379,7 +379,9 @@ export default function Result() {
   const [downloadFormat, setDownloadFormat] = useState<DownloadFormat>("pdf");
   const [downloading, setDownloading] = useState(false);
   const [shareHideContact, setShareHideContact] = useState(false);
+  const [shareIncludeResume, setShareIncludeResume] = useState(false);
   const [shareUrl, setShareUrl] = useState("");
+  const [shareExpires, setShareExpires] = useState("");
   const [sharing, setSharing] = useState(false);
   const [followupQ, setFollowupQ] = useState("");
   const [followupAnswer, setFollowupAnswer] = useState("");
@@ -545,9 +547,10 @@ export default function Result() {
     if (!data?.id) return;
     setSharing(true);
     try {
-      const r = await shareEvaluation(data.id, shareHideContact);
+      const r = await shareEvaluation(data.id, shareHideContact, shareIncludeResume);
       const url = `${window.location.origin}/share/${r.token}`;
       setShareUrl(url);
+      setShareExpires(r.expiresAt || "");
       try {
         await navigator.clipboard.writeText(url);
         toast("分享链接已复制到剪贴板", "success");
@@ -734,6 +737,14 @@ export default function Result() {
               />
               <span>隐藏联系方式（手机号 / 邮箱打码）</span>
             </label>
+            <label className="switch-row" style={{ marginBottom: 8 }}>
+              <input
+                type="checkbox"
+                checked={shareIncludeResume}
+                onChange={(e) => setShareIncludeResume(e.target.checked)}
+              />
+              <span>同时分享简历原文（默认只分享报告）</span>
+            </label>
             <input
               readOnly
               value={shareUrl}
@@ -741,7 +752,9 @@ export default function Result() {
               style={{ width: "100%" }}
             />
             <p className="hint" style={{ marginTop: 6 }}>
-              任何人可通过此链接查看只读报告（带水印）。改动勾选后请再点「🔗 分享」重新生成。
+              任何人可通过此链接查看只读报告（带水印）。
+              {shareExpires ? `有效期至 ${shareExpires}（UTC）。` : ""}
+              改动勾选后请再点「🔗 分享」重新生成。
             </p>
           </div>
         )}
