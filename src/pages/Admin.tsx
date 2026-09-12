@@ -79,11 +79,14 @@ interface ExperimentGroup {
   trials: number;
   registers: number;
   rate: number;
+  enough: boolean;
 }
 
 interface GuestExperiment {
   days: number;
   active: boolean;
+  minSample: number;
+  enoughSamples: boolean;
   config: { limits: number[] | null; preview: number[] | null };
   byLimit: ExperimentGroup[];
   byPreview: ExperimentGroup[];
@@ -435,6 +438,11 @@ export default function Admin() {
               实验未开启（当前为单组）。设置 `GUEST_AB_LIMITS` / `GUEST_AB_PREVIEW` 后可跑对照。
             </p>
           )}
+          {experiment.active && !experiment.enoughSamples && (
+            <p className="hint" style={{ color: "#b45309", marginBottom: 6 }}>
+              ⚠ 样本量不足（单组 &lt; {experiment.minSample} 次试用）：当前差异可能只是噪声，仅供参考，先别下结论。
+            </p>
+          )}
           <h3 style={{ fontSize: "0.9rem", margin: "8px 0 6px" }}>按试用次数</h3>
           <table className="admin-table">
             <thead>
@@ -443,6 +451,7 @@ export default function Admin() {
                 <th>试用</th>
                 <th>注册</th>
                 <th>转化率</th>
+                <th>样本</th>
               </tr>
             </thead>
             <tbody>
@@ -452,6 +461,7 @@ export default function Admin() {
                   <td>{g.trials}</td>
                   <td>{g.registers}</td>
                   <td>{g.rate}%</td>
+                  <td>{g.enough ? "充足" : <span className="admin-sub">不足</span>}</td>
                 </tr>
               ))}
             </tbody>
@@ -464,6 +474,7 @@ export default function Admin() {
                 <th>试用</th>
                 <th>注册</th>
                 <th>转化率</th>
+                <th>样本</th>
               </tr>
             </thead>
             <tbody>
@@ -473,12 +484,15 @@ export default function Admin() {
                   <td>{g.trials}</td>
                   <td>{g.registers}</td>
                   <td>{g.rate}%</td>
+                  <td>{g.enough ? "充足" : <span className="admin-sub">不足</span>}</td>
                 </tr>
               ))}
             </tbody>
           </table>
           <p className="hint" style={{ marginTop: 8 }}>
-            转化率 = 试用后注册 / 游客试用。样本少时波动大，建议每组 ≥ 100 试用再下结论。
+            转化率 = 试用后注册 / 游客试用。归因依赖浏览器的 <code>guest_trialed</code> 标记：换设备 / 清缓存后注册会漏计，
+            分子偏小 → 转化率被<strong>低估</strong>（保守方向，解读时注意）。两因素独立分桶，样本小时两者的交互会互相污染，
+            单组 ≥ {experiment.minSample} 次试用前别下结论。
           </p>
         </div>
       )}

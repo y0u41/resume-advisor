@@ -19,6 +19,8 @@ function parsePair(s) {
 
 export const GUEST_AB_LIMITS = parsePair(process.env.GUEST_AB_LIMITS);
 export const GUEST_AB_PREVIEW = parsePair(process.env.GUEST_AB_PREVIEW);
+// 单组最小样本量：低于此值不下结论（两因素独立分桶，样本小时交互效应会互相污染）
+export const GUEST_AB_MIN_SAMPLE = Number(process.env.GUEST_AB_MIN_SAMPLE || 100);
 
 function bucket(ip, salt) {
   const h = crypto.createHash("sha256").update(`${salt}:${ip || ""}`).digest();
@@ -64,15 +66,28 @@ export function guestExperimentStats(days = 0) {
     return values.map((v) => {
       const t = trialMap.get(v) || 0;
       const g = regMap.get(v) || 0;
-      return { value: v, trials: t, registers: g, rate: t ? Math.round((g / t) * 1000) / 10 : 0 };
+      return {
+        value: v,
+        trials: t,
+        registers: g,
+        rate: t ? Math.round((g / t) * 1000) / 10 : 0,
+        enough: t >= GUEST_AB_MIN_SAMPLE,
+      };
     });
   };
+
+  const byLimit = build(trials.limit, regs.limit);
+  const byPreview = build(trials.preview, regs.preview);
+  const all = [...byLimit, ...byPreview];
 
   return {
     days,
     active: Boolean(GUEST_AB_LIMITS || GUEST_AB_PREVIEW),
+    minSample: GUEST_AB_MIN_SAMPLE,
+    // 所有已出现的组都达到最小样本量，才认为结论可靠
+    enoughSamples: all.length > 0 && all.every((g) => g.enough),
     config: { limits: GUEST_AB_LIMITS, preview: GUEST_AB_PREVIEW },
-    byLimit: build(trials.limit, regs.limit),
-    byPreview: build(trials.preview, regs.preview),
+    byLimit,
+    byPreview,
   };
 }
