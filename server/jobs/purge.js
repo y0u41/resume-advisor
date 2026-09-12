@@ -27,11 +27,23 @@ export function runPurge() {
   return { purged: due.length };
 }
 
+// 清理过期的临时数据：游客额度（含 IP，隐私）与 JD 关键词缓存（TTL）。
+export function runCleanup({ guestDays = 2, jdDays = 90 } = {}) {
+  const guest = db
+    .prepare("DELETE FROM guest_trials WHERE day < date('now', ?)")
+    .run(`-${guestDays} days`);
+  const jd = db
+    .prepare("DELETE FROM jd_keywords WHERE created_at < datetime('now', ?)")
+    .run(`-${jdDays} days`);
+  return { guestTrials: guest.changes, jdKeywords: jd.changes };
+}
+
 // 启动时执行一次，之后按间隔轮询（默认每 6 小时）。
 export function startPurgeJob(intervalMs = 6 * 60 * 60 * 1000) {
   const safeRun = () => {
     try {
       runPurge();
+      runCleanup();
     } catch (error) {
       console.error("[purge] 执行失败:", error.message);
     }

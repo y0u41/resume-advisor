@@ -152,15 +152,7 @@ router.post("/evaluate", async (req, res) => {
   const stream = req.query.stream === "true";
   const cacheKey = computeCacheKey(resume, jobTitle, jobDescription || "", override);
 
-  // 确定性「客观分」：关键词优先用 LLM 抽取（覆盖任意行业、按 JD 哈希缓存），
-  // 匹配过程仍是确定性、可解释的；抽取失败则回退内置词典。
-  const jdKeywords = jobDescription
-    ? await getJdKeywords(jobDescription, undefined, override)
-    : [];
-  const objective = evaluateResume(resume, { jdText: jobDescription || "", jdKeywords });
-  const objectiveJson = JSON.stringify(objective);
-
-  // 缓存命中：直接返回，不消耗额度、不占用并发
+  // 缓存命中：直接返回，不消耗额度、不占用并发、也不做关键词抽取
   if (CACHE_ENABLED) {
     const cached = findCachedEvaluation(req.user.id, cacheKey, CACHE_TTL_HOURS);
     if (cached) {
@@ -235,6 +227,14 @@ router.post("/evaluate", async (req, res) => {
       }
       return;
     }
+
+    // 客观分：仅在缓存未命中、真正要评估时计算；放在并发槽位内，避免绕过队列。
+    // 关键词优先用 LLM 抽取（覆盖任意行业、按 JD 哈希缓存），匹配仍是确定性可解释的。
+    const jdKeywords = jobDescription
+      ? await getJdKeywords(jobDescription, controller.signal, override)
+      : [];
+    const objective = evaluateResume(resume, { jdText: jobDescription || "", jdKeywords });
+    const objectiveJson = JSON.stringify(objective);
 
     if (stream) {
       let fullText = "";
