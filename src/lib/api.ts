@@ -290,6 +290,24 @@ export function logEvent(name: string, meta?: Record<string, unknown>): void {
   }
 }
 
+// ===== 反馈 / 投票 =====
+export async function submitFeedback(payload: {
+  kind: string;
+  rating?: string;
+  content?: string;
+  context?: string;
+}): Promise<void> {
+  const res = await fetch("/api/feedback", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || "提交失败");
+  }
+}
+
 // ===== 分享（只读链接）=====
 export async function shareEvaluation(
   id: number,

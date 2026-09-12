@@ -134,6 +134,7 @@ const API_PREFIXES = [
   "/guest",
   "/share",
   "/events",
+  "/feedback",
   "/health",
 ];
 app.use("/api", (req, res, next) => {
@@ -152,6 +153,7 @@ import downloadsRoutes from "./routes/downloads.js";
 import guestRoutes from "./routes/guest.js";
 import shareRoutes from "./routes/share.js";
 import eventsRoutes from "./routes/events.js";
+import feedbackRoutes from "./routes/feedback.js";
 import { getProviderInfo } from "./llm/llm.js";
 import { startPurgeJob } from "./jobs/purge.js";
 app.use("/api", authRoutes);
@@ -165,6 +167,7 @@ app.use("/api", adminRoutes);
 app.use("/api", accountRoutes);
 app.use("/api", downloadsRoutes);
 app.use("/api", eventsRoutes);
+app.use("/api", feedbackRoutes);
 
 // 未匹配的 API 返回 JSON 404，避免被前端静态兜底吞掉
 app.use("/api", (req, res) => {

@@ -5,7 +5,7 @@ import UserBar from "../components/UserBar";
 import ModelSelect from "../components/ModelSelect";
 import Logo from "../components/Logo";
 import Nav from "../components/Nav";
-import { followUpStream, recordDownload, shareEvaluation, logEvent } from "../lib/api";
+import { followUpStream, recordDownload, shareEvaluation, logEvent, submitFeedback } from "../lib/api";
 import { downloadReport, type DownloadFormat } from "../lib/report/download";
 import { useToast } from "../lib/ui/toast";
 import { useTasks } from "../lib/tasks";
@@ -264,6 +264,96 @@ function ObjectiveCard({
           AI 评分（{llmScore}/10）与算法客观分（{objective.score}/100）差异较大：AI 更侧重经历、表达等语义因素，算法更侧重关键词覆盖与量化等硬指标。建议以 AI 的改进建议为主，同时对照上方「缺失关键词」补齐短板。
         </p>
       )}
+    </div>
+  );
+}
+
+function FeedbackCard({ evalId }: { evalId: number }) {
+  const toast = useToast();
+  const storageKey = `fb_${evalId}`;
+  const [voted, setVoted] = useState<string>(() => {
+    try {
+      return localStorage.getItem(storageKey) || "";
+    } catch {
+      return "";
+    }
+  });
+  const [comment, setComment] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState(false);
+
+  const vote = async (rating: string) => {
+    if (voted || busy) return;
+    setBusy(true);
+    try {
+      await submitFeedback({ kind: "vote", rating, context: String(evalId) });
+      setVoted(rating);
+      try {
+        localStorage.setItem(storageKey, rating);
+      } catch {
+        // 忽略
+      }
+      toast("感谢你的反馈！", "success");
+    } catch (e: any) {
+      toast(e.message, "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const sendComment = async () => {
+    if (!comment.trim()) return;
+    setBusy(true);
+    try {
+      await submitFeedback({ kind: "feedback", content: comment.trim(), context: String(evalId) });
+      setSent(true);
+      setComment("");
+      toast("已提交，感谢反馈！", "success");
+    } catch (e: any) {
+      toast(e.message, "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="card">
+      <h2 className="section-title">
+        <span className="section-icon">💬</span>
+        这份报告有帮助吗？
+      </h2>
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+        <button
+          className="btn btn-secondary btn-sm"
+          onClick={() => vote("helpful")}
+          disabled={!!voted || busy}
+        >
+          {voted === "helpful" ? "👍 已评价：有帮助" : "👍 有帮助"}
+        </button>
+        <button
+          className="btn btn-secondary btn-sm"
+          onClick={() => vote("not_helpful")}
+          disabled={!!voted || busy}
+        >
+          {voted === "not_helpful" ? "👎 已评价：没帮助" : "👎 没帮助"}
+        </button>
+      </div>
+      <div className="form-group" style={{ marginTop: 12 }}>
+        <label>还有什么想说的？（选填）</label>
+        <textarea
+          rows={3}
+          placeholder="告诉我们哪里可以改进…"
+          value={comment}
+          onChange={(e) => setComment(e.target.value)}
+        />
+      </div>
+      <button
+        className="btn btn-secondary btn-sm"
+        onClick={sendComment}
+        disabled={busy || !comment.trim()}
+      >
+        {sent ? "已提交" : "提交反馈"}
+      </button>
     </div>
   );
 }
@@ -837,6 +927,8 @@ export default function Result() {
           )}
         </div>
       )}
+
+      <FeedbackCard evalId={data.id} />
     </div>
   );
 }

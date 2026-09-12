@@ -102,6 +102,20 @@ db.exec(`
 db.exec("CREATE INDEX IF NOT EXISTS idx_events_name ON events(name, created_at)");
 db.exec("CREATE INDEX IF NOT EXISTS idx_events_user ON events(user_id)");
 
+// 站内反馈与轻量投票（结果页「评分是否有帮助」）
+db.exec(`
+  CREATE TABLE IF NOT EXISTS feedback (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    kind TEXT NOT NULL,
+    rating TEXT DEFAULT '',
+    content TEXT DEFAULT '',
+    context TEXT DEFAULT '',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )
+`);
+db.exec("CREATE INDEX IF NOT EXISTS idx_feedback_kind ON feedback(kind, created_at)");
+
 // 兼容旧库：补上新增字段
 const columns = db.prepare("PRAGMA table_info(evaluations)").all().map((c) => c.name);
 if (!columns.includes("person_key")) db.exec("ALTER TABLE evaluations ADD COLUMN person_key TEXT");

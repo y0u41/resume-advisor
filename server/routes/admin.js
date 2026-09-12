@@ -30,4 +30,17 @@ router.get("/admin/events", (req, res) => {
   res.json({ counts: eventCounts(), recent: recentEvents(50) });
 });
 
+// 反馈与投票（管理员）
+router.get("/admin/feedback", (req, res) => {
+  const recent = db
+    .prepare(
+      "SELECT id, user_id, kind, rating, content, context, created_at FROM feedback ORDER BY id DESC LIMIT 100"
+    )
+    .all();
+  const votes = db
+    .prepare("SELECT rating, COUNT(*) AS count FROM feedback WHERE kind = 'vote' GROUP BY rating")
+    .all();
+  res.json({ recent, votes });
+});
+
 export default router;
