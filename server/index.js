@@ -182,8 +182,20 @@ app.use("/api", (req, res) => {
 // 生产模式：服务前端静态文件（仅当已构建时）
 const distPath = path.join(__dirname, "..", "dist");
 if (fs.existsSync(distPath)) {
-  app.use(express.static(distPath));
+  app.use(
+    express.static(distPath, {
+      setHeaders(res, filePath) {
+        // Vite 产物：/assets/ 下的文件名带哈希 → 可长缓存；其余（index.html 等）不缓存
+        if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+          res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+        } else {
+          res.setHeader("Cache-Control", "no-cache");
+        }
+      },
+    })
+  );
   app.get("/{*path}", (req, res) => {
+    res.setHeader("Cache-Control", "no-cache");
     res.sendFile(path.join(distPath, "index.html"));
   });
 }
@@ -200,7 +212,8 @@ app.use((err, req, res, next) => {
     return res.status(403).json({ code: 6002, error: "不允许的来源" });
   }
   console.error("未处理错误:", err);
-  res.status(500).json({ error: err?.message || "服务器内部错误" });
+  // 不向客户端泄露内部错误细节
+  res.status(500).json({ error: "服务器内部错误，请稍后重试" });
 });
 
 app.listen(PORT, HOST, () => {

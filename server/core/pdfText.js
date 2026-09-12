@@ -66,6 +66,19 @@ export function reconstructPageText(items) {
 
 // 从 PDF Buffer 提取「按视觉阅读顺序」的文本（延迟加载 pdfjs，避免启动开销）
 export async function extractPdfTextOrdered(buffer) {
+  // Node 20 兼容保险：pdfjs-dist 依赖 Promise.withResolvers（Node 22+ 原生）
+  if (typeof Promise.withResolvers !== "function") {
+    Promise.withResolvers = function () {
+      let resolve;
+      let reject;
+      const promise = new Promise((res, rej) => {
+        resolve = res;
+        reject = rej;
+      });
+      return { promise, resolve, reject };
+    };
+  }
+
   const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
   const data = new Uint8Array(buffer);
   const doc = await pdfjs.getDocument({
