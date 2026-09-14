@@ -7,6 +7,7 @@ import cookieParser from "cookie-parser";
 import { fileURLToPath } from "url";
 import path from "path";
 import fs from "fs";
+import https from "https";
 import { requestId, envelope } from "./http/envelope.js";
 import db from "./core/db.js";
 import { beginShutdown, queueStats } from "./core/queue.js";
@@ -288,13 +289,8 @@ app.use((err, req, res, next) => {
 let purgeTimer;
 let backupTimer;
 
-const server = app.listen(PORT, HOST, () => {
-  console.log(`服务器运行在 http://${HOST}:${PORT}`);
-  if (process.env.NODE_ENV === "production" && process.env.COOKIE_SECURE !== "true") {
-    console.warn(
-      "[安全] 生产环境建议启用 HTTPS 并设置 COOKIE_SECURE=true（简历属敏感个人信息，明文 HTTP 存在泄露风险）"
-    );
-  }
+const httpServer = app.listen(PORT, HOST, () => {
+  console.log(`HTTP 服务器运行在 http://${HOST}:${PORT}`);
   purgeTimer = startPurgeJob();
   backupTimer = startBackupJob();
   try {
@@ -305,7 +301,6 @@ const server = app.listen(PORT, HOST, () => {
   } catch (err) {
     console.error("LLM 配置错误:", err.message);
   }
-  // 成本护栏：只告警、不拦截（硬拦截会伤正常用户）
   try {
     const y = yesterdayCost();
     const threshold = Number(process.env.DAILY_COST_ALERT_YUAN || 50);
@@ -319,6 +314,20 @@ const server = app.listen(PORT, HOST, () => {
   }
 });
 
+// HTTPS（可选：PWA 安装需要 HTTPS）
+const HTTPS_PORT = process.env.HTTPS_PORT || 3002;
+const TLS_CERT = process.env.TLS_CERT_PATH;
+const TLS_KEY = process.env.TLS_KEY_PATH;
+let httpsServer;
+if (TLS_CERT && TLS_KEY && fs.existsSync(TLS_CERT) && fs.existsSync(TLS_KEY)) {
+  httpsServer = https.createServer(
+    { cert: fs.readFileSync(TLS_CERT), key: fs.readFileSync(TLS_KEY) },
+    app
+  ).listen(HTTPS_PORT, HOST, () => {
+    console.log(`HTTPS 服务器运行在 https://${HOST}:${HTTPS_PORT}`);
+  });
+}
+
 // ===== 优雅停机 =====
 // 停止接收新请求 → 等待进行中的评估跑完落库 → WAL checkpoint → 退出。
 // 35s 上限需小于 pm2 的 kill_timeout（见 DEPLOY.md：kill_timeout: 40000）。
@@ -328,7 +337,8 @@ async function shutdown(signal) {
   shuttingDown = true;
   beginShutdown(); // 新的 acquire 直接拒绝，不再接新活
   console.log(`[shutdown] 收到 ${signal}，停止接收新请求，等待进行中的任务完成...`);
-  server.close(() => console.log("[shutdown] HTTP 已关闭"));
+  httpServer.close(() => console.log("[shutdown] HTTP 已关闭"));
+  if (httpsServer) httpsServer.close(() => console.log("[shutdown] HTTPS 已关闭"));
   if (purgeTimer) clearInterval(purgeTimer);
   if (backupTimer) clearInterval(backupTimer);
   const deadline = Date.now() + 35_000;
